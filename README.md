@@ -10,12 +10,12 @@ Client features:
 |----|-----|
 |Read MPEG-TS streams|OK|
 |Read fMP4 streams|OK|
-|Read Low-latency streams|MISSING (needs a new M3U8 parser)|
+|Read Low-latency streams|TODO (needs a new M3U8 parser)|
 |Read H264 tracks|OK|
 |Read H265 tracks|OK|
 |Read MPEG4 Audio (AAC) tracks|OK|
 |Read Opus tracks|OK|
-|Read a given variant|MISSING (currently a single variant is read)|
+|Read a given variant|TODO (currently a single variant is read)|
 
 Muxer features:
 
@@ -24,11 +24,16 @@ Muxer features:
 |Generate MPEG-TS streams|OK|
 |Generate fMP4 streams|OK|
 |Generate Low-latency streams|OK|
-|Generate multi-variant streams|MISSING|
-|Save on disk generated segments|MISSING|
+|Write H264 tracks|OK|
+|Write H265 tracks|OK|
+|Write MPEG4 Audio (AAC) tracks|OK|
+|Write Opus tracks|OK|
+|Generate multi-variant streams|TODO|
+|Save on disk generated segments|TODO|
 
 General features:
 
 |name|state|
 |----|-----|
-|Examples|MISSING|
+|Examples|TODO|
+|Detach from gortsplib|TODO|
