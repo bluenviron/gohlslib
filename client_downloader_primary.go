@@ -15,8 +15,8 @@ import (
 	"github.com/aler9/gortsplib/v2/pkg/format"
 	gm3u8 "github.com/grafov/m3u8"
 
-	"github.com/bluenviron/gohlslib/pkg/m3u8"
 	"github.com/bluenviron/gohlslib/pkg/logger"
+	"github.com/bluenviron/gohlslib/pkg/m3u8"
 )
 
 func clientDownloadPlaylist(ctx context.Context, httpClient *http.Client, ur *url.URL) (m3u8.Playlist, error) {
