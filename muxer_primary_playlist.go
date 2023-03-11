@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/aler9/gortsplib/v2/pkg/format"
+
+	"github.com/bluenviron/gohlslib/pkg/codecparams"
 )
 
 type muxerPrimaryPlaylist struct {
@@ -38,10 +40,10 @@ func (p *muxerPrimaryPlaylist) file() *MuxerFileResponse {
 			var codecs []string
 
 			if p.videoTrack != nil {
-				codecs = append(codecs, codecParametersGenerate(p.videoTrack))
+				codecs = append(codecs, codecparams.Generate(p.videoTrack))
 			}
 			if p.audioTrack != nil {
-				codecs = append(codecs, codecParametersGenerate(p.audioTrack))
+				codecs = append(codecs, codecparams.Generate(p.audioTrack))
 			}
 
 			var version int

@@ -58,7 +58,28 @@ func (p *muxerVariantMPEGTSPlaylist) file(name string) *MuxerFileResponse {
 	}
 }
 
-func (p *muxerVariantMPEGTSPlaylist) playlist() io.Reader {
+func (p *muxerVariantMPEGTSPlaylist) playlistReader() *MuxerFileResponse {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	if !p.closed && len(p.segments) == 0 {
+		p.cond.Wait()
+	}
+
+	if p.closed {
+		return &MuxerFileResponse{Status: http.StatusNotFound}
+	}
+
+	return &MuxerFileResponse{
+		Status: http.StatusOK,
+		Header: map[string]string{
+			"Content-Type": `application/x-mpegURL`,
+		},
+		Body: io.NopCloser(bytes.NewReader(p.generatePlaylist())),
+	}
+}
+
+func (p *muxerVariantMPEGTSPlaylist) generatePlaylist() []byte {
 	cnt := "#EXTM3U\n"
 	cnt += "#EXT-X-VERSION:3\n"
 	cnt += "#EXT-X-ALLOW-CACHE:NO\n"
@@ -86,28 +107,7 @@ func (p *muxerVariantMPEGTSPlaylist) playlist() io.Reader {
 			s.name + ".ts\n"
 	}
 
-	return bytes.NewReader([]byte(cnt))
-}
-
-func (p *muxerVariantMPEGTSPlaylist) playlistReader() *MuxerFileResponse {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
-
-	if !p.closed && len(p.segments) == 0 {
-		p.cond.Wait()
-	}
-
-	if p.closed {
-		return &MuxerFileResponse{Status: http.StatusNotFound}
-	}
-
-	return &MuxerFileResponse{
-		Status: http.StatusOK,
-		Header: map[string]string{
-			"Content-Type": `application/x-mpegURL`,
-		},
-		Body: io.NopCloser(p.playlist()),
-	}
+	return []byte(cnt)
 }
 
 func (p *muxerVariantMPEGTSPlaylist) segmentReader(fname string) *MuxerFileResponse {

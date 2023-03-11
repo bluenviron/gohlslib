@@ -15,6 +15,7 @@ import (
 	"github.com/aler9/gortsplib/v2/pkg/format"
 	gm3u8 "github.com/grafov/m3u8"
 
+	"github.com/bluenviron/gohlslib/pkg/codecparams"
 	"github.com/bluenviron/gohlslib/pkg/logger"
 	"github.com/bluenviron/gohlslib/pkg/m3u8"
 )
@@ -46,7 +47,7 @@ func clientDownloadPlaylist(ctx context.Context, httpClient *http.Client, ur *ur
 func pickLeadingPlaylist(variants []*gm3u8.Variant) *gm3u8.Variant {
 	var candidates []*gm3u8.Variant //nolint:prealloc
 	for _, v := range variants {
-		if v.Codecs != "" && !codecParametersAreSupported(v.Codecs) {
+		if v.Codecs != "" && !codecparams.CheckSupport(v.Codecs) {
 			continue
 		}
 		candidates = append(candidates, v)

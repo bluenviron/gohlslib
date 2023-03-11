@@ -1,4 +1,5 @@
-package hls
+// Package codecparams contains utilities to deal with codec parameters.
+package codecparams
 
 import (
 	"encoding/hex"
@@ -97,7 +98,8 @@ func encodeGeneralConstraintIndicatorFlags(v *h265.SPS_ProfileTierLevel) string 
 	return strings.Join(ret, ".")
 }
 
-func codecParametersGenerate(track format.Format) string {
+// Generate generates codec parameters of given tracks.
+func Generate(track format.Format) string {
 	switch ttrack := track.(type) {
 	case *format.H264:
 		sps := ttrack.SafeSPS()
@@ -127,17 +129,4 @@ func codecParametersGenerate(track format.Format) string {
 	}
 
 	return ""
-}
-
-func codecParametersAreSupported(codecs string) bool {
-	for _, codec := range strings.Split(codecs, ",") {
-		if !strings.HasPrefix(codec, "avc1.") &&
-			!strings.HasPrefix(codec, "hvc1.") &&
-			!strings.HasPrefix(codec, "hev1.") &&
-			!strings.HasPrefix(codec, "mp4a.") &&
-			codec != "opus" {
-			return false
-		}
-	}
-	return true
 }
