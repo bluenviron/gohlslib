@@ -228,7 +228,7 @@ func (p *muxerVariantFMP4Playlist) playlistReader(msn string, part string, skip 
 				Header: map[string]string{
 					"Content-Type": `application/x-mpegURL`,
 				},
-				Body: io.NopCloser(p.fullPlaylist(isDeltaUpdate)),
+				Body: io.NopCloser(bytes.NewReader(p.generatePlaylist(isDeltaUpdate))),
 			}
 		}
 
@@ -254,11 +254,11 @@ func (p *muxerVariantFMP4Playlist) playlistReader(msn string, part string, skip 
 		Header: map[string]string{
 			"Content-Type": `application/x-mpegURL`,
 		},
-		Body: io.NopCloser(p.fullPlaylist(isDeltaUpdate)),
+		Body: io.NopCloser(bytes.NewReader(p.generatePlaylist(isDeltaUpdate))),
 	}
 }
 
-func (p *muxerVariantFMP4Playlist) fullPlaylist(isDeltaUpdate bool) io.Reader {
+func (p *muxerVariantFMP4Playlist) generatePlaylist(isDeltaUpdate bool) []byte {
 	cnt := "#EXTM3U\n"
 	cnt += "#EXT-X-VERSION:9\n"
 
@@ -360,7 +360,7 @@ func (p *muxerVariantFMP4Playlist) fullPlaylist(isDeltaUpdate bool) io.Reader {
 		cnt += "#EXT-X-PRELOAD-HINT:TYPE=PART,URI=\"" + fmp4PartName(p.nextPartID) + ".mp4\"\n"
 	}
 
-	return bytes.NewReader([]byte(cnt))
+	return []byte(cnt)
 }
 
 func (p *muxerVariantFMP4Playlist) segmentReader(fname string) *MuxerFileResponse {
