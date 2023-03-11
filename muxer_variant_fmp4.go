@@ -2,13 +2,16 @@ package hls
 
 import (
 	"bytes"
+	"io"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/aler9/gortsplib/v2/pkg/format"
+	"github.com/orcaman/writerseeker"
 
 	"github.com/bluenviron/gohlslib/pkg/fmp4"
+	"github.com/bluenviron/gohlslib/pkg/storage"
 )
 
 func extractVideoParams(track format.Format) [][]byte {
@@ -63,6 +66,7 @@ func newMuxerVariantFMP4(
 	segmentMaxSize uint64,
 	videoTrack format.Format,
 	audioTrack format.Format,
+	factory storage.Factory,
 ) *muxerVariantFMP4 {
 	v := &muxerVariantFMP4{
 		videoTrack: videoTrack,
@@ -84,6 +88,7 @@ func newMuxerVariantFMP4(
 		segmentMaxSize,
 		videoTrack,
 		audioTrack,
+		factory,
 		v.playlist.onSegmentFinalized,
 		v.playlist.onPartFinalized,
 	)
@@ -93,6 +98,7 @@ func newMuxerVariantFMP4(
 
 func (v *muxerVariantFMP4) close() {
 	v.playlist.close()
+	v.segmenter.close()
 }
 
 func (v *muxerVariantFMP4) writeH26x(ntp time.Time, pts time.Duration, au [][]byte) error {
@@ -143,11 +149,13 @@ func (v *muxerVariantFMP4) file(name string, msn string, part string, skip strin
 				})
 			}
 
-			var err error
-			v.initContent, err = init.Marshal()
+			buf := &writerseeker.WriterSeeker{}
+			err := init.Marshal(buf)
 			if err != nil {
 				return &MuxerFileResponse{Status: http.StatusNotFound}
 			}
+
+			v.initContent = buf.Bytes()
 		}
 
 		return &MuxerFileResponse{
@@ -155,7 +163,7 @@ func (v *muxerVariantFMP4) file(name string, msn string, part string, skip strin
 			Header: map[string]string{
 				"Content-Type": "video/mp4",
 			},
-			Body: bytes.NewReader(v.initContent),
+			Body: io.NopCloser(bytes.NewReader(v.initContent)),
 		}
 	}
 

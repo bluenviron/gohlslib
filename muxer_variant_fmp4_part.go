@@ -1,7 +1,6 @@
 package hls
 
 import (
-	"bytes"
 	"io"
 	"strconv"
 	"time"
@@ -10,6 +9,7 @@ import (
 	"github.com/aler9/gortsplib/v2/pkg/format"
 
 	"github.com/bluenviron/gohlslib/pkg/fmp4"
+	"github.com/bluenviron/gohlslib/pkg/storage"
 )
 
 func fmp4PartName(id uint64) string {
@@ -20,11 +20,11 @@ type muxerVariantFMP4Part struct {
 	videoTrack format.Format
 	audioTrack format.Format
 	id         uint64
+	storage    storage.Part
 
 	isIndependent       bool
 	videoSamples        []*fmp4.PartSample
 	audioSamples        []*fmp4.PartSample
-	content             []byte
 	renderedDuration    time.Duration
 	videoStartDTSFilled bool
 	videoStartDTS       time.Duration
@@ -36,11 +36,13 @@ func newMuxerVariantFMP4Part(
 	videoTrack format.Format,
 	audioTrack format.Format,
 	id uint64,
+	storage storage.Part,
 ) *muxerVariantFMP4Part {
 	p := &muxerVariantFMP4Part{
 		videoTrack: videoTrack,
 		audioTrack: audioTrack,
 		id:         id,
+		storage:    storage,
 	}
 
 	if videoTrack == nil {
@@ -54,8 +56,8 @@ func (p *muxerVariantFMP4Part) name() string {
 	return fmp4PartName(p.id)
 }
 
-func (p *muxerVariantFMP4Part) reader() io.Reader {
-	return bytes.NewReader(p.content)
+func (p *muxerVariantFMP4Part) reader() (io.ReadCloser, error) {
+	return p.storage.Reader()
 }
 
 func (p *muxerVariantFMP4Part) duration() time.Duration {
@@ -75,41 +77,31 @@ func (p *muxerVariantFMP4Part) duration() time.Duration {
 }
 
 func (p *muxerVariantFMP4Part) finalize() error {
-	if p.videoSamples != nil || p.audioSamples != nil {
-		part := fmp4.Part{}
+	part := fmp4.Part{}
 
-		if p.videoSamples != nil {
-			part.Tracks = append(part.Tracks, &fmp4.PartTrack{
-				ID:       1,
-				BaseTime: durationGoToMp4(p.videoStartDTS, 90000),
-				Samples:  p.videoSamples,
-				IsVideo:  true,
-			})
-		}
-
-		if p.audioSamples != nil {
-			var id int
-			if p.videoTrack != nil {
-				id = 2
-			} else {
-				id = 1
-			}
-
-			part.Tracks = append(part.Tracks, &fmp4.PartTrack{
-				ID:       id,
-				BaseTime: durationGoToMp4(p.audioStartDTS, uint32(p.audioTrack.ClockRate())),
-				Samples:  p.audioSamples,
-			})
-		}
-
-		var err error
-		p.content, err = part.Marshal()
-		if err != nil {
-			return err
-		}
-
-		p.renderedDuration = p.duration()
+	if p.videoSamples != nil {
+		part.Tracks = append(part.Tracks, &fmp4.PartTrack{
+			ID:       1,
+			BaseTime: durationGoToMp4(p.videoStartDTS, 90000),
+			Samples:  p.videoSamples,
+			IsVideo:  true,
+		})
 	}
+
+	if p.audioSamples != nil {
+		part.Tracks = append(part.Tracks, &fmp4.PartTrack{
+			ID:       1 + len(part.Tracks),
+			BaseTime: durationGoToMp4(p.audioStartDTS, uint32(p.audioTrack.ClockRate())),
+			Samples:  p.audioSamples,
+		})
+	}
+
+	err := part.Marshal(p.storage.Writer())
+	if err != nil {
+		return err
+	}
+
+	p.renderedDuration = p.duration()
 
 	p.videoSamples = nil
 	p.audioSamples = nil

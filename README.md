@@ -36,8 +36,8 @@ Muxer features:
 |Write H265 tracks|OK|
 |Write MPEG4 Audio (AAC) tracks|OK|
 |Write Opus tracks|OK|
+|Save generated segments on disk|OK|
 |Generate multi-variant streams|TODO|
-|Save on disk generated segments|TODO|
 
 General features:
 

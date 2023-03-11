@@ -34,7 +34,7 @@ func (p *muxerPrimaryPlaylist) file() *MuxerFileResponse {
 		Header: map[string]string{
 			"Content-Type": `application/x-mpegURL`,
 		},
-		Body: func() io.Reader {
+		Body: func() io.ReadCloser {
 			var codecs []string
 
 			if p.videoTrack != nil {
@@ -51,12 +51,12 @@ func (p *muxerPrimaryPlaylist) file() *MuxerFileResponse {
 				version = 9
 			}
 
-			return bytes.NewReader([]byte("#EXTM3U\n" +
+			return io.NopCloser(bytes.NewReader([]byte("#EXTM3U\n" +
 				"#EXT-X-VERSION:" + strconv.FormatInt(int64(version), 10) + "\n" +
 				"#EXT-X-INDEPENDENT-SEGMENTS\n" +
 				"\n" +
 				"#EXT-X-STREAM-INF:BANDWIDTH=200000,CODECS=\"" + strings.Join(codecs, ",") + "\"\n" +
-				"stream.m3u8\n"))
+				"stream.m3u8\n")))
 		}(),
 	}
 }

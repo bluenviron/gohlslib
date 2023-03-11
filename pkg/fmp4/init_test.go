@@ -5,6 +5,7 @@ import (
 
 	"github.com/aler9/gortsplib/v2/pkg/codecs/mpeg4audio"
 	"github.com/aler9/gortsplib/v2/pkg/format"
+	"github.com/orcaman/writerseeker"
 	"github.com/stretchr/testify/require"
 )
 
@@ -665,9 +666,10 @@ var casesInit = []struct {
 func TestInitMarshal(t *testing.T) {
 	for _, ca := range casesInit {
 		t.Run(ca.name, func(t *testing.T) {
-			byts, err := ca.dec.Marshal()
+			buf := &writerseeker.WriterSeeker{}
+			err := ca.dec.Marshal(buf)
 			require.NoError(t, err)
-			require.Equal(t, ca.enc, byts)
+			require.Equal(t, ca.enc, buf.Bytes())
 		})
 	}
 }

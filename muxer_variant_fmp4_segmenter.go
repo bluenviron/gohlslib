@@ -9,6 +9,7 @@ import (
 	"github.com/aler9/gortsplib/v2/pkg/format"
 
 	"github.com/bluenviron/gohlslib/pkg/fmp4"
+	"github.com/bluenviron/gohlslib/pkg/storage"
 )
 
 func partDurationIsCompatible(partDuration time.Duration, sampleDuration time.Duration) bool {
@@ -81,6 +82,7 @@ type muxerVariantFMP4Segmenter struct {
 	segmentMaxSize     uint64
 	videoTrack         format.Format
 	audioTrack         format.Format
+	factory            storage.Factory
 	onSegmentFinalized func(*muxerVariantFMP4Segment)
 	onPartFinalized    func(*muxerVariantFMP4Part)
 
@@ -106,6 +108,7 @@ func newMuxerVariantFMP4Segmenter(
 	segmentMaxSize uint64,
 	videoTrack format.Format,
 	audioTrack format.Format,
+	factory storage.Factory,
 	onSegmentFinalized func(*muxerVariantFMP4Segment),
 	onPartFinalized func(*muxerVariantFMP4Part),
 ) *muxerVariantFMP4Segmenter {
@@ -116,6 +119,7 @@ func newMuxerVariantFMP4Segmenter(
 		segmentMaxSize:     segmentMaxSize,
 		videoTrack:         videoTrack,
 		audioTrack:         audioTrack,
+		factory:            factory,
 		onSegmentFinalized: onSegmentFinalized,
 		onPartFinalized:    onPartFinalized,
 		sampleDurations:    make(map[time.Duration]struct{}),
@@ -127,6 +131,13 @@ func newMuxerVariantFMP4Segmenter(
 	}
 
 	return m
+}
+
+func (m *muxerVariantFMP4Segmenter) close() {
+	if m.currentSegment != nil {
+		m.currentSegment.finalize(0)
+		m.currentSegment.close()
+	}
 }
 
 func (m *muxerVariantFMP4Segmenter) genSegmentID() uint64 {
@@ -263,7 +274,8 @@ func (m *muxerVariantFMP4Segmenter) writeH26xEntry(
 
 	if m.currentSegment == nil {
 		// create first segment
-		m.currentSegment = newMuxerVariantFMP4Segment(
+		var err error
+		m.currentSegment, err = newMuxerVariantFMP4Segment(
 			m.lowLatency,
 			m.genSegmentID(),
 			sample.ntp,
@@ -271,9 +283,13 @@ func (m *muxerVariantFMP4Segmenter) writeH26xEntry(
 			m.segmentMaxSize,
 			m.videoTrack,
 			m.audioTrack,
+			m.factory,
 			m.genPartID,
 			m.onPartFinalized,
 		)
+		if err != nil {
+			return err
+		}
 	}
 
 	m.adjustPartDuration(durationMp4ToGo(uint64(sample.Duration), 90000))
@@ -298,7 +314,7 @@ func (m *muxerVariantFMP4Segmenter) writeH26xEntry(
 
 			m.firstSegmentFinalized = true
 
-			m.currentSegment = newMuxerVariantFMP4Segment(
+			m.currentSegment, err = newMuxerVariantFMP4Segment(
 				m.lowLatency,
 				m.genSegmentID(),
 				m.nextVideoSample.ntp,
@@ -306,9 +322,13 @@ func (m *muxerVariantFMP4Segmenter) writeH26xEntry(
 				m.segmentMaxSize,
 				m.videoTrack,
 				m.audioTrack,
+				m.factory,
 				m.genPartID,
 				m.onPartFinalized,
 			)
+			if err != nil {
+				return err
+			}
 
 			if paramsChanged {
 				m.lastVideoParams = videoParams
@@ -354,7 +374,8 @@ func (m *muxerVariantFMP4Segmenter) writeAudio(ntp time.Time, dts time.Duration,
 	if m.videoTrack == nil {
 		if m.currentSegment == nil {
 			// create first segment
-			m.currentSegment = newMuxerVariantFMP4Segment(
+			var err error
+			m.currentSegment, err = newMuxerVariantFMP4Segment(
 				m.lowLatency,
 				m.genSegmentID(),
 				sample.ntp,
@@ -362,9 +383,13 @@ func (m *muxerVariantFMP4Segmenter) writeAudio(ntp time.Time, dts time.Duration,
 				m.segmentMaxSize,
 				m.videoTrack,
 				m.audioTrack,
+				m.factory,
 				m.genPartID,
 				m.onPartFinalized,
 			)
+			if err != nil {
+				return err
+			}
 		}
 	} else {
 		// wait for the video track
@@ -389,7 +414,7 @@ func (m *muxerVariantFMP4Segmenter) writeAudio(ntp time.Time, dts time.Duration,
 
 		m.firstSegmentFinalized = true
 
-		m.currentSegment = newMuxerVariantFMP4Segment(
+		m.currentSegment, err = newMuxerVariantFMP4Segment(
 			m.lowLatency,
 			m.genSegmentID(),
 			m.nextAudioSample.ntp,
@@ -397,9 +422,13 @@ func (m *muxerVariantFMP4Segmenter) writeAudio(ntp time.Time, dts time.Duration,
 			m.segmentMaxSize,
 			m.videoTrack,
 			m.audioTrack,
+			m.factory,
 			m.genPartID,
 			m.onPartFinalized,
 		)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

@@ -35,7 +35,7 @@ func (pt *PartTrack) marshal(w *mp4Writer) (*gomp4.Trun, int, error) {
 
 	flags := 0
 
-	_, err = w.WriteBox(&gomp4.Tfhd{ // <tfhd/>
+	_, err = w.writeBox(&gomp4.Tfhd{ // <tfhd/>
 		FullBox: gomp4.FullBox{
 			Flags: [3]byte{2, byte(flags >> 8), byte(flags)},
 		},
@@ -45,7 +45,7 @@ func (pt *PartTrack) marshal(w *mp4Writer) (*gomp4.Trun, int, error) {
 		return nil, 0, err
 	}
 
-	_, err = w.WriteBox(&gomp4.Tfdt{ // <tfdt/>
+	_, err = w.writeBox(&gomp4.Tfdt{ // <tfdt/>
 		FullBox: gomp4.FullBox{
 			Version: 1,
 		},
@@ -97,7 +97,7 @@ func (pt *PartTrack) marshal(w *mp4Writer) (*gomp4.Trun, int, error) {
 		}
 	}
 
-	trunOffset, err := w.WriteBox(trun)
+	trunOffset, err := w.writeBox(trun)
 	if err != nil {
 		return nil, 0, err
 	}

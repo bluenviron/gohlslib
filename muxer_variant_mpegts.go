@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/aler9/gortsplib/v2/pkg/format"
+	"github.com/bluenviron/gohlslib/pkg/storage"
 )
 
 type muxerVariantMPEGTS struct {
@@ -18,6 +19,7 @@ func newMuxerVariantMPEGTS(
 	segmentMaxSize uint64,
 	videoTrack format.Format,
 	audioTrack format.Format,
+	factory storage.Factory,
 ) (*muxerVariantMPEGTS, error) {
 	var videoTrackH264 *format.H264
 	if videoTrack != nil {
@@ -48,6 +50,7 @@ func newMuxerVariantMPEGTS(
 		segmentMaxSize,
 		videoTrackH264,
 		audioTrackMPEG4Audio,
+		factory,
 		func(seg *muxerVariantMPEGTSSegment) {
 			v.playlist.pushSegment(seg)
 		},
@@ -58,6 +61,7 @@ func newMuxerVariantMPEGTS(
 
 func (v *muxerVariantMPEGTS) close() {
 	v.playlist.close()
+	v.segmenter.close()
 }
 
 func (v *muxerVariantMPEGTS) writeH26x(ntp time.Time, pts time.Duration, nalus [][]byte) error {

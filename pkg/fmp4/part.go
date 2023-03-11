@@ -3,6 +3,7 @@ package fmp4
 import (
 	"bytes"
 	"fmt"
+	"io"
 
 	gomp4 "github.com/abema/go-mp4"
 )
@@ -186,7 +187,7 @@ func (ps *Parts) Unmarshal(byts []byte) error {
 }
 
 // Marshal encodes a FMP4 part file.
-func (p *Part) Marshal() ([]byte, error) {
+func (p *Part) Marshal(w io.WriteSeeker) error {
 	/*
 		moof
 		- mfhd
@@ -195,18 +196,18 @@ func (p *Part) Marshal() ([]byte, error) {
 		mdat
 	*/
 
-	w := newMP4Writer()
+	mw := newMP4Writer(w)
 
-	moofOffset, err := w.writeBoxStart(&gomp4.Moof{}) // <moof>
+	moofOffset, err := mw.writeBoxStart(&gomp4.Moof{}) // <moof>
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	_, err = w.WriteBox(&gomp4.Mfhd{ // <mfhd/>
+	_, err = mw.writeBox(&gomp4.Mfhd{ // <mfhd/>
 		SequenceNumber: 0,
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	trackLen := len(p.Tracks)
@@ -216,9 +217,9 @@ func (p *Part) Marshal() ([]byte, error) {
 	dataSize := 0
 
 	for i, track := range p.Tracks {
-		trun, trunOffset, err := track.marshal(w)
+		trun, trunOffset, err := track.marshal(mw)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		dataOffsets[i] = dataSize
@@ -231,9 +232,9 @@ func (p *Part) Marshal() ([]byte, error) {
 		trunOffsets[i] = trunOffset
 	}
 
-	err = w.writeBoxEnd() // </moof>
+	err = mw.writeBoxEnd() // </moof>
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	mdat := &gomp4.Mdat{} // <mdat/>
@@ -246,18 +247,18 @@ func (p *Part) Marshal() ([]byte, error) {
 		}
 	}
 
-	mdatOffset, err := w.WriteBox(mdat)
+	mdatOffset, err := mw.writeBox(mdat)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	for i := range p.Tracks {
 		truns[i].DataOffset = int32(dataOffsets[i] + mdatOffset - moofOffset + 8)
-		err = w.rewriteBox(trunOffsets[i], truns[i])
+		err = mw.rewriteBox(trunOffsets[i], truns[i])
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
-	return w.bytes(), nil
+	return nil
 }

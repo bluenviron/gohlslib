@@ -39,6 +39,10 @@ func (p *muxerVariantMPEGTSPlaylist) close() {
 	}()
 
 	p.cond.Broadcast()
+
+	for _, segment := range p.segments {
+		segment.close()
+	}
 }
 
 func (p *muxerVariantMPEGTSPlaylist) file(name string) *MuxerFileResponse {
@@ -102,7 +106,7 @@ func (p *muxerVariantMPEGTSPlaylist) playlistReader() *MuxerFileResponse {
 		Header: map[string]string{
 			"Content-Type": `application/x-mpegURL`,
 		},
-		Body: p.playlist(),
+		Body: io.NopCloser(p.playlist()),
 	}
 }
 
@@ -117,12 +121,17 @@ func (p *muxerVariantMPEGTSPlaylist) segmentReader(fname string) *MuxerFileRespo
 		return &MuxerFileResponse{Status: http.StatusNotFound}
 	}
 
+	r, err := f.reader()
+	if err != nil {
+		return &MuxerFileResponse{Status: http.StatusInternalServerError}
+	}
+
 	return &MuxerFileResponse{
 		Status: http.StatusOK,
 		Header: map[string]string{
 			"Content-Type": "video/MP2T",
 		},
-		Body: f.reader(),
+		Body: r,
 	}
 }
 
@@ -135,7 +144,11 @@ func (p *muxerVariantMPEGTSPlaylist) pushSegment(t *muxerVariantMPEGTSSegment) {
 		p.segments = append(p.segments, t)
 
 		if len(p.segments) > p.segmentCount {
-			delete(p.segmentByName, p.segments[0].name)
+			toDelete := p.segments[0]
+
+			toDelete.close()
+			delete(p.segmentByName, toDelete.name)
+
 			p.segments = p.segments[1:]
 			p.segmentDeleteCount++
 		}

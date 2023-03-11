@@ -6,13 +6,15 @@ import (
 	"time"
 
 	"github.com/aler9/gortsplib/v2/pkg/format"
+	"github.com/bluenviron/gohlslib/pkg/storage"
 )
 
 // MuxerFileResponse is a response of the Muxer's File() func.
+// Body must always be closed.
 type MuxerFileResponse struct {
 	Status int
 	Header map[string]string
-	Body   io.Reader
+	Body   io.ReadCloser
 }
 
 // Muxer is a HLS muxer.
@@ -30,25 +32,33 @@ func NewMuxer(
 	segmentMaxSize uint64,
 	videoTrack format.Format,
 	audioTrack format.Format,
+	dirPath string,
 ) (*Muxer, error) {
-	m := &Muxer{}
+	var factory storage.Factory
+	if dirPath != "" {
+		factory = storage.NewFactoryDisk(dirPath)
+	} else {
+		factory = storage.NewFactoryRAM()
+	}
 
+	var v muxerVariant
 	switch variant {
 	case MuxerVariantMPEGTS:
 		var err error
-		m.variant, err = newMuxerVariantMPEGTS(
+		v, err = newMuxerVariantMPEGTS(
 			segmentCount,
 			segmentDuration,
 			segmentMaxSize,
 			videoTrack,
 			audioTrack,
+			factory,
 		)
 		if err != nil {
 			return nil, err
 		}
 
 	case MuxerVariantFMP4:
-		m.variant = newMuxerVariantFMP4(
+		v = newMuxerVariantFMP4(
 			false,
 			segmentCount,
 			segmentDuration,
@@ -56,10 +66,11 @@ func NewMuxer(
 			segmentMaxSize,
 			videoTrack,
 			audioTrack,
+			factory,
 		)
 
 	default: // MuxerVariantLowLatency
-		m.variant = newMuxerVariantFMP4(
+		v = newMuxerVariantFMP4(
 			true,
 			segmentCount,
 			segmentDuration,
@@ -67,12 +78,16 @@ func NewMuxer(
 			segmentMaxSize,
 			videoTrack,
 			audioTrack,
+			factory,
 		)
 	}
 
-	m.primaryPlaylist = newMuxerPrimaryPlaylist(variant != MuxerVariantMPEGTS, videoTrack, audioTrack)
+	primaryPlaylist := newMuxerPrimaryPlaylist(variant != MuxerVariantMPEGTS, videoTrack, audioTrack)
 
-	return m, nil
+	return &Muxer{
+		variant:         v,
+		primaryPlaylist: primaryPlaylist,
+	}, nil
 }
 
 // Close closes a Muxer.
