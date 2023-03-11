@@ -154,10 +154,10 @@ func TestMuxerVideoAudio(t *testing.T) {
 					`#EXT-X-TARGETDURATION:4\n` +
 					`#EXT-X-MEDIA-SEQUENCE:0\n` +
 					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
-					`#EXTINF:4,\n` +
+					`#EXTINF:4.00000,\n` +
 					`(seg0\.ts)\n` +
 					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
-					`#EXTINF:1,\n` +
+					`#EXTINF:1.00000,\n` +
 					`(seg1\.ts)\n$`)
 				ma := re.FindStringSubmatch(string(byts))
 				require.NotEqual(t, 0, len(ma))
@@ -330,10 +330,10 @@ func TestMuxerVideoOnly(t *testing.T) {
 					`#EXT-X-TARGETDURATION:4\n` +
 					`#EXT-X-MEDIA-SEQUENCE:0\n` +
 					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
-					`#EXTINF:4,\n` +
+					`#EXTINF:4.00000,\n` +
 					`(seg0\.ts)\n` +
 					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
-					`#EXTINF:1,\n` +
+					`#EXTINF:1.00000,\n` +
 					`(seg1\.ts)\n$`)
 				ma = re.FindStringSubmatch(string(byts))
 			} else {
@@ -445,7 +445,7 @@ func TestMuxerAudioOnly(t *testing.T) {
 					`#EXT-X-TARGETDURATION:1\n` +
 					`#EXT-X-MEDIA-SEQUENCE:0\n` +
 					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
-					`#EXTINF:1,\n` +
+					`#EXTINF:1.00000,\n` +
 					`(seg0\.ts)\n$`)
 				ma = re.FindStringSubmatch(string(byts))
 			} else {
@@ -556,7 +556,7 @@ func TestMuxerDoubleRead(t *testing.T) {
 		`#EXT-X-TARGETDURATION:2\n` +
 		`#EXT-X-MEDIA-SEQUENCE:0\n` +
 		`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
-		`#EXTINF:2,\n` +
+		`#EXTINF:2.00000,\n` +
 		`(seg0\.ts)\n$`)
 	ma := re.FindStringSubmatch(string(byts))
 	require.NotEqual(t, 0, len(ma))
