@@ -2,10 +2,15 @@
 package hls
 
 import (
+	"bytes"
 	"io"
+	"net/http"
 	"time"
 
 	"github.com/aler9/gortsplib/v2/pkg/format"
+
+	"github.com/bluenviron/gohlslib/pkg/codecparams"
+	"github.com/bluenviron/gohlslib/pkg/playlist"
 	"github.com/bluenviron/gohlslib/pkg/storage"
 )
 
@@ -19,8 +24,10 @@ type MuxerFileResponse struct {
 
 // Muxer is a HLS muxer.
 type Muxer struct {
-	primaryPlaylist *muxerPrimaryPlaylist
-	variant         muxerVariant
+	variant    muxerVariant
+	fmp4       bool
+	videoTrack format.Format
+	audioTrack format.Format
 }
 
 // NewMuxer allocates a Muxer.
@@ -82,11 +89,11 @@ func NewMuxer(
 		)
 	}
 
-	primaryPlaylist := newMuxerPrimaryPlaylist(variant != MuxerVariantMPEGTS, videoTrack, audioTrack)
-
 	return &Muxer{
-		variant:         v,
-		primaryPlaylist: primaryPlaylist,
+		variant:    v,
+		fmp4:       variant != MuxerVariantMPEGTS,
+		videoTrack: videoTrack,
+		audioTrack: audioTrack,
 	}, nil
 }
 
@@ -108,8 +115,46 @@ func (m *Muxer) WriteAudio(ntp time.Time, pts time.Duration, au []byte) error {
 // File returns a file reader.
 func (m *Muxer) File(name string, msn string, part string, skip string) *MuxerFileResponse {
 	if name == "index.m3u8" {
-		return m.primaryPlaylist.file()
+		return m.multistreamPlaylist()
 	}
 
 	return m.variant.file(name, msn, part, skip)
+}
+
+func (m *Muxer) multistreamPlaylist() *MuxerFileResponse {
+	return &MuxerFileResponse{
+		Status: http.StatusOK,
+		Header: map[string]string{
+			"Content-Type": `application/x-mpegURL`,
+		},
+		Body: func() io.ReadCloser {
+			p := &playlist.Multivariant{
+				Version: func() int {
+					if !m.fmp4 {
+						return 3
+					}
+					return 9
+				}(),
+				IndependentSegments: true,
+				Variants: []*playlist.MultivariantVariant{{
+					Bandwidth: 200000,
+					Codecs: func() []string {
+						var codecs []string
+						if m.videoTrack != nil {
+							codecs = append(codecs, codecparams.Generate(m.videoTrack))
+						}
+						if m.audioTrack != nil {
+							codecs = append(codecs, codecparams.Generate(m.audioTrack))
+						}
+						return codecs
+					}(),
+					URL: "stream.m3u8",
+				}},
+			}
+
+			byts, _ := p.Marshal()
+
+			return io.NopCloser(bytes.NewReader(byts))
+		}(),
+	}
 }

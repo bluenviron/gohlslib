@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/aler9/gortsplib/v2/pkg/format"
+
+	"github.com/bluenviron/gohlslib/pkg/playlist"
 )
 
 type muxerVariantFMP4SegmentOrGap interface {
@@ -25,12 +27,12 @@ func (g muxerVariantFMP4Gap) getRenderedDuration() time.Duration {
 	return g.renderedDuration
 }
 
-func targetDuration(segments []muxerVariantFMP4SegmentOrGap) uint {
-	ret := uint(0)
+func targetDurationFMP4(segments []muxerVariantFMP4SegmentOrGap) int {
+	ret := int(0)
 
 	// EXTINF, when rounded to the nearest integer, must be <= EXT-X-TARGETDURATION
 	for _, sog := range segments {
-		v := uint(math.Round(sog.getRenderedDuration().Seconds()))
+		v := int(math.Round(sog.getRenderedDuration().Seconds()))
 		if v > ret {
 			ret = v
 		}
@@ -259,58 +261,51 @@ func (p *muxerVariantFMP4Playlist) playlistReader(msn string, part string, skip 
 }
 
 func (p *muxerVariantFMP4Playlist) generatePlaylist(isDeltaUpdate bool) []byte {
-	cnt := "#EXTM3U\n"
-	cnt += "#EXT-X-VERSION:9\n"
+	targetDuration := targetDurationFMP4(p.segments)
+	skipBoundary := time.Duration(targetDuration) * 6 * time.Second
 
-	targetDuration := targetDuration(p.segments)
-	cnt += "#EXT-X-TARGETDURATION:" + strconv.FormatUint(uint64(targetDuration), 10) + "\n"
-
-	skipBoundary := float64(targetDuration * 6)
-
-	if p.lowLatency {
-		partTargetDuration := partTargetDuration(p.segments, p.nextSegmentParts)
-
-		// The value is an enumerated-string whose value is YES if the server
-		// supports Blocking Playlist Reload
-		cnt += "#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES"
-
-		// The value is a decimal-floating-point number of seconds that
-		// indicates the server-recommended minimum distance from the end of
-		// the Playlist at which clients should begin to play or to which
-		// they should seek when playing in Low-Latency Mode.  Its value MUST
-		// be at least twice the Part Target Duration.  Its value SHOULD be
-		// at least three times the Part Target Duration.
-		cnt += ",PART-HOLD-BACK=" + strconv.FormatFloat((partTargetDuration).Seconds()*2.5, 'f', 5, 64)
-
-		// Indicates that the Server can produce Playlist Delta Updates in
-		// response to the _HLS_skip Delivery Directive.  Its value is the
-		// Skip Boundary, a decimal-floating-point number of seconds.  The
-		// Skip Boundary MUST be at least six times the Target Duration.
-		cnt += ",CAN-SKIP-UNTIL=" + strconv.FormatFloat(skipBoundary, 'f', -1, 64)
-
-		cnt += "\n"
-
-		cnt += "#EXT-X-PART-INF:PART-TARGET=" + strconv.FormatFloat(partTargetDuration.Seconds(), 'f', -1, 64) + "\n"
+	pl := &playlist.Media{
+		Version:        9,
+		TargetDuration: targetDuration,
+		MediaSequence:  p.segmentDeleteCount,
 	}
 
-	cnt += "#EXT-X-MEDIA-SEQUENCE:" + strconv.FormatInt(int64(p.segmentDeleteCount), 10) + "\n"
+	if p.lowLatency {
+		partTarget := partTargetDuration(p.segments, p.nextSegmentParts)
+		partHoldBack := (partTarget * 25) / 10
+
+		pl.ServerControl = &playlist.MediaServerControl{
+			CanBlockReload: true,
+			PartHoldBack:   &partHoldBack,
+			CanSkipUntil:   &skipBoundary,
+		}
+
+		pl.PartInf = &playlist.MediaPartInf{
+			PartTarget: partTarget,
+		}
+	}
 
 	skipped := 0
 
 	if !isDeltaUpdate {
-		cnt += "#EXT-X-MAP:URI=\"init.mp4\"\n"
+		pl.Map = &playlist.MediaMap{
+			URI: "init.mp4",
+		}
 	} else {
 		var curDuration time.Duration
 		shown := 0
 		for _, segment := range p.segments {
 			curDuration += segment.getRenderedDuration()
-			if curDuration.Seconds() >= skipBoundary {
+			if curDuration >= skipBoundary {
 				break
 			}
 			shown++
 		}
 		skipped = len(p.segments) - shown
-		cnt += "#EXT-X-SKIP:SKIPPED-SEGMENTS=" + strconv.FormatInt(int64(skipped), 10) + "\n"
+
+		pl.Skip = &playlist.MediaSkip{
+			SkippedSegments: skipped,
+		}
 	}
 
 	for i, sog := range p.segments {
@@ -320,47 +315,55 @@ func (p *muxerVariantFMP4Playlist) generatePlaylist(isDeltaUpdate bool) []byte {
 
 		switch seg := sog.(type) {
 		case *muxerVariantFMP4Segment:
+			plse := &playlist.MediaSegment{
+				Duration: seg.renderedDuration,
+				URI:      seg.name + ".mp4",
+			}
+
 			if (len(p.segments) - i) <= 2 {
-				cnt += "#EXT-X-PROGRAM-DATE-TIME:" + seg.startTime.Format("2006-01-02T15:04:05.999Z07:00") + "\n"
+				plse.DateTime = &seg.startTime
 			}
 
 			if p.lowLatency && (len(p.segments)-i) <= 2 {
 				for _, part := range seg.parts {
-					cnt += "#EXT-X-PART:DURATION=" + strconv.FormatFloat(part.renderedDuration.Seconds(), 'f', 5, 64) +
-						",URI=\"" + part.name() + ".mp4\""
-					if part.isIndependent {
-						cnt += ",INDEPENDENT=YES"
-					}
-					cnt += "\n"
+					plse.Parts = append(plse.Parts, &playlist.MediaPart{
+						Duration:    part.renderedDuration,
+						URI:         part.name() + ".mp4",
+						Independent: part.isIndependent,
+					})
 				}
 			}
 
-			cnt += "#EXTINF:" + strconv.FormatFloat(seg.renderedDuration.Seconds(), 'f', 5, 64) + ",\n" +
-				seg.name + ".mp4\n"
+			pl.Segments = append(pl.Segments, plse)
 
 		case *muxerVariantFMP4Gap:
-			cnt += "#EXT-X-GAP\n" +
-				"#EXTINF:" + strconv.FormatFloat(seg.renderedDuration.Seconds(), 'f', 5, 64) + ",\n" +
-				"gap.mp4\n"
+			pl.Segments = append(pl.Segments, &playlist.MediaSegment{
+				Gap:      true,
+				Duration: seg.renderedDuration,
+				URI:      "gap.mp4",
+			})
 		}
 	}
 
 	if p.lowLatency {
 		for _, part := range p.nextSegmentParts {
-			cnt += "#EXT-X-PART:DURATION=" + strconv.FormatFloat(part.renderedDuration.Seconds(), 'f', 5, 64) +
-				",URI=\"" + part.name() + ".mp4\""
-			if part.isIndependent {
-				cnt += ",INDEPENDENT=YES"
-			}
-			cnt += "\n"
+			pl.Parts = append(pl.Parts, &playlist.MediaPart{
+				Duration:    part.renderedDuration,
+				URI:         part.name() + ".mp4",
+				Independent: part.isIndependent,
+			})
 		}
 
 		// preload hint must always be present
 		// otherwise hls.js goes into a loop
-		cnt += "#EXT-X-PRELOAD-HINT:TYPE=PART,URI=\"" + fmp4PartName(p.nextPartID) + ".mp4\"\n"
+		pl.PreloadHint = &playlist.MediaPreloadHint{
+			URI: fmp4PartName(p.nextPartID) + ".mp4",
+		}
 	}
 
-	return []byte(cnt)
+	byts, _ := pl.Marshal()
+
+	return byts
 }
 
 func (p *muxerVariantFMP4Playlist) segmentReader(fname string) *MuxerFileResponse {

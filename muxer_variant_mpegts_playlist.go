@@ -5,9 +5,10 @@ import (
 	"io"
 	"math"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/bluenviron/gohlslib/pkg/playlist"
 )
 
 type muxerVariantMPEGTSPlaylist struct {
@@ -79,35 +80,42 @@ func (p *muxerVariantMPEGTSPlaylist) playlistReader() *MuxerFileResponse {
 	}
 }
 
-func (p *muxerVariantMPEGTSPlaylist) generatePlaylist() []byte {
-	cnt := "#EXTM3U\n"
-	cnt += "#EXT-X-VERSION:3\n"
-	cnt += "#EXT-X-ALLOW-CACHE:NO\n"
+func targetDurationMPEGTS(segments []*muxerVariantMPEGTSSegment) int {
+	ret := int(0)
 
-	targetDuration := func() uint {
-		ret := uint(0)
-
-		// EXTINF, when rounded to the nearest integer, must be <= EXT-X-TARGETDURATION
-		for _, s := range p.segments {
-			v2 := uint(math.Round(s.duration().Seconds()))
-			if v2 > ret {
-				ret = v2
-			}
+	// EXTINF, when rounded to the nearest integer, must be <= EXT-X-TARGETDURATION
+	for _, s := range segments {
+		v2 := int(math.Round(s.duration().Seconds()))
+		if v2 > ret {
+			ret = v2
 		}
-
-		return ret
-	}()
-	cnt += "#EXT-X-TARGETDURATION:" + strconv.FormatUint(uint64(targetDuration), 10) + "\n"
-
-	cnt += "#EXT-X-MEDIA-SEQUENCE:" + strconv.FormatInt(int64(p.segmentDeleteCount), 10) + "\n"
-
-	for _, s := range p.segments {
-		cnt += "#EXT-X-PROGRAM-DATE-TIME:" + s.startTime.Format("2006-01-02T15:04:05.999Z07:00") + "\n" +
-			"#EXTINF:" + strconv.FormatFloat(s.duration().Seconds(), 'f', -1, 64) + ",\n" +
-			s.name + ".ts\n"
 	}
 
-	return []byte(cnt)
+	return ret
+}
+
+func (p *muxerVariantMPEGTSPlaylist) generatePlaylist() []byte {
+	pl := &playlist.Media{
+		Version: 3,
+		AllowCache: func() *bool {
+			v := false
+			return &v
+		}(),
+		TargetDuration: targetDurationMPEGTS(p.segments),
+		MediaSequence:  p.segmentDeleteCount,
+	}
+
+	for _, s := range p.segments {
+		pl.Segments = append(pl.Segments, &playlist.MediaSegment{
+			DateTime: &s.startTime,
+			Duration: s.duration(),
+			URI:      s.name + ".ts",
+		})
+	}
+
+	byts, _ := pl.Marshal()
+
+	return byts
 }
 
 func (p *muxerVariantMPEGTSPlaylist) segmentReader(fname string) *MuxerFileResponse {
