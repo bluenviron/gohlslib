@@ -10,7 +10,7 @@ HLS client and muxer library for the Go programming language.
 
 Go &ge; 1.18 is required.
 
-This library was splitted from [MediaMTX](https://github.com/aler9/rtsp-simple-server), it is currently in alpha stage and implements only the features strictly needed by MediaMTX, but the aim is implementing a wide range of features that allow to read and generate HLS streams.
+This library was forked from [MediaMTX](https://github.com/aler9/rtsp-simple-server), it is currently in alpha stage and implements only the features strictly needed by MediaMTX, but the aim is implementing a wide range of features that allow to read and generate HLS streams.
 
 Client features:
 
@@ -45,3 +45,35 @@ General features:
 |----|-----|
 |Examples|TODO|
 |Detach from gortsplib|TODO|
+
+## Table of contents
+
+* [Examples](#examples)
+* [API Documentation](#api-documentation)
+* [Standards](#standards)
+* [Links](#links)
+
+## Examples
+
+TODO
+
+## API Documentation
+
+https://pkg.go.dev/github.com/bluenviron/gohlslib#pkg-index
+
+## Standards
+
+* HLS https://datatracker.ietf.org/doc/html/rfc8216
+* HLS v2 https://datatracker.ietf.org/doc/html/draft-pantos-hls-rfc8216bis
+* Opus in MP4/ISOBMFF https://opus-codec.org/docs/opus_in_isobmff.html
+* ITU-T Rec. H.264 (08/2021) https://www.itu.int/rec/dologin_pub.asp?lang=e&id=T-REC-H.264-202108-I!!PDF-E&type=items
+* ITU-T Rec. H.265 (08/2021) https://www.itu.int/rec/dologin_pub.asp?lang=e&id=T-REC-H.265-202108-I!!PDF-E&type=items
+* ISO 14496-3, Coding of audio-visual objects, part 3, Audio
+* HTTP 1.1 https://datatracker.ietf.org/doc/html/rfc2616
+* Golang project layout https://github.com/golang-standards/project-layout
+
+## Links
+
+Related projects
+
+* MediaMTX https://github.com/aler9/rtsp-simple-server
