@@ -3,6 +3,8 @@ package hls
 import (
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"regexp"
 	"testing"
 	"time"
@@ -60,7 +62,7 @@ func TestMuxerVideoAudio(t *testing.T) {
 				v = MuxerVariantLowLatency
 			}
 
-			m, err := NewMuxer(v, 3, 1*time.Second, 0, 50*1024*1024, videoTrack, audioTrack)
+			m, err := NewMuxer(v, 3, 1*time.Second, 0, 50*1024*1024, videoTrack, audioTrack, "")
 			require.NoError(t, err)
 			defer m.Close()
 
@@ -271,7 +273,7 @@ func TestMuxerVideoOnly(t *testing.T) {
 				v = MuxerVariantFMP4
 			}
 
-			m, err := NewMuxer(v, 3, 1*time.Second, 0, 50*1024*1024, videoTrack, nil)
+			m, err := NewMuxer(v, 3, 1*time.Second, 0, 50*1024*1024, videoTrack, nil, "")
 			require.NoError(t, err)
 			defer m.Close()
 
@@ -389,7 +391,7 @@ func TestMuxerAudioOnly(t *testing.T) {
 				v = MuxerVariantFMP4
 			}
 
-			m, err := NewMuxer(v, 3, 1*time.Second, 0, 50*1024*1024, nil, audioTrack)
+			m, err := NewMuxer(v, 3, 1*time.Second, 0, 50*1024*1024, nil, audioTrack, "")
 			require.NoError(t, err)
 			defer m.Close()
 
@@ -484,7 +486,7 @@ func TestMuxerCloseBeforeFirstSegmentReader(t *testing.T) {
 		PacketizationMode: 1,
 	}
 
-	m, err := NewMuxer(MuxerVariantMPEGTS, 3, 1*time.Second, 0, 50*1024*1024, videoTrack, nil)
+	m, err := NewMuxer(MuxerVariantMPEGTS, 3, 1*time.Second, 0, 50*1024*1024, videoTrack, nil, "")
 	require.NoError(t, err)
 
 	// access unit with IDR
@@ -509,7 +511,7 @@ func TestMuxerMaxSegmentSize(t *testing.T) {
 		PacketizationMode: 1,
 	}
 
-	m, err := NewMuxer(MuxerVariantMPEGTS, 3, 1*time.Second, 0, 0, videoTrack, nil)
+	m, err := NewMuxer(MuxerVariantMPEGTS, 3, 1*time.Second, 0, 0, videoTrack, nil, "")
 	require.NoError(t, err)
 	defer m.Close()
 
@@ -528,7 +530,7 @@ func TestMuxerDoubleRead(t *testing.T) {
 		PacketizationMode: 1,
 	}
 
-	m, err := NewMuxer(MuxerVariantMPEGTS, 3, 1*time.Second, 0, 50*1024*1024, videoTrack, nil)
+	m, err := NewMuxer(MuxerVariantMPEGTS, 3, 1*time.Second, 0, 50*1024*1024, videoTrack, nil, "")
 	require.NoError(t, err)
 	defer m.Close()
 
@@ -575,7 +577,7 @@ func TestMuxerFMP4ZeroDuration(t *testing.T) {
 		PacketizationMode: 1,
 	}
 
-	m, err := NewMuxer(MuxerVariantLowLatency, 3, 1*time.Second, 0, 50*1024*1024, videoTrack, nil)
+	m, err := NewMuxer(MuxerVariantLowLatency, 3, 1*time.Second, 0, 50*1024*1024, videoTrack, nil, "")
 	require.NoError(t, err)
 	defer m.Close()
 
@@ -592,4 +594,62 @@ func TestMuxerFMP4ZeroDuration(t *testing.T) {
 		{5},     // IDR
 	})
 	require.NoError(t, err)
+}
+
+func TestMuxerSaveToDisk(t *testing.T) {
+	for _, ca := range []string{
+		"mpegts",
+		"mp4",
+	} {
+		t.Run(ca, func(t *testing.T) {
+			dir, err := os.MkdirTemp("", "gohlslib")
+			require.NoError(t, err)
+			defer os.RemoveAll(dir)
+
+			videoTrack := &format.H264{
+				PayloadTyp:        96,
+				SPS:               testSPS,
+				PPS:               []byte{0x08},
+				PacketizationMode: 1,
+			}
+
+			var v MuxerVariant
+			if ca == "mpegts" {
+				v = MuxerVariantMPEGTS
+			} else {
+				v = MuxerVariantFMP4
+			}
+
+			m, err := NewMuxer(v, 3, 1*time.Second, 0, 50*1024*1024, videoTrack, nil, dir)
+			require.NoError(t, err)
+
+			err = m.WriteH26x(testTime, 0, [][]byte{
+				testSPS,
+				{5}, // IDR
+				{1},
+			})
+			require.NoError(t, err)
+
+			err = m.WriteH26x(testTime, 2*time.Second, [][]byte{
+				{5}, // IDR
+				{2},
+			})
+			require.NoError(t, err)
+
+			var ext string
+			if ca == "mpegts" {
+				ext = "ts"
+			} else {
+				ext = "mp4"
+			}
+
+			_, err = os.ReadFile(filepath.Join(dir, "seg0."+ext))
+			require.NoError(t, err)
+
+			m.Close()
+
+			_, err = os.ReadFile(filepath.Join(dir, "seg0."+ext))
+			require.Error(t, err)
+		})
+	}
 }

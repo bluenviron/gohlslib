@@ -79,7 +79,6 @@ type muxerVariantFMP4Playlist struct {
 	segments           []muxerVariantFMP4SegmentOrGap
 	segmentsByName     map[string]*muxerVariantFMP4Segment
 	segmentDeleteCount int
-	parts              []*muxerVariantFMP4Part
 	partsByName        map[string]*muxerVariantFMP4Part
 	nextSegmentID      uint64
 	nextSegmentParts   []*muxerVariantFMP4Part
@@ -113,6 +112,12 @@ func (p *muxerVariantFMP4Playlist) close() {
 	}()
 
 	p.cond.Broadcast()
+
+	for _, segment := range p.segments {
+		if segment2, ok := segment.(*muxerVariantFMP4Segment); ok {
+			segment2.close()
+		}
+	}
 }
 
 func (p *muxerVariantFMP4Playlist) hasContent() bool {
@@ -223,7 +228,7 @@ func (p *muxerVariantFMP4Playlist) playlistReader(msn string, part string, skip 
 				Header: map[string]string{
 					"Content-Type": `application/x-mpegURL`,
 				},
-				Body: p.fullPlaylist(isDeltaUpdate),
+				Body: io.NopCloser(p.fullPlaylist(isDeltaUpdate)),
 			}
 		}
 
@@ -249,7 +254,7 @@ func (p *muxerVariantFMP4Playlist) playlistReader(msn string, part string, skip 
 		Header: map[string]string{
 			"Content-Type": `application/x-mpegURL`,
 		},
-		Body: p.fullPlaylist(isDeltaUpdate),
+		Body: io.NopCloser(p.fullPlaylist(isDeltaUpdate)),
 	}
 }
 
@@ -371,12 +376,17 @@ func (p *muxerVariantFMP4Playlist) segmentReader(fname string) *MuxerFileRespons
 			return &MuxerFileResponse{Status: http.StatusNotFound}
 		}
 
+		r, err := segment.reader()
+		if err != nil {
+			return &MuxerFileResponse{Status: http.StatusInternalServerError}
+		}
+
 		return &MuxerFileResponse{
 			Status: http.StatusOK,
 			Header: map[string]string{
 				"Content-Type": "video/mp4",
 			},
-			Body: segment.reader(),
+			Body: r,
 		}
 
 	case strings.HasPrefix(fname, "part"):
@@ -388,12 +398,17 @@ func (p *muxerVariantFMP4Playlist) segmentReader(fname string) *MuxerFileRespons
 		p.mutex.Unlock()
 
 		if ok {
+			r, err := part.reader()
+			if err != nil {
+				return &MuxerFileResponse{Status: http.StatusInternalServerError}
+			}
+
 			return &MuxerFileResponse{
 				Status: http.StatusOK,
 				Header: map[string]string{
 					"Content-Type": "video/mp4",
 				},
-				Body: part.reader(),
+				Body: r,
 			}
 		}
 
@@ -419,12 +434,17 @@ func (p *muxerVariantFMP4Playlist) segmentReader(fname string) *MuxerFileRespons
 				return &MuxerFileResponse{Status: http.StatusNotFound}
 			}
 
+			r, err := p.partsByName[nextPartName].reader()
+			if err != nil {
+				return &MuxerFileResponse{Status: http.StatusInternalServerError}
+			}
+
 			return &MuxerFileResponse{
 				Status: http.StatusOK,
 				Header: map[string]string{
 					"Content-Type": "video/mp4",
 				},
-				Body: p.partsByName[nextPartName].reader(),
+				Body: r,
 			}
 		}
 
@@ -461,8 +481,8 @@ func (p *muxerVariantFMP4Playlist) onSegmentFinalized(segment *muxerVariantFMP4S
 				for _, part := range toDeleteSeg.parts {
 					delete(p.partsByName, part.name())
 				}
-				p.parts = p.parts[len(toDeleteSeg.parts):]
 
+				toDeleteSeg.close()
 				delete(p.segmentsByName, toDeleteSeg.name)
 			}
 
@@ -480,7 +500,6 @@ func (p *muxerVariantFMP4Playlist) onPartFinalized(part *muxerVariantFMP4Part) {
 		defer p.mutex.Unlock()
 
 		p.partsByName[part.name()] = part
-		p.parts = append(p.parts, part)
 		p.nextSegmentParts = append(p.nextSegmentParts, part)
 		p.nextPartID = part.id + 1
 	}()

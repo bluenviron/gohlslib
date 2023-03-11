@@ -4,22 +4,16 @@ import (
 	"io"
 
 	gomp4 "github.com/abema/go-mp4"
-	"github.com/orcaman/writerseeker"
 )
 
 type mp4Writer struct {
-	buf *writerseeker.WriterSeeker
-	w   *gomp4.Writer
+	w *gomp4.Writer
 }
 
-func newMP4Writer() *mp4Writer {
-	w := &mp4Writer{
-		buf: &writerseeker.WriterSeeker{},
+func newMP4Writer(w io.WriteSeeker) *mp4Writer {
+	return &mp4Writer{
+		w: gomp4.NewWriter(w),
 	}
-
-	w.w = gomp4.NewWriter(w.buf)
-
-	return w
 }
 
 func (w *mp4Writer) writeBoxStart(box gomp4.IImmutableBox) (int, error) {
@@ -45,7 +39,7 @@ func (w *mp4Writer) writeBoxEnd() error {
 	return err
 }
 
-func (w *mp4Writer) WriteBox(box gomp4.IImmutableBox) (int, error) {
+func (w *mp4Writer) writeBox(box gomp4.IImmutableBox) (int, error) {
 	off, err := w.writeBoxStart(box)
 	if err != nil {
 		return 0, err
@@ -86,8 +80,4 @@ func (w *mp4Writer) rewriteBox(off int, box gomp4.IImmutableBox) error {
 	}
 
 	return nil
-}
-
-func (w *mp4Writer) bytes() []byte {
-	return w.buf.Bytes()
 }

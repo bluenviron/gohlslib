@@ -92,7 +92,7 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 
 	switch track.Format.(type) {
 	case *format.H264, *format.H265:
-		_, err = w.WriteBox(&gomp4.Tkhd{ // <tkhd/>
+		_, err = w.writeBox(&gomp4.Tkhd{ // <tkhd/>
 			FullBox: gomp4.FullBox{
 				Flags: [3]byte{0, 0, 3},
 			},
@@ -106,7 +106,7 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 		}
 
 	case *format.MPEG4Audio, *format.Opus:
-		_, err = w.WriteBox(&gomp4.Tkhd{ // <tkhd/>
+		_, err = w.writeBox(&gomp4.Tkhd{ // <tkhd/>
 			FullBox: gomp4.FullBox{
 				Flags: [3]byte{0, 0, 3},
 			},
@@ -125,7 +125,7 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 		return err
 	}
 
-	_, err = w.WriteBox(&gomp4.Mdhd{ // <mdhd/>
+	_, err = w.writeBox(&gomp4.Mdhd{ // <mdhd/>
 		Timescale: track.TimeScale,
 		Language:  [3]byte{'u', 'n', 'd'},
 	})
@@ -135,7 +135,7 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 
 	switch track.Format.(type) {
 	case *format.H264, *format.H265:
-		_, err = w.WriteBox(&gomp4.Hdlr{ // <hdlr/>
+		_, err = w.writeBox(&gomp4.Hdlr{ // <hdlr/>
 			HandlerType: [4]byte{'v', 'i', 'd', 'e'},
 			Name:        "VideoHandler",
 		})
@@ -144,7 +144,7 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 		}
 
 	case *format.MPEG4Audio, *format.Opus:
-		_, err = w.WriteBox(&gomp4.Hdlr{ // <hdlr/>
+		_, err = w.writeBox(&gomp4.Hdlr{ // <hdlr/>
 			HandlerType: [4]byte{'s', 'o', 'u', 'n'},
 			Name:        "SoundHandler",
 		})
@@ -160,7 +160,7 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 
 	switch track.Format.(type) {
 	case *format.H264, *format.H265:
-		_, err = w.WriteBox(&gomp4.Vmhd{ // <vmhd/>
+		_, err = w.writeBox(&gomp4.Vmhd{ // <vmhd/>
 			FullBox: gomp4.FullBox{
 				Flags: [3]byte{0, 0, 1},
 			},
@@ -170,7 +170,7 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 		}
 
 	case *format.MPEG4Audio, *format.Opus:
-		_, err = w.WriteBox(&gomp4.Smhd{ // <smhd/>
+		_, err = w.writeBox(&gomp4.Smhd{ // <smhd/>
 		})
 		if err != nil {
 			return err
@@ -189,7 +189,7 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 		return err
 	}
 
-	_, err = w.WriteBox(&gomp4.Url{ // <url/>
+	_, err = w.writeBox(&gomp4.Url{ // <url/>
 		FullBox: gomp4.FullBox{
 			Flags: [3]byte{0, 0, 1},
 		},
@@ -241,7 +241,7 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 			return err
 		}
 
-		_, err = w.WriteBox(&gomp4.AVCDecoderConfiguration{ // <avcc/>
+		_, err = w.writeBox(&gomp4.AVCDecoderConfiguration{ // <avcc/>
 			AnyTypeBox: gomp4.AnyTypeBox{
 				Type: gomp4.BoxTypeAvcC(),
 			},
@@ -269,7 +269,7 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 			return err
 		}
 
-		_, err = w.WriteBox(&gomp4.Btrt{ // <btrt/>
+		_, err = w.writeBox(&gomp4.Btrt{ // <btrt/>
 			MaxBitrate: 1000000,
 			AvgBitrate: 1000000,
 		})
@@ -302,7 +302,7 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 			return err
 		}
 
-		_, err = w.WriteBox(&gomp4.HvcC{ // <hvcC/>
+		_, err = w.writeBox(&gomp4.HvcC{ // <hvcC/>
 			ConfigurationVersion:        1,
 			GeneralProfileIdc:           h265SPSP.ProfileTierLevel.GeneralProfileIdc,
 			GeneralProfileCompatibility: h265SPSP.ProfileTierLevel.GeneralProfileCompatibilityFlag,
@@ -353,7 +353,7 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 			return err
 		}
 
-		_, err = w.WriteBox(&gomp4.Btrt{ // <btrt/>
+		_, err = w.writeBox(&gomp4.Btrt{ // <btrt/>
 			MaxBitrate: 1000000,
 			AvgBitrate: 1000000,
 		})
@@ -384,7 +384,7 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 
 		enc, _ := ttrack.Config.Marshal()
 
-		_, err = w.WriteBox(&gomp4.Esds{ // <esds/>
+		_, err = w.writeBox(&gomp4.Esds{ // <esds/>
 			Descriptors: []gomp4.Descriptor{
 				{
 					Tag:  gomp4.ESDescrTag,
@@ -421,7 +421,7 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 			return err
 		}
 
-		_, err = w.WriteBox(&gomp4.Btrt{ // <btrt/>
+		_, err = w.writeBox(&gomp4.Btrt{ // <btrt/>
 			MaxBitrate: 128825,
 			AvgBitrate: 128825,
 		})
@@ -450,7 +450,7 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 			return err
 		}
 
-		_, err = w.WriteBox(&DOps{ // <dOps/>
+		_, err = w.writeBox(&DOps{ // <dOps/>
 			OutputChannelCount: uint8(ttrack.ChannelCount),
 			PreSkip:            312,
 			InputSampleRate:    uint32(ttrack.ClockRate()),
@@ -459,7 +459,7 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 			return err
 		}
 
-		_, err = w.WriteBox(&gomp4.Btrt{ // <btrt/>
+		_, err = w.writeBox(&gomp4.Btrt{ // <btrt/>
 			MaxBitrate: 128825,
 			AvgBitrate: 128825,
 		})
@@ -478,25 +478,25 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 		return err
 	}
 
-	_, err = w.WriteBox(&gomp4.Stts{ // <stts>
+	_, err = w.writeBox(&gomp4.Stts{ // <stts>
 	})
 	if err != nil {
 		return err
 	}
 
-	_, err = w.WriteBox(&gomp4.Stsc{ // <stsc>
+	_, err = w.writeBox(&gomp4.Stsc{ // <stsc>
 	})
 	if err != nil {
 		return err
 	}
 
-	_, err = w.WriteBox(&gomp4.Stsz{ // <stsz>
+	_, err = w.writeBox(&gomp4.Stsz{ // <stsz>
 	})
 	if err != nil {
 		return err
 	}
 
-	_, err = w.WriteBox(&gomp4.Stco{ // <stco>
+	_, err = w.writeBox(&gomp4.Stco{ // <stco>
 	})
 	if err != nil {
 		return err

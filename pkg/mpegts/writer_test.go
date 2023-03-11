@@ -100,6 +100,9 @@ func TestWriter(t *testing.T) {
 	t.Run("video + audio", func(t *testing.T) {
 		w := NewWriter(testVideoTrack, testAudioTrack)
 
+		var buf bytes.Buffer
+		w.SetByteWriter(&buf)
+
 		for _, sample := range testSamples {
 			switch tsample := sample.(type) {
 			case videoSample:
@@ -120,9 +123,7 @@ func TestWriter(t *testing.T) {
 			}
 		}
 
-		byts := w.GenerateSegment()
-
-		dem := astits.NewDemuxer(context.Background(), bytes.NewReader(byts),
+		dem := astits.NewDemuxer(context.Background(), bytes.NewReader(buf.Bytes()),
 			astits.DemuxerOptPacketSize(188))
 
 		// PMT
@@ -214,6 +215,9 @@ func TestWriter(t *testing.T) {
 	t.Run("video only", func(t *testing.T) {
 		w := NewWriter(testVideoTrack, nil)
 
+		var buf bytes.Buffer
+		w.SetByteWriter(&buf)
+
 		for _, sample := range testSamples {
 			if tsample, ok := sample.(videoSample); ok {
 				err := w.WriteH264(
@@ -226,9 +230,7 @@ func TestWriter(t *testing.T) {
 			}
 		}
 
-		byts := w.GenerateSegment()
-
-		dem := astits.NewDemuxer(context.Background(), bytes.NewReader(byts),
+		dem := astits.NewDemuxer(context.Background(), bytes.NewReader(buf.Bytes()),
 			astits.DemuxerOptPacketSize(188))
 
 		// PMT
@@ -296,6 +298,9 @@ func TestWriter(t *testing.T) {
 	t.Run("audio only", func(t *testing.T) {
 		w := NewWriter(nil, testAudioTrack)
 
+		var buf bytes.Buffer
+		w.SetByteWriter(&buf)
+
 		for _, sample := range testSamples {
 			if tsample, ok := sample.(audioSample); ok {
 				err := w.WriteAAC(
@@ -306,9 +311,7 @@ func TestWriter(t *testing.T) {
 			}
 		}
 
-		byts := w.GenerateSegment()
-
-		dem := astits.NewDemuxer(context.Background(), bytes.NewReader(byts),
+		dem := astits.NewDemuxer(context.Background(), bytes.NewReader(buf.Bytes()),
 			astits.DemuxerOptPacketSize(188))
 
 		// PMT

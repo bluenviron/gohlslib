@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	gomp4 "github.com/abema/go-mp4"
+	"github.com/orcaman/writerseeker"
 	"github.com/stretchr/testify/require"
 )
 
@@ -80,7 +81,8 @@ func TestPartMarshal(t *testing.T) {
 			},
 		}
 
-		byts, err := part.Marshal()
+		buf := &writerseeker.WriterSeeker{}
+		err := part.Marshal(buf)
 		require.NoError(t, err)
 
 		boxes := []gomp4.BoxPath{
@@ -96,7 +98,7 @@ func TestPartMarshal(t *testing.T) {
 			{gomp4.BoxTypeMoof(), gomp4.BoxTypeTraf(), gomp4.BoxTypeTrun()},
 			{gomp4.BoxTypeMdat()},
 		}
-		testMP4(t, byts, boxes)
+		testMP4(t, buf.Bytes(), boxes)
 	})
 
 	t.Run("video only", func(t *testing.T) {
@@ -110,7 +112,8 @@ func TestPartMarshal(t *testing.T) {
 			},
 		}
 
-		byts, err := part.Marshal()
+		buf := &writerseeker.WriterSeeker{}
+		err := part.Marshal(buf)
 		require.NoError(t, err)
 
 		boxes := []gomp4.BoxPath{
@@ -122,7 +125,7 @@ func TestPartMarshal(t *testing.T) {
 			{gomp4.BoxTypeMoof(), gomp4.BoxTypeTraf(), gomp4.BoxTypeTrun()},
 			{gomp4.BoxTypeMdat()},
 		}
-		testMP4(t, byts, boxes)
+		testMP4(t, buf.Bytes(), boxes)
 	})
 
 	t.Run("audio only", func(t *testing.T) {
@@ -135,7 +138,8 @@ func TestPartMarshal(t *testing.T) {
 			},
 		}
 
-		byts, err := part.Marshal()
+		buf := &writerseeker.WriterSeeker{}
+		err := part.Marshal(buf)
 		require.NoError(t, err)
 
 		boxes := []gomp4.BoxPath{
@@ -147,7 +151,7 @@ func TestPartMarshal(t *testing.T) {
 			{gomp4.BoxTypeMoof(), gomp4.BoxTypeTraf(), gomp4.BoxTypeTrun()},
 			{gomp4.BoxTypeMdat()},
 		}
-		testMP4(t, byts, boxes)
+		testMP4(t, buf.Bytes(), boxes)
 	})
 }
 

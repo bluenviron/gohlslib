@@ -3,6 +3,7 @@ package fmp4
 import (
 	"bytes"
 	"fmt"
+	"io"
 
 	gomp4 "github.com/abema/go-mp4"
 	"github.com/aler9/gortsplib/v2/pkg/codecs/h265"
@@ -281,7 +282,7 @@ func (i *Init) Unmarshal(byts []byte) error {
 }
 
 // Marshal encodes a FMP4 initialization file.
-func (i *Init) Marshal() ([]byte, error) {
+func (i *Init) Marshal(w io.WriteSeeker) error {
 	/*
 		- ftyp
 		- moov
@@ -295,9 +296,9 @@ func (i *Init) Marshal() ([]byte, error) {
 		  - ...
 	*/
 
-	w := newMP4Writer()
+	mw := newMP4Writer(w)
 
-	_, err := w.WriteBox(&gomp4.Ftyp{ // <ftyp/>
+	_, err := mw.writeBox(&gomp4.Ftyp{ // <ftyp/>
 		MajorBrand:   [4]byte{'m', 'p', '4', '2'},
 		MinorVersion: 1,
 		CompatibleBrands: []gomp4.CompatibleBrandElem{
@@ -308,15 +309,15 @@ func (i *Init) Marshal() ([]byte, error) {
 		},
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	_, err = w.writeBoxStart(&gomp4.Moov{}) // <moov>
+	_, err = mw.writeBoxStart(&gomp4.Moov{}) // <moov>
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	_, err = w.WriteBox(&gomp4.Mvhd{ // <mvhd/>
+	_, err = mw.writeBox(&gomp4.Mvhd{ // <mvhd/>
 		Timescale:   1000,
 		Rate:        65536,
 		Volume:      256,
@@ -324,40 +325,40 @@ func (i *Init) Marshal() ([]byte, error) {
 		NextTrackID: 4294967295,
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	for _, track := range i.Tracks {
-		err := track.marshal(w)
+		err := track.marshal(mw)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
-	_, err = w.writeBoxStart(&gomp4.Mvex{}) // <mvex>
+	_, err = mw.writeBoxStart(&gomp4.Mvex{}) // <mvex>
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	for _, track := range i.Tracks {
-		_, err = w.WriteBox(&gomp4.Trex{ // <trex/>
+		_, err = mw.writeBox(&gomp4.Trex{ // <trex/>
 			TrackID:                       uint32(track.ID),
 			DefaultSampleDescriptionIndex: 1,
 		})
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
-	err = w.writeBoxEnd() // </mvex>
+	err = mw.writeBoxEnd() // </mvex>
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	err = w.writeBoxEnd() // </moov>
+	err = mw.writeBoxEnd() // </moov>
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return w.bytes(), nil
+	return nil
 }

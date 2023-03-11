@@ -1,7 +1,6 @@
 package hls
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"strconv"
@@ -10,6 +9,7 @@ import (
 	"github.com/aler9/gortsplib/v2/pkg/format"
 
 	"github.com/bluenviron/gohlslib/pkg/mpegts"
+	"github.com/bluenviron/gohlslib/pkg/storage"
 )
 
 type muxerVariantMPEGTSSegment struct {
@@ -18,13 +18,14 @@ type muxerVariantMPEGTSSegment struct {
 	audioTrack     *format.MPEG4Audio
 	writer         *mpegts.Writer
 
+	storage      storage.Segment
+	storagePart  storage.Part
 	size         uint64
 	startTime    time.Time
 	name         string
 	startDTS     *time.Duration
 	endDTS       time.Duration
 	audioAUCount int
-	content      []byte
 }
 
 func newMuxerVariantMPEGTSSegment(
@@ -34,8 +35,9 @@ func newMuxerVariantMPEGTSSegment(
 	videoTrack *format.H264,
 	audioTrack *format.MPEG4Audio,
 	writer *mpegts.Writer,
-) *muxerVariantMPEGTSSegment {
-	t := &muxerVariantMPEGTSSegment{
+	factory storage.Factory,
+) (*muxerVariantMPEGTSSegment, error) {
+	s := &muxerVariantMPEGTSSegment{
 		segmentMaxSize: segmentMaxSize,
 		videoTrack:     videoTrack,
 		audioTrack:     audioTrack,
@@ -44,20 +46,34 @@ func newMuxerVariantMPEGTSSegment(
 		name:           "seg" + strconv.FormatUint(id, 10),
 	}
 
-	return t
+	var err error
+	s.storage, err = factory.NewSegment(s.name + ".ts")
+	if err != nil {
+		return nil, err
+	}
+
+	s.storagePart = s.storage.NewPart()
+
+	writer.SetByteWriter(s.storagePart.Writer())
+
+	return s, nil
+}
+
+func (t *muxerVariantMPEGTSSegment) close() {
+	t.storage.Remove()
 }
 
 func (t *muxerVariantMPEGTSSegment) duration() time.Duration {
 	return t.endDTS - *t.startDTS
 }
 
-func (t *muxerVariantMPEGTSSegment) reader() io.Reader {
-	return bytes.NewReader(t.content)
+func (t *muxerVariantMPEGTSSegment) reader() (io.ReadCloser, error) {
+	return t.storage.Reader()
 }
 
 func (t *muxerVariantMPEGTSSegment) finalize(endDTS time.Duration) {
 	t.endDTS = endDTS
-	t.content = t.writer.GenerateSegment()
+	t.storage.Finalize()
 }
 
 func (t *muxerVariantMPEGTSSegment) writeH264(

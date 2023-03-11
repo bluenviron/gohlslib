@@ -1,8 +1,8 @@
 package mpegts
 
 import (
-	"bytes"
 	"context"
+	"io"
 	"time"
 
 	"github.com/aler9/gortsplib/v2/pkg/codecs/h264"
@@ -26,8 +26,8 @@ type Writer struct {
 	videoFormat *format.H264
 	audioFormat *format.MPEG4Audio
 
-	buf        *bytes.Buffer
-	inner      *astits.Muxer
+	bw         io.Writer
+	tsw        *astits.Muxer
 	pcrCounter int
 }
 
@@ -39,33 +39,32 @@ func NewWriter(
 	w := &Writer{
 		videoFormat: videoFormat,
 		audioFormat: audioFormat,
-		buf:         bytes.NewBuffer(nil),
 	}
 
-	w.inner = astits.NewMuxer(
+	w.tsw = astits.NewMuxer(
 		context.Background(),
 		writerFunc(func(p []byte) (int, error) {
-			return w.buf.Write(p)
+			return w.bw.Write(p)
 		}))
 
 	if videoFormat != nil {
-		w.inner.AddElementaryStream(astits.PMTElementaryStream{
+		w.tsw.AddElementaryStream(astits.PMTElementaryStream{
 			ElementaryPID: 256,
 			StreamType:    astits.StreamTypeH264Video,
 		})
 	}
 
 	if audioFormat != nil {
-		w.inner.AddElementaryStream(astits.PMTElementaryStream{
+		w.tsw.AddElementaryStream(astits.PMTElementaryStream{
 			ElementaryPID: 257,
 			StreamType:    astits.StreamTypeAACAudio,
 		})
 	}
 
 	if videoFormat != nil {
-		w.inner.SetPCRPID(256)
+		w.tsw.SetPCRPID(256)
 	} else {
-		w.inner.SetPCRPID(257)
+		w.tsw.SetPCRPID(257)
 	}
 
 	// WriteTable() is not necessary
@@ -77,12 +76,10 @@ func NewWriter(
 	return w
 }
 
-// GenerateSegment generates a MPEG-TS segment.
-func (w *Writer) GenerateSegment() []byte {
+// SetByteWriter sets the current byte writer.
+func (w *Writer) SetByteWriter(bw io.Writer) {
 	w.pcrCounter = 0
-	ret := w.buf.Bytes()
-	w.buf = bytes.NewBuffer(nil)
-	return ret
+	w.bw = bw
 }
 
 // WriteH264 writes a H264 access unit.
@@ -132,7 +129,7 @@ func (w *Writer) WriteH264(
 		oh.PTS = &astits.ClockReference{Base: int64((pts + pcrOffset).Seconds() * 90000)}
 	}
 
-	_, err = w.inner.WriteData(&astits.MuxerData{
+	_, err = w.tsw.WriteData(&astits.MuxerData{
 		PID:             256,
 		AdaptationField: af,
 		PES: &astits.PESData{
@@ -180,7 +177,7 @@ func (w *Writer) WriteAAC(
 		w.pcrCounter--
 	}
 
-	_, err = w.inner.WriteData(&astits.MuxerData{
+	_, err = w.tsw.WriteData(&astits.MuxerData{
 		PID:             257,
 		AdaptationField: af,
 		PES: &astits.PESData{

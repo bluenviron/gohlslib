@@ -15,6 +15,7 @@ import (
 	"github.com/aler9/gortsplib/v2/pkg/format"
 	"github.com/asticode/go-astits"
 	"github.com/gin-gonic/gin"
+	"github.com/orcaman/writerseeker"
 	"github.com/stretchr/testify/require"
 
 	"github.com/bluenviron/gohlslib/pkg/fmp4"
@@ -145,10 +146,11 @@ func mp4Init(t *testing.T, w io.Writer) {
 		},
 	}
 
-	byts, err := i.Marshal()
+	ws := &writerseeker.WriterSeeker{}
+	err := i.Marshal(ws)
 	require.NoError(t, err)
 
-	_, err = w.Write(byts)
+	_, err = w.Write(ws.Bytes())
 	require.NoError(t, err)
 }
 
@@ -173,10 +175,11 @@ func mp4Segment(t *testing.T, w io.Writer) {
 		},
 	}
 
-	byts, err := p.Marshal()
+	ws := &writerseeker.WriterSeeker{}
+	err := p.Marshal(ws)
 	require.NoError(t, err)
 
-	_, err = w.Write(byts)
+	_, err = w.Write(ws.Bytes())
 	require.NoError(t, err)
 }
 
