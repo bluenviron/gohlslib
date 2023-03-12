@@ -6,7 +6,7 @@ replace github.com/orcaman/writerseeker => github.com/aler9/writerseeker v0.0.0-
 
 require (
 	github.com/abema/go-mp4 v0.10.1
-	github.com/aler9/gortsplib/v2 v2.1.3
+	github.com/aler9/gortsplib/v2 v2.1.4
 	github.com/asticode/go-astits v1.11.0
 	github.com/gin-gonic/gin v1.9.0
 	github.com/gookit/color v1.4.2

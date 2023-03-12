@@ -43,6 +43,7 @@ General features:
 
 |name|state|
 |----|-----|
+|Parse and produce M3U8 playlists|TODO (producer is ready)|
 |Examples|TODO|
 |Detach from gortsplib|TODO|
 
