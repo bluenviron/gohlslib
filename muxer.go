@@ -24,20 +24,42 @@ type MuxerFileResponse struct {
 
 // Muxer is a HLS muxer.
 type Muxer struct {
+	// Variant to use.
 	Variant MuxerVariant
 
+	// Number of HLS segments to keep on the server.
+	// Segments allow to seek through the stream.
+	// Their number doesn't influence latency.
 	SegmentCount int
 
+	// Minimum duration of each segment.
+	// A player usually puts 3 segments in a buffer before reproducing the stream.
+	// The final segment duration is also influenced by the interval between IDR frames,
+	// since the server changes the duration in order to include at least one IDR frame
+	// in each segment.
 	SegmentDuration time.Duration
 
+	// Minimum duration of each part.
+	// Parts are used in Low-Latency HLS in place of segments.
+	// A player usually puts 3 parts in a buffer before reproducing the stream.
+	// Part duration is influenced by the distance between video/audio samples
+	// and is adjusted in order to produce segments with a similar duration.
 	PartDuration time.Duration
 
+	// Maximum size of each segment.
+	// This prevents RAM exhaustion.
 	SegmentMaxSize uint64
 
+	// video track.
 	VideoTrack format.Format
 
+	// audio track.
 	AudioTrack format.Format
 
+	// (optional) directory in which to save segments.
+	// This allows to save segments on disk instead on RAM.
+	// This decreases performance, since disk is less performant than RAM,
+	// but allows smaller RAM consumption.
 	DirPath string
 
 	variantImpl muxerVariantImpl
