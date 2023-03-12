@@ -24,92 +24,93 @@ type MuxerFileResponse struct {
 
 // Muxer is a HLS muxer.
 type Muxer struct {
-	variant    muxerVariant
-	fmp4       bool
-	videoTrack format.Format
-	audioTrack format.Format
+	Variant MuxerVariant
+
+	SegmentCount int
+
+	SegmentDuration time.Duration
+
+	PartDuration time.Duration
+
+	SegmentMaxSize uint64
+
+	VideoTrack format.Format
+
+	AudioTrack format.Format
+
+	DirPath string
+
+	variantImpl muxerVariantImpl
+	fmp4        bool
 }
 
-// NewMuxer allocates a Muxer.
-func NewMuxer(
-	variant MuxerVariant,
-	segmentCount int,
-	segmentDuration time.Duration,
-	partDuration time.Duration,
-	segmentMaxSize uint64,
-	videoTrack format.Format,
-	audioTrack format.Format,
-	dirPath string,
-) (*Muxer, error) {
+// Start initializes the muxer.
+func (m *Muxer) Start() error {
 	var factory storage.Factory
-	if dirPath != "" {
-		factory = storage.NewFactoryDisk(dirPath)
+	if m.DirPath != "" {
+		factory = storage.NewFactoryDisk(m.DirPath)
 	} else {
 		factory = storage.NewFactoryRAM()
 	}
 
-	var v muxerVariant
-	switch variant {
+	switch m.Variant {
 	case MuxerVariantMPEGTS:
 		var err error
-		v, err = newMuxerVariantMPEGTS(
-			segmentCount,
-			segmentDuration,
-			segmentMaxSize,
-			videoTrack,
-			audioTrack,
+		m.variantImpl, err = newMuxerVariantMPEGTS(
+			m.SegmentCount,
+			m.SegmentDuration,
+			m.SegmentMaxSize,
+			m.VideoTrack,
+			m.AudioTrack,
 			factory,
 		)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 	case MuxerVariantFMP4:
-		v = newMuxerVariantFMP4(
+		m.variantImpl = newMuxerVariantFMP4(
 			false,
-			segmentCount,
-			segmentDuration,
-			partDuration,
-			segmentMaxSize,
-			videoTrack,
-			audioTrack,
+			m.SegmentCount,
+			m.SegmentDuration,
+			m.PartDuration,
+			m.SegmentMaxSize,
+			m.VideoTrack,
+			m.AudioTrack,
 			factory,
 		)
 
 	default: // MuxerVariantLowLatency
-		v = newMuxerVariantFMP4(
+		m.variantImpl = newMuxerVariantFMP4(
 			true,
-			segmentCount,
-			segmentDuration,
-			partDuration,
-			segmentMaxSize,
-			videoTrack,
-			audioTrack,
+			m.SegmentCount,
+			m.SegmentDuration,
+			m.PartDuration,
+			m.SegmentMaxSize,
+			m.VideoTrack,
+			m.AudioTrack,
 			factory,
 		)
 	}
 
-	return &Muxer{
-		variant:    v,
-		fmp4:       variant != MuxerVariantMPEGTS,
-		videoTrack: videoTrack,
-		audioTrack: audioTrack,
-	}, nil
+	m.fmp4 = m.Variant != MuxerVariantMPEGTS
+
+	return nil
 }
 
 // Close closes a Muxer.
 func (m *Muxer) Close() {
-	m.variant.close()
+	m.variantImpl.close()
 }
 
 // WriteH26x writes an H264 or an H265 access unit.
 func (m *Muxer) WriteH26x(ntp time.Time, pts time.Duration, au [][]byte) error {
-	return m.variant.writeH26x(ntp, pts, au)
+	return m.variantImpl.writeH26x(ntp, pts, au)
 }
 
 // WriteAudio writes an audio access unit.
 func (m *Muxer) WriteAudio(ntp time.Time, pts time.Duration, au []byte) error {
-	return m.variant.writeAudio(ntp, pts, au)
+	return m.variantImpl.writeAudio(ntp, pts, au)
 }
 
 // File returns a file reader.
@@ -118,7 +119,7 @@ func (m *Muxer) File(name string, msn string, part string, skip string) *MuxerFi
 		return m.multistreamPlaylist()
 	}
 
-	return m.variant.file(name, msn, part, skip)
+	return m.variantImpl.file(name, msn, part, skip)
 }
 
 func (m *Muxer) multistreamPlaylist() *MuxerFileResponse {
@@ -140,11 +141,11 @@ func (m *Muxer) multistreamPlaylist() *MuxerFileResponse {
 					Bandwidth: 200000,
 					Codecs: func() []string {
 						var codecs []string
-						if m.videoTrack != nil {
-							codecs = append(codecs, codecparams.Generate(m.videoTrack))
+						if m.VideoTrack != nil {
+							codecs = append(codecs, codecparams.Generate(m.VideoTrack))
 						}
-						if m.audioTrack != nil {
-							codecs = append(codecs, codecparams.Generate(m.audioTrack))
+						if m.AudioTrack != nil {
+							codecs = append(codecs, codecparams.Generate(m.AudioTrack))
 						}
 						return codecs
 					}(),

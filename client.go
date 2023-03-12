@@ -34,8 +34,18 @@ type ClientLogger interface {
 
 // Client is a HLS client.
 type Client struct {
-	fingerprint string
-	logger      ClientLogger
+	// URL of the playlist.
+	URI string
+
+	// if the playlist certificate is self-signed
+	// or invalid, you can provide the fingerprint of the certificate in order to
+	// validate it anyway. It can be obtained by running:
+	// openssl s_client -connect source_ip:source_port </dev/null 2>/dev/null | sed -n '/BEGIN/,/END/p' > server.crt
+	// openssl x509 -in server.crt -noout -fingerprint -sha256 | cut -d "=" -f2 | tr -d ':'
+	Fingerprint string
+
+	// logger that receives log messages.
+	Logger ClientLogger
 
 	ctx         context.Context
 	ctxCancel   func()
@@ -47,35 +57,22 @@ type Client struct {
 	outErr chan error
 }
 
-// NewClient allocates a Client.
-func NewClient(
-	playlistURLStr string,
-	fingerprint string,
-	logger ClientLogger,
-) (*Client, error) {
-	playlistURL, err := url.Parse(playlistURLStr)
-	if err != nil {
-		return nil, err
-	}
-
-	ctx, ctxCancel := context.WithCancel(context.Background())
-
-	c := &Client{
-		fingerprint: fingerprint,
-		logger:      logger,
-		ctx:         ctx,
-		ctxCancel:   ctxCancel,
-		playlistURL: playlistURL,
-		onData:      make(map[format.Format]func(time.Duration, interface{})),
-		outErr:      make(chan error, 1),
-	}
-
-	return c, nil
-}
-
 // Start starts the client.
-func (c *Client) Start() {
+func (c *Client) Start() error {
+	var err error
+	c.playlistURL, err = url.Parse(c.URI)
+	if err != nil {
+		return err
+	}
+
+	c.ctx, c.ctxCancel = context.WithCancel(context.Background())
+
+	c.onData = make(map[format.Format]func(time.Duration, interface{}))
+	c.outErr = make(chan error, 1)
+
 	go c.run()
+
+	return nil
 }
 
 // Close closes all the Client resources.
@@ -107,8 +104,8 @@ func (c *Client) runInner() error {
 
 	dl := newClientDownloaderPrimary(
 		c.playlistURL,
-		c.fingerprint,
-		c.logger,
+		c.Fingerprint,
+		c.Logger,
 		rp,
 		c.onTracks,
 		c.onData,
