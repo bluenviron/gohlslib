@@ -1,5 +1,5 @@
 // Package hls contains a HLS muxer and client.
-package hls
+package gohlslib
 
 import (
 	"bytes"
