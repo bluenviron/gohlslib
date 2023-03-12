@@ -1,4 +1,3 @@
-// Package hls contains a HLS muxer and client.
 package gohlslib
 
 import (
@@ -57,10 +56,9 @@ type Muxer struct {
 	AudioTrack format.Format
 
 	// (optional) directory in which to save segments.
-	// This allows to save segments on disk instead on RAM.
-	// This decreases performance, since disk is less performant than RAM,
-	// but allows smaller RAM consumption.
-	DirPath string
+	// This decreases performance, since saving segments on disk is less performant
+	// than saving them on RAM, but allows to preserve RAM.
+	Directory string
 
 	variantImpl muxerVariantImpl
 	fmp4        bool
@@ -69,8 +67,8 @@ type Muxer struct {
 // Start initializes the muxer.
 func (m *Muxer) Start() error {
 	var factory storage.Factory
-	if m.DirPath != "" {
-		factory = storage.NewFactoryDisk(m.DirPath)
+	if m.Directory != "" {
+		factory = storage.NewFactoryDisk(m.Directory)
 	} else {
 		factory = storage.NewFactoryRAM()
 	}

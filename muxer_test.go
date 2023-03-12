@@ -682,7 +682,7 @@ func TestMuxerSaveToDisk(t *testing.T) {
 				SegmentDuration: 1 * time.Second,
 				SegmentMaxSize:  50 * 1024 * 1024,
 				VideoTrack:      videoTrack,
-				DirPath:         dir,
+				Directory:       dir,
 			}
 
 			err = m.Start()
