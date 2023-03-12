@@ -62,7 +62,16 @@ func TestMuxerVideoAudio(t *testing.T) {
 				v = MuxerVariantLowLatency
 			}
 
-			m, err := NewMuxer(v, 3, 1*time.Second, 0, 50*1024*1024, videoTrack, audioTrack, "")
+			m := &Muxer{
+				Variant:         v,
+				SegmentCount:    3,
+				SegmentDuration: 1 * time.Second,
+				SegmentMaxSize:  50 * 1024 * 1024,
+				VideoTrack:      videoTrack,
+				AudioTrack:      audioTrack,
+			}
+
+			err := m.Start()
 			require.NoError(t, err)
 			defer m.Close()
 
@@ -273,7 +282,15 @@ func TestMuxerVideoOnly(t *testing.T) {
 				v = MuxerVariantFMP4
 			}
 
-			m, err := NewMuxer(v, 3, 1*time.Second, 0, 50*1024*1024, videoTrack, nil, "")
+			m := &Muxer{
+				Variant:         v,
+				SegmentCount:    3,
+				SegmentDuration: 1 * time.Second,
+				SegmentMaxSize:  50 * 1024 * 1024,
+				VideoTrack:      videoTrack,
+			}
+
+			err := m.Start()
 			require.NoError(t, err)
 			defer m.Close()
 
@@ -391,7 +408,15 @@ func TestMuxerAudioOnly(t *testing.T) {
 				v = MuxerVariantFMP4
 			}
 
-			m, err := NewMuxer(v, 3, 1*time.Second, 0, 50*1024*1024, nil, audioTrack, "")
+			m := &Muxer{
+				Variant:         v,
+				SegmentCount:    3,
+				SegmentDuration: 1 * time.Second,
+				SegmentMaxSize:  50 * 1024 * 1024,
+				AudioTrack:      audioTrack,
+			}
+
+			err := m.Start()
 			require.NoError(t, err)
 			defer m.Close()
 
@@ -486,7 +511,15 @@ func TestMuxerCloseBeforeFirstSegmentReader(t *testing.T) {
 		PacketizationMode: 1,
 	}
 
-	m, err := NewMuxer(MuxerVariantMPEGTS, 3, 1*time.Second, 0, 50*1024*1024, videoTrack, nil, "")
+	m := &Muxer{
+		Variant:         MuxerVariantMPEGTS,
+		SegmentCount:    3,
+		SegmentDuration: 1 * time.Second,
+		SegmentMaxSize:  50 * 1024 * 1024,
+		VideoTrack:      videoTrack,
+	}
+
+	err := m.Start()
 	require.NoError(t, err)
 
 	// access unit with IDR
@@ -511,7 +544,14 @@ func TestMuxerMaxSegmentSize(t *testing.T) {
 		PacketizationMode: 1,
 	}
 
-	m, err := NewMuxer(MuxerVariantMPEGTS, 3, 1*time.Second, 0, 0, videoTrack, nil, "")
+	m := &Muxer{
+		Variant:         MuxerVariantMPEGTS,
+		SegmentCount:    3,
+		SegmentDuration: 1 * time.Second,
+		VideoTrack:      videoTrack,
+	}
+
+	err := m.Start()
 	require.NoError(t, err)
 	defer m.Close()
 
@@ -530,7 +570,15 @@ func TestMuxerDoubleRead(t *testing.T) {
 		PacketizationMode: 1,
 	}
 
-	m, err := NewMuxer(MuxerVariantMPEGTS, 3, 1*time.Second, 0, 50*1024*1024, videoTrack, nil, "")
+	m := &Muxer{
+		Variant:         MuxerVariantMPEGTS,
+		SegmentCount:    3,
+		SegmentDuration: 1 * time.Second,
+		SegmentMaxSize:  50 * 1024 * 1024,
+		VideoTrack:      videoTrack,
+	}
+
+	err := m.Start()
 	require.NoError(t, err)
 	defer m.Close()
 
@@ -577,7 +625,15 @@ func TestMuxerFMP4ZeroDuration(t *testing.T) {
 		PacketizationMode: 1,
 	}
 
-	m, err := NewMuxer(MuxerVariantLowLatency, 3, 1*time.Second, 0, 50*1024*1024, videoTrack, nil, "")
+	m := &Muxer{
+		Variant:         MuxerVariantLowLatency,
+		SegmentCount:    3,
+		SegmentDuration: 1 * time.Second,
+		SegmentMaxSize:  50 * 1024 * 1024,
+		VideoTrack:      videoTrack,
+	}
+
+	err := m.Start()
 	require.NoError(t, err)
 	defer m.Close()
 
@@ -620,7 +676,16 @@ func TestMuxerSaveToDisk(t *testing.T) {
 				v = MuxerVariantFMP4
 			}
 
-			m, err := NewMuxer(v, 3, 1*time.Second, 0, 50*1024*1024, videoTrack, nil, dir)
+			m := &Muxer{
+				Variant:         v,
+				SegmentCount:    3,
+				SegmentDuration: 1 * time.Second,
+				SegmentMaxSize:  50 * 1024 * 1024,
+				VideoTrack:      videoTrack,
+				DirPath:         dir,
+			}
+
+			err = m.Start()
 			require.NoError(t, err)
 
 			err = m.WriteH26x(testTime, 0, [][]byte{

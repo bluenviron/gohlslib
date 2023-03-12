@@ -277,12 +277,11 @@ func TestClientMPEGTS(t *testing.T) {
 				prefix = "https"
 			}
 
-			c, err := NewClient(
-				prefix+"://localhost:5780/stream.m3u8",
-				"33949E05FFFB5FF3E8AA16F8213A6251B4D9363804BA53233C4DA9A46D6F2739",
-				testLogger{},
-			)
-			require.NoError(t, err)
+			c := &Client{
+				URI:         prefix + "://localhost:5780/stream.m3u8",
+				Fingerprint: "33949E05FFFB5FF3E8AA16F8213A6251B4D9363804BA53233C4DA9A46D6F2739",
+				Logger:      testLogger{},
+			}
 
 			onH264 := func(pts time.Duration, unit interface{}) {
 				require.Equal(t, 2*time.Second, pts)
@@ -304,7 +303,8 @@ func TestClientMPEGTS(t *testing.T) {
 				return nil
 			})
 
-			c.Start()
+			err = c.Start()
+			require.NoError(t, err)
 
 			<-packetRecv
 
@@ -357,12 +357,10 @@ func TestClientFMP4(t *testing.T) {
 		close(packetRecv)
 	}
 
-	c, err := NewClient(
-		"http://localhost:5780/stream.m3u8",
-		"",
-		testLogger{},
-	)
-	require.NoError(t, err)
+	c := &Client{
+		URI:    "http://localhost:5780/stream.m3u8",
+		Logger: testLogger{},
+	}
 
 	c.OnTracks(func(tracks []format.Format) error {
 		require.Equal(t, 1, len(tracks))
@@ -372,7 +370,8 @@ func TestClientFMP4(t *testing.T) {
 		return nil
 	})
 
-	c.Start()
+	err = c.Start()
+	require.NoError(t, err)
 
 	<-packetRecv
 
@@ -428,18 +427,18 @@ func TestClientInvalidSequenceID(t *testing.T) {
 	require.NoError(t, err)
 	defer s.close()
 
-	c, err := NewClient(
-		"http://localhost:5780/stream.m3u8",
-		"",
-		testLogger{},
-	)
+	c := &Client{
+		URI:    "http://localhost:5780/stream.m3u8",
+		Logger: testLogger{},
+	}
 	require.NoError(t, err)
 
 	c.OnTracks(func(tracks []format.Format) error {
 		return nil
 	})
 
-	c.Start()
+	err = c.Start()
+	require.NoError(t, err)
 
 	err = <-c.Wait()
 	require.EqualError(t, err, "following segment not found or not ready yet")
