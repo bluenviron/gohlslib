@@ -2,11 +2,9 @@ module github.com/bluenviron/gohlslib
 
 go 1.18
 
-replace github.com/orcaman/writerseeker => github.com/aler9/writerseeker v0.0.0-20220601075008-6f0e685b9c82
-
 require (
 	github.com/abema/go-mp4 v0.10.1
-	github.com/aler9/gortsplib/v2 v2.1.4
+	github.com/aler9/gortsplib/v2 v2.1.6
 	github.com/asticode/go-astits v1.11.0
 	github.com/gin-gonic/gin v1.9.0
 	github.com/gookit/color v1.4.2
@@ -48,3 +46,5 @@ require (
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/orcaman/writerseeker => github.com/aler9/writerseeker v0.0.0-20220601075008-6f0e685b9c82

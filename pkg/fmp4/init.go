@@ -239,9 +239,8 @@ func (i *Init) Unmarshal(byts []byte) error {
 			dops := box.(*DOps)
 
 			curTrack.Format = &format.Opus{
-				PayloadTyp:   96,
-				SampleRate:   int(dops.InputSampleRate),
-				ChannelCount: int(dops.OutputChannelCount),
+				PayloadTyp: 96,
+				IsStereo:   (dops.OutputChannelCount == 2),
 			}
 			state = waitingTrak
 

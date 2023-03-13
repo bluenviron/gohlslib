@@ -38,6 +38,43 @@ func findMPEG4AudioConfig(dem *astits.Demuxer, pid uint16) (*mpeg4audio.Config, 
 	}
 }
 
+func findOpusRegistration(descriptors []*astits.Descriptor) bool {
+	for _, sd := range descriptors {
+		if sd.Registration != nil {
+			if sd.Registration.FormatIdentifier == opusIdentifier {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func findOpusChannelCount(descriptors []*astits.Descriptor) int {
+	for _, sd := range descriptors {
+		if sd.Extension != nil && sd.Extension.Tag == 0x80 &&
+			sd.Extension.Unknown != nil && len(*sd.Extension.Unknown) >= 1 {
+			return int((*sd.Extension.Unknown)[0])
+		}
+	}
+	return 0
+}
+
+func findOpusTrack(descriptors []*astits.Descriptor) *format.Opus {
+	if !findOpusRegistration(descriptors) {
+		return nil
+	}
+
+	channelCount := findOpusChannelCount(descriptors)
+	if channelCount <= 0 {
+		return nil
+	}
+
+	return &format.Opus{
+		PayloadTyp: 96,
+		IsStereo:   (channelCount == 2),
+	}
+}
+
 // Track is a MPEG-TS track.
 type Track struct {
 	ES     *astits.PMTElementaryStream
@@ -92,17 +129,12 @@ func FindTracks(dem *astits.Demuxer) ([]*Track, error) {
 					})
 
 				case astits.StreamTypePrivateData:
-					for _, pd := range es.ElementaryStreamDescriptors {
-						if pd.Registration != nil {
-							if pd.Registration.FormatIdentifier == opusIdentifier {
-								tracks = append(tracks, &Track{
-									ES: es,
-									Format: &format.Opus{
-										ChannelCount: 2, // TODO: extract from 0x80
-									},
-								})
-							}
-						}
+					format := findOpusTrack(es.ElementaryStreamDescriptors)
+					if format != nil {
+						tracks = append(tracks, &Track{
+							ES:     es,
+							Format: format,
+						})
 					}
 				}
 			}

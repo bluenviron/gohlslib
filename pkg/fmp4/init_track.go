@@ -442,18 +442,28 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 				},
 				DataReferenceIndex: 1,
 			},
-			ChannelCount: uint16(ttrack.ChannelCount),
-			SampleSize:   16,
-			SampleRate:   uint32(ttrack.ClockRate() * 65536),
+			ChannelCount: func() uint16 {
+				if ttrack.IsStereo {
+					return 2
+				}
+				return 1
+			}(),
+			SampleSize: 16,
+			SampleRate: 48000 * 65536,
 		})
 		if err != nil {
 			return err
 		}
 
 		_, err = w.writeBox(&DOps{ // <dOps/>
-			OutputChannelCount: uint8(ttrack.ChannelCount),
-			PreSkip:            312,
-			InputSampleRate:    uint32(ttrack.ClockRate()),
+			OutputChannelCount: func() uint8 {
+				if ttrack.IsStereo {
+					return 2
+				}
+				return 1
+			}(),
+			PreSkip:         312,
+			InputSampleRate: 48000,
 		})
 		if err != nil {
 			return err

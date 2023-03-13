@@ -472,9 +472,8 @@ var casesInit = []struct {
 					ID:        1,
 					TimeScale: 48000,
 					Format: &format.Opus{
-						PayloadTyp:   96,
-						SampleRate:   48000,
-						ChannelCount: 2,
+						PayloadTyp: 96,
+						IsStereo:   true,
 					},
 				},
 			},
