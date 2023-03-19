@@ -75,7 +75,7 @@ type augmentedAudioSample struct {
 	ntp time.Time
 }
 
-type muxerVariantFMP4Segmenter struct {
+type muxerSegmenterFMP4 struct {
 	lowLatency         bool
 	segmentDuration    time.Duration
 	partDuration       time.Duration
@@ -83,14 +83,14 @@ type muxerVariantFMP4Segmenter struct {
 	videoTrack         format.Format
 	audioTrack         format.Format
 	factory            storage.Factory
-	onSegmentFinalized func(*muxerVariantFMP4Segment)
-	onPartFinalized    func(*muxerVariantFMP4Part)
+	onSegmentFinalized func(muxerSegment)
+	onPartFinalized    func(*muxerPart)
 
 	startDTS                       time.Duration
 	videoFirstRandomAccessReceived bool
 	videoDTSExtractor              dtsExtractor
 	lastVideoParams                [][]byte
-	currentSegment                 *muxerVariantFMP4Segment
+	currentSegment                 *muxerSegmentFMP4
 	nextSegmentID                  uint64
 	nextPartID                     uint64
 	nextVideoSample                *augmentedVideoSample
@@ -100,7 +100,7 @@ type muxerVariantFMP4Segmenter struct {
 	adjustedPartDuration           time.Duration
 }
 
-func newMuxerVariantFMP4Segmenter(
+func newMuxerSegmenterFMP4(
 	lowLatency bool,
 	segmentCount int,
 	segmentDuration time.Duration,
@@ -109,10 +109,10 @@ func newMuxerVariantFMP4Segmenter(
 	videoTrack format.Format,
 	audioTrack format.Format,
 	factory storage.Factory,
-	onSegmentFinalized func(*muxerVariantFMP4Segment),
-	onPartFinalized func(*muxerVariantFMP4Part),
-) *muxerVariantFMP4Segmenter {
-	m := &muxerVariantFMP4Segmenter{
+	onSegmentFinalized func(muxerSegment),
+	onPartFinalized func(*muxerPart),
+) *muxerSegmenterFMP4 {
+	m := &muxerSegmenterFMP4{
 		lowLatency:         lowLatency,
 		segmentDuration:    segmentDuration,
 		partDuration:       partDuration,
@@ -133,20 +133,20 @@ func newMuxerVariantFMP4Segmenter(
 	return m
 }
 
-func (m *muxerVariantFMP4Segmenter) close() {
+func (m *muxerSegmenterFMP4) close() {
 	if m.currentSegment != nil {
 		m.currentSegment.finalize(0)
 		m.currentSegment.close()
 	}
 }
 
-func (m *muxerVariantFMP4Segmenter) genSegmentID() uint64 {
+func (m *muxerSegmenterFMP4) genSegmentID() uint64 {
 	id := m.nextSegmentID
 	m.nextSegmentID++
 	return id
 }
 
-func (m *muxerVariantFMP4Segmenter) genPartID() uint64 {
+func (m *muxerSegmenterFMP4) genPartID() uint64 {
 	id := m.nextPartID
 	m.nextPartID++
 	return id
@@ -154,7 +154,7 @@ func (m *muxerVariantFMP4Segmenter) genPartID() uint64 {
 
 // iPhone iOS fails if part durations are less than 85% of maximum part duration.
 // find a part duration that is compatible with all received sample durations
-func (m *muxerVariantFMP4Segmenter) adjustPartDuration(du time.Duration) {
+func (m *muxerSegmenterFMP4) adjustPartDuration(du time.Duration) {
 	if !m.lowLatency || m.firstSegmentFinalized {
 		return
 	}
@@ -173,7 +173,7 @@ func (m *muxerVariantFMP4Segmenter) adjustPartDuration(du time.Duration) {
 	}
 }
 
-func (m *muxerVariantFMP4Segmenter) writeH26x(ntp time.Time, pts time.Duration, au [][]byte) error {
+func (m *muxerSegmenterFMP4) writeH26x(ntp time.Time, pts time.Duration, au [][]byte) error {
 	randomAccessPresent := false
 
 	switch m.videoTrack.(type) {
@@ -210,7 +210,7 @@ func (m *muxerVariantFMP4Segmenter) writeH26x(ntp time.Time, pts time.Duration, 
 	return m.writeH26xEntry(ntp, pts, au, randomAccessPresent)
 }
 
-func (m *muxerVariantFMP4Segmenter) writeH26xEntry(
+func (m *muxerSegmenterFMP4) writeH26xEntry(
 	ntp time.Time,
 	pts time.Duration,
 	au [][]byte,
@@ -275,7 +275,7 @@ func (m *muxerVariantFMP4Segmenter) writeH26xEntry(
 	if m.currentSegment == nil {
 		// create first segment
 		var err error
-		m.currentSegment, err = newMuxerVariantFMP4Segment(
+		m.currentSegment, err = newMuxerSegmentFMP4(
 			m.lowLatency,
 			m.genSegmentID(),
 			sample.ntp,
@@ -314,7 +314,7 @@ func (m *muxerVariantFMP4Segmenter) writeH26xEntry(
 
 			m.firstSegmentFinalized = true
 
-			m.currentSegment, err = newMuxerVariantFMP4Segment(
+			m.currentSegment, err = newMuxerSegmentFMP4(
 				m.lowLatency,
 				m.genSegmentID(),
 				m.nextVideoSample.ntp,
@@ -343,7 +343,7 @@ func (m *muxerVariantFMP4Segmenter) writeH26xEntry(
 	return nil
 }
 
-func (m *muxerVariantFMP4Segmenter) writeAudio(ntp time.Time, dts time.Duration, au []byte) error {
+func (m *muxerSegmenterFMP4) writeAudio(ntp time.Time, dts time.Duration, au []byte) error {
 	if m.videoTrack != nil {
 		// wait for the video track
 		if !m.videoFirstRandomAccessReceived {
@@ -375,7 +375,7 @@ func (m *muxerVariantFMP4Segmenter) writeAudio(ntp time.Time, dts time.Duration,
 		if m.currentSegment == nil {
 			// create first segment
 			var err error
-			m.currentSegment, err = newMuxerVariantFMP4Segment(
+			m.currentSegment, err = newMuxerSegmentFMP4(
 				m.lowLatency,
 				m.genSegmentID(),
 				sample.ntp,
@@ -414,7 +414,7 @@ func (m *muxerVariantFMP4Segmenter) writeAudio(ntp time.Time, dts time.Duration,
 
 		m.firstSegmentFinalized = true
 
-		m.currentSegment, err = newMuxerVariantFMP4Segment(
+		m.currentSegment, err = newMuxerSegmentFMP4(
 			m.lowLatency,
 			m.genSegmentID(),
 			m.nextAudioSample.ntp,

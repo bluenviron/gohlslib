@@ -64,6 +64,10 @@ type Client struct {
 	// It defaults to log.Printf.
 	Log LogFunc
 
+	//
+	// private
+	//
+
 	ctx         context.Context
 	ctxCancel   func()
 	onTracks    func([]format.Format) error

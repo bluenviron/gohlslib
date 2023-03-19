@@ -12,7 +12,7 @@ import (
 	"github.com/bluenviron/gohlslib/pkg/storage"
 )
 
-type muxerVariantMPEGTSSegment struct {
+type muxerSegmentMPEGTS struct {
 	segmentMaxSize uint64
 	videoTrack     *format.H264
 	audioTrack     *format.MPEG4Audio
@@ -28,7 +28,7 @@ type muxerVariantMPEGTSSegment struct {
 	audioAUCount int
 }
 
-func newMuxerVariantMPEGTSSegment(
+func newMuxerSegmentMPEGTS(
 	id uint64,
 	startTime time.Time,
 	segmentMaxSize uint64,
@@ -36,8 +36,8 @@ func newMuxerVariantMPEGTSSegment(
 	audioTrack *format.MPEG4Audio,
 	writer *mpegts.Writer,
 	factory storage.Factory,
-) (*muxerVariantMPEGTSSegment, error) {
-	s := &muxerVariantMPEGTSSegment{
+) (*muxerSegmentMPEGTS, error) {
+	s := &muxerSegmentMPEGTS{
 		segmentMaxSize: segmentMaxSize,
 		videoTrack:     videoTrack,
 		audioTrack:     audioTrack,
@@ -59,24 +59,28 @@ func newMuxerVariantMPEGTSSegment(
 	return s, nil
 }
 
-func (t *muxerVariantMPEGTSSegment) close() {
+func (t *muxerSegmentMPEGTS) close() {
 	t.storage.Remove()
 }
 
-func (t *muxerVariantMPEGTSSegment) duration() time.Duration {
+func (t *muxerSegmentMPEGTS) getName() string {
+	return t.name
+}
+
+func (t *muxerSegmentMPEGTS) getDuration() time.Duration {
 	return t.endDTS - *t.startDTS
 }
 
-func (t *muxerVariantMPEGTSSegment) reader() (io.ReadCloser, error) {
+func (t *muxerSegmentMPEGTS) reader() (io.ReadCloser, error) {
 	return t.storage.Reader()
 }
 
-func (t *muxerVariantMPEGTSSegment) finalize(endDTS time.Duration) {
+func (t *muxerSegmentMPEGTS) finalize(endDTS time.Duration) {
 	t.endDTS = endDTS
 	t.storage.Finalize()
 }
 
-func (t *muxerVariantMPEGTSSegment) writeH264(
+func (t *muxerSegmentMPEGTS) writeH264(
 	pcr time.Duration,
 	dts time.Duration,
 	pts time.Duration,
@@ -105,7 +109,7 @@ func (t *muxerVariantMPEGTSSegment) writeH264(
 	return nil
 }
 
-func (t *muxerVariantMPEGTSSegment) writeAAC(
+func (t *muxerSegmentMPEGTS) writeAAC(
 	pcr time.Duration,
 	pts time.Duration,
 	au []byte,
