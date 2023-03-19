@@ -30,7 +30,7 @@ func mpegtsPickLeadingTrack(mpegtsTracks []*mpegts.Track) uint16 {
 type clientProcessorMPEGTS struct {
 	isLeading            bool
 	segmentQueue         *clientSegmentQueue
-	logger               ClientLogger
+	log                  LogFunc
 	rp                   *clientRoutinePool
 	onStreamFormats      func(context.Context, []format.Format) bool
 	onSetLeadingTimeSync func(clientTimeSync)
@@ -45,7 +45,7 @@ type clientProcessorMPEGTS struct {
 func newClientProcessorMPEGTS(
 	isLeading bool,
 	segmentQueue *clientSegmentQueue,
-	logger ClientLogger,
+	log LogFunc,
 	rp *clientRoutinePool,
 	onStreamFormats func(context.Context, []format.Format) bool,
 	onSetLeadingTimeSync func(clientTimeSync),
@@ -55,7 +55,7 @@ func newClientProcessorMPEGTS(
 	return &clientProcessorMPEGTS{
 		isLeading:            isLeading,
 		segmentQueue:         segmentQueue,
-		logger:               logger,
+		log:                  log,
 		rp:                   rp,
 		onStreamFormats:      onStreamFormats,
 		onSetLeadingTimeSync: onSetLeadingTimeSync,
@@ -194,7 +194,7 @@ func (p *clientProcessorMPEGTS) initializeTrackProcs(ts *clientTimeSyncMPEGTS) {
 			cb = func(pts time.Duration, payload []byte) error {
 				nalus, err := h264.AnnexBUnmarshal(payload)
 				if err != nil {
-					p.logger.Log(LogLevelWarn, "unable to decode Annex-B: %s", err)
+					p.log(LogLevelWarn, "unable to decode Annex-B: %s", err)
 					return nil
 				}
 

@@ -47,7 +47,7 @@ type clientDownloaderStream struct {
 	httpClient           *http.Client
 	playlistURL          *url.URL
 	initialPlaylist      *m3u8.MediaPlaylist
-	logger               ClientLogger
+	log                  LogFunc
 	rp                   *clientRoutinePool
 	onStreamTracks       func(context.Context, []format.Format) bool
 	onSetLeadingTimeSync func(clientTimeSync)
@@ -62,7 +62,7 @@ func newClientDownloaderStream(
 	httpClient *http.Client,
 	playlistURL *url.URL,
 	initialPlaylist *m3u8.MediaPlaylist,
-	logger ClientLogger,
+	log LogFunc,
 	rp *clientRoutinePool,
 	onStreamTracks func(context.Context, []format.Format) bool,
 	onSetLeadingTimeSync func(clientTimeSync),
@@ -74,7 +74,7 @@ func newClientDownloaderStream(
 		httpClient:           httpClient,
 		playlistURL:          playlistURL,
 		initialPlaylist:      initialPlaylist,
-		logger:               logger,
+		log:                  log,
 		rp:                   rp,
 		onStreamTracks:       onStreamTracks,
 		onSetLeadingTimeSync: onSetLeadingTimeSync,
@@ -107,7 +107,7 @@ func (d *clientDownloaderStream) run(ctx context.Context) error {
 			d.isLeading,
 			byts,
 			segmentQueue,
-			d.logger,
+			d.log,
 			d.rp,
 			d.onStreamTracks,
 			d.onSetLeadingTimeSync,
@@ -123,7 +123,7 @@ func (d *clientDownloaderStream) run(ctx context.Context) error {
 		proc := newClientProcessorMPEGTS(
 			d.isLeading,
 			segmentQueue,
-			d.logger,
+			d.log,
 			d.rp,
 			d.onStreamTracks,
 			d.onSetLeadingTimeSync,
@@ -157,7 +157,7 @@ func (d *clientDownloaderStream) run(ctx context.Context) error {
 }
 
 func (d *clientDownloaderStream) downloadPlaylist(ctx context.Context) (*m3u8.MediaPlaylist, error) {
-	d.logger.Log(LogLevelDebug, "downloading stream playlist %s", d.playlistURL.String())
+	d.log(LogLevelDebug, "downloading stream playlist %s", d.playlistURL.String())
 
 	pl, err := clientDownloadPlaylist(ctx, d.httpClient, d.playlistURL)
 	if err != nil {
@@ -180,7 +180,7 @@ func (d *clientDownloaderStream) downloadSegment(ctx context.Context,
 		return nil, err
 	}
 
-	d.logger.Log(LogLevelDebug, "downloading segment %s", u)
+	d.log(LogLevelDebug, "downloading segment %s", u)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, err
@@ -233,7 +233,7 @@ func (d *clientDownloaderStream) fillSegmentQueue(ctx context.Context,
 			return fmt.Errorf("following segment not found or not ready yet")
 		}
 
-		d.logger.Log(LogLevelDebug, "segment inverse position: %d", invPos)
+		d.log(LogLevelDebug, "segment inverse position: %d", invPos)
 
 		if !pl.Closed && invPos > clientLiveMaxInvPosition {
 			return fmt.Errorf("playback is too late")
