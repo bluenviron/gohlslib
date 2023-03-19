@@ -140,7 +140,7 @@ func TestMuxerVideoAudio(t *testing.T) {
 					"#EXT-X-VERSION:3\n"+
 					"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 					"\n"+
-					"#EXT-X-STREAM-INF:BANDWIDTH=200000,CODECS=\"avc1.42c028,mp4a.40.2\"\n"+
+					"#EXT-X-STREAM-INF:BANDWIDTH=200000,CODECS=\"avc1.42c028,mp4a.40.2\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
 					"stream.m3u8\n", string(byts))
 
 			case "fmp4", "lowLatency":
@@ -148,7 +148,7 @@ func TestMuxerVideoAudio(t *testing.T) {
 					"#EXT-X-VERSION:9\n"+
 					"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 					"\n"+
-					"#EXT-X-STREAM-INF:BANDWIDTH=200000,CODECS=\"avc1.42c028,mp4a.40.2\"\n"+
+					"#EXT-X-STREAM-INF:BANDWIDTH=200000,CODECS=\"avc1.42c028,mp4a.40.2\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
 					"stream.m3u8\n", string(byts))
 			}
 
@@ -325,14 +325,14 @@ func TestMuxerVideoOnly(t *testing.T) {
 					"#EXT-X-VERSION:3\n"+
 					"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 					"\n"+
-					"#EXT-X-STREAM-INF:BANDWIDTH=200000,CODECS=\"avc1.42c028\"\n"+
+					"#EXT-X-STREAM-INF:BANDWIDTH=200000,CODECS=\"avc1.42c028\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
 					"stream.m3u8\n", string(byts))
 			} else {
 				require.Equal(t, "#EXTM3U\n"+
 					"#EXT-X-VERSION:9\n"+
 					"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 					"\n"+
-					"#EXT-X-STREAM-INF:BANDWIDTH=200000,CODECS=\"avc1.42c028\"\n"+
+					"#EXT-X-STREAM-INF:BANDWIDTH=200000,CODECS=\"avc1.42c028\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
 					"stream.m3u8\n", string(byts))
 			}
 

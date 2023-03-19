@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
+	"github.com/aler9/gortsplib/v2/pkg/codecs/h264"
+	"github.com/aler9/gortsplib/v2/pkg/codecs/h265"
 	"github.com/aler9/gortsplib/v2/pkg/format"
 
 	"github.com/bluenviron/gohlslib/pkg/codecparams"
@@ -149,6 +152,39 @@ func (m *Muxer) multistreamPlaylist() *MuxerFileResponse {
 			"Content-Type": `application/x-mpegURL`,
 		},
 		Body: func() io.ReadCloser {
+			var resolution *string
+			var frameRate *float64
+
+			if m.VideoTrack != nil {
+				switch ttrack := m.VideoTrack.(type) {
+				case *format.H264:
+					var sps h264.SPS
+					err := sps.Unmarshal(ttrack.SafeSPS())
+					if err == nil {
+						v := strconv.FormatInt(int64(sps.Width()), 10) + "x" + strconv.FormatInt(int64(sps.Height()), 10)
+						resolution = &v
+
+						f := sps.FPS()
+						if f != 0 {
+							frameRate = &f
+						}
+					}
+
+				case *format.H265:
+					var sps h265.SPS
+					err := sps.Unmarshal(ttrack.SafeSPS())
+					if err == nil {
+						v := strconv.FormatInt(int64(sps.Width()), 10) + "x" + strconv.FormatInt(int64(sps.Height()), 10)
+						resolution = &v
+
+						f := sps.FPS()
+						if f != 0 {
+							frameRate = &f
+						}
+					}
+				}
+			}
+
 			p := &playlist.Multivariant{
 				Version: func() int {
 					if !m.fmp4 {
@@ -169,7 +205,9 @@ func (m *Muxer) multistreamPlaylist() *MuxerFileResponse {
 						}
 						return codecs
 					}(),
-					URL: "stream.m3u8",
+					Resolution: resolution,
+					FrameRate:  frameRate,
+					URL:        "stream.m3u8",
 				}},
 			}
 

@@ -7,9 +7,28 @@ import (
 
 // MultivariantVariant is a variant of a multivariant playlist.
 type MultivariantVariant struct {
-	Bandwidth int
-	Codecs    []string
-	URL       string
+	Bandwidth  int
+	Codecs     []string
+	Resolution *string
+	FrameRate  *float64
+	URL        string
+}
+
+func (v MultivariantVariant) marshal() string {
+	ret := "#EXT-X-STREAM-INF:BANDWIDTH=" + strconv.FormatInt(int64(v.Bandwidth), 10) +
+		",CODECS=\"" + strings.Join(v.Codecs, ",") + "\""
+
+	if v.Resolution != nil {
+		ret += ",RESOLUTION=" + *v.Resolution
+	}
+
+	if v.FrameRate != nil {
+		ret += ",FRAME-RATE=" + strconv.FormatFloat(*v.FrameRate, 'f', 3, 64)
+	}
+
+	ret += "\n" + v.URL + "\n"
+
+	return ret
 }
 
 // Multivariant is a multivariant playlist.
@@ -31,9 +50,7 @@ func (m Multivariant) Marshal() ([]byte, error) {
 	ret += "\n"
 
 	for _, v := range m.Variants {
-		ret += "#EXT-X-STREAM-INF:BANDWIDTH=" + strconv.FormatInt(int64(v.Bandwidth), 10) +
-			",CODECS=\"" + strings.Join(v.Codecs, ",") + "\"\n" +
-			v.URL + "\n"
+		ret += v.marshal()
 	}
 
 	return []byte(ret), nil
