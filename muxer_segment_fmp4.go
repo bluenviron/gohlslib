@@ -22,12 +22,12 @@ type muxerSegmentFMP4 struct {
 	genPartID       func() uint64
 	onPartFinalized func(*muxerPart)
 
-	name             string
-	storage          storage.Segment
-	size             uint64
-	parts            []*muxerPart
-	currentPart      *muxerPart
-	renderedDuration time.Duration
+	name          string
+	storage       storage.Segment
+	size          uint64
+	parts         []*muxerPart
+	currentPart   *muxerPart
+	finalDuration time.Duration
 }
 
 func newMuxerSegmentFMP4(
@@ -80,7 +80,11 @@ func (s *muxerSegmentFMP4) getName() string {
 }
 
 func (s *muxerSegmentFMP4) getDuration() time.Duration {
-	return s.renderedDuration
+	return s.finalDuration
+}
+
+func (s *muxerSegmentFMP4) getSize() uint64 {
+	return s.storage.Size()
 }
 
 func (s *muxerSegmentFMP4) reader() (io.ReadCloser, error) {
@@ -104,11 +108,11 @@ func (s *muxerSegmentFMP4) finalize(
 	s.storage.Finalize()
 
 	if s.videoTrack != nil {
-		s.renderedDuration = nextVideoSampleDTS - s.startDTS
+		s.finalDuration = nextVideoSampleDTS - s.startDTS
 	} else {
-		s.renderedDuration = 0
+		s.finalDuration = 0
 		for _, pa := range s.parts {
-			s.renderedDuration += pa.renderedDuration
+			s.finalDuration += pa.finalDuration
 		}
 	}
 

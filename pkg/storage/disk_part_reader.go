@@ -10,13 +10,13 @@ type diskPartReader struct {
 	r *io.LimitedReader
 }
 
-func newFileLimitedReader(fpath string, offset int64, size int64) (io.ReadCloser, error) {
+func newDiskPartReader(fpath string, offset uint64, size uint64) (io.ReadCloser, error) {
 	f, err := os.Open(fpath)
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = f.Seek(offset, io.SeekStart)
+	_, err = f.Seek(int64(offset), io.SeekStart)
 	if err != nil {
 		return nil, err
 	}
@@ -25,7 +25,7 @@ func newFileLimitedReader(fpath string, offset int64, size int64) (io.ReadCloser
 		f: f,
 		r: &io.LimitedReader{
 			R: f,
-			N: size,
+			N: int64(size),
 		},
 	}, nil
 }

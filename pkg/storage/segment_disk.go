@@ -7,9 +7,10 @@ import (
 )
 
 type segmentDisk struct {
-	fpath string
-	f     *os.File
-	parts []*partDisk
+	fpath     string
+	f         *os.File
+	parts     []*partDisk
+	finalSize uint64
 }
 
 func newSegmentDisk(fpath string) (Segment, error) {
@@ -26,10 +27,13 @@ func newSegmentDisk(fpath string) (Segment, error) {
 
 // Finalize implements Segment.
 func (s *segmentDisk) Finalize() {
-	// set size of last part
 	if len(s.parts) > 0 {
+		// set size of last part
 		lastPart := s.parts[len(s.parts)-1]
-		lastPart.size = int64(len(lastPart.buffer.Bytes()))
+		lastPart.size = uint64(len(lastPart.buffer.Bytes()))
+
+		// save size
+		s.finalSize = lastPart.offset + lastPart.size
 	}
 
 	// remove segment from memory; we will use the file from now on
@@ -49,10 +53,10 @@ func (s *segmentDisk) Remove() {
 // NewPart implements Segment.
 func (s *segmentDisk) NewPart() Part {
 	// set size of last part and get offset
-	offset := int64(0)
+	offset := uint64(0)
 	if len(s.parts) > 0 {
 		lastPart := s.parts[len(s.parts)-1]
-		lastPart.size = int64(len(lastPart.buffer.Bytes()))
+		lastPart.size = uint64(len(lastPart.buffer.Bytes()))
 		offset = lastPart.offset + lastPart.size
 	}
 
@@ -68,4 +72,9 @@ func (s *segmentDisk) Reader() (io.ReadCloser, error) {
 	}
 
 	return os.Open(s.fpath)
+}
+
+// Size implements Segment.
+func (s *segmentDisk) Size() uint64 {
+	return s.finalSize
 }

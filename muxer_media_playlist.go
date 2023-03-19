@@ -40,15 +40,15 @@ func partTargetDuration(
 		}
 
 		for _, part := range seg.parts {
-			if part.renderedDuration > ret {
-				ret = part.renderedDuration
+			if part.finalDuration > ret {
+				ret = part.finalDuration
 			}
 		}
 	}
 
 	for _, part := range nextSegmentParts {
-		if part.renderedDuration > ret {
-			ret = part.renderedDuration
+		if part.finalDuration > ret {
+			ret = part.finalDuration
 		}
 	}
 
@@ -327,7 +327,7 @@ func (p *muxerMediaPlaylist) generatePlaylistFMP4(isDeltaUpdate bool) []byte {
 		switch seg := sog.(type) {
 		case *muxerSegmentFMP4:
 			plse := &playlist.MediaSegment{
-				Duration: seg.renderedDuration,
+				Duration: seg.finalDuration,
 				URI:      seg.name + ".mp4",
 			}
 
@@ -338,7 +338,7 @@ func (p *muxerMediaPlaylist) generatePlaylistFMP4(isDeltaUpdate bool) []byte {
 			if p.variant == MuxerVariantLowLatency && (len(p.segments)-i) <= 2 {
 				for _, part := range seg.parts {
 					plse.Parts = append(plse.Parts, &playlist.MediaPart{
-						Duration:    part.renderedDuration,
+						Duration:    part.finalDuration,
 						URI:         part.name() + ".mp4",
 						Independent: part.isIndependent,
 					})
@@ -350,7 +350,7 @@ func (p *muxerMediaPlaylist) generatePlaylistFMP4(isDeltaUpdate bool) []byte {
 		case *muxerGap:
 			pl.Segments = append(pl.Segments, &playlist.MediaSegment{
 				Gap:      true,
-				Duration: seg.renderedDuration,
+				Duration: seg.duration,
 				URI:      "gap.mp4",
 			})
 		}
@@ -359,7 +359,7 @@ func (p *muxerMediaPlaylist) generatePlaylistFMP4(isDeltaUpdate bool) []byte {
 	if p.variant == MuxerVariantLowLatency {
 		for _, part := range p.nextSegmentParts {
 			pl.Parts = append(pl.Parts, &playlist.MediaPart{
-				Duration:    part.renderedDuration,
+				Duration:    part.finalDuration,
 				URI:         part.name() + ".mp4",
 				Independent: part.isIndependent,
 			})
@@ -473,6 +473,27 @@ func (p *muxerMediaPlaylist) segmentReader(fname string) *MuxerFileResponse {
 	}
 }
 
+func (p *muxerMediaPlaylist) bandwidth() uint64 {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	if len(p.segments) == 0 {
+		return 0
+	}
+
+	var sizes uint64
+	var durations time.Duration
+
+	for _, seg := range p.segments {
+		if _, ok := seg.(*muxerGap); !ok {
+			sizes += seg.getSize()
+			durations += seg.getDuration()
+		}
+	}
+
+	return 8 * sizes * uint64(time.Second) / uint64(durations)
+}
+
 func (p *muxerMediaPlaylist) onSegmentFinalized(segment muxerSegment) {
 	func() {
 		p.mutex.Lock()
@@ -482,7 +503,7 @@ func (p *muxerMediaPlaylist) onSegmentFinalized(segment muxerSegment) {
 		if p.variant == MuxerVariantLowLatency && len(p.segments) == 0 {
 			for i := 0; i < 7; i++ {
 				p.segments = append(p.segments, &muxerGap{
-					renderedDuration: segment.getDuration(),
+					duration: segment.getDuration(),
 				})
 			}
 		}
