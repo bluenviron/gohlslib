@@ -10,11 +10,11 @@ import (
 type partDisk struct {
 	s      *segmentDisk
 	buffer *writerseeker.WriterSeeker
-	offset int64
-	size   int64
+	offset uint64
+	size   uint64
 }
 
-func newPartDisk(s *segmentDisk, offset int64) *partDisk {
+func newPartDisk(s *segmentDisk, offset uint64) *partDisk {
 	return &partDisk{
 		s:      s,
 		buffer: &writerseeker.WriterSeeker{},
@@ -25,7 +25,7 @@ func newPartDisk(s *segmentDisk, offset int64) *partDisk {
 // Writer implements Part.
 func (p *partDisk) Writer() io.WriteSeeker {
 	// write on both disk and RAM
-	return newDoubleWriter(newOffsetWriter(p.s.f, p.offset), p.buffer)
+	return newDoubleWriter(newOffsetWriter(p.s.f, int64(p.offset)), p.buffer)
 }
 
 // Reader implements Part.
@@ -36,5 +36,5 @@ func (p *partDisk) Reader() (io.ReadCloser, error) {
 	}
 
 	// read from disk
-	return newFileLimitedReader(p.s.fpath, p.offset, p.size)
+	return newDiskPartReader(p.s.fpath, p.offset, p.size)
 }

@@ -25,7 +25,7 @@ type muxerPart struct {
 	isIndependent       bool
 	videoSamples        []*fmp4.PartSample
 	audioSamples        []*fmp4.PartSample
-	renderedDuration    time.Duration
+	finalDuration       time.Duration
 	videoStartDTSFilled bool
 	videoStartDTS       time.Duration
 	audioStartDTSFilled bool
@@ -101,7 +101,7 @@ func (p *muxerPart) finalize() error {
 		return err
 	}
 
-	p.renderedDuration = p.duration()
+	p.finalDuration = p.duration()
 
 	p.videoSamples = nil
 	p.audioSamples = nil

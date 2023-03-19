@@ -19,4 +19,7 @@ type Segment interface {
 	// Reader returns a ReadCloser to read the segment.
 	// Close() must always be called to avoid a memory leak.
 	Reader() (io.ReadCloser, error)
+
+	// Size returns the size of the segment.
+	Size() uint64
 }
