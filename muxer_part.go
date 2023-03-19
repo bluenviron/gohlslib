@@ -16,7 +16,7 @@ func fmp4PartName(id uint64) string {
 	return "part" + strconv.FormatUint(id, 10)
 }
 
-type muxerVariantFMP4Part struct {
+type muxerPart struct {
 	videoTrack format.Format
 	audioTrack format.Format
 	id         uint64
@@ -32,13 +32,13 @@ type muxerVariantFMP4Part struct {
 	audioStartDTS       time.Duration
 }
 
-func newMuxerVariantFMP4Part(
+func newMuxerPart(
 	videoTrack format.Format,
 	audioTrack format.Format,
 	id uint64,
 	storage storage.Part,
-) *muxerVariantFMP4Part {
-	p := &muxerVariantFMP4Part{
+) *muxerPart {
+	p := &muxerPart{
 		videoTrack: videoTrack,
 		audioTrack: audioTrack,
 		id:         id,
@@ -52,15 +52,15 @@ func newMuxerVariantFMP4Part(
 	return p
 }
 
-func (p *muxerVariantFMP4Part) name() string {
+func (p *muxerPart) name() string {
 	return fmp4PartName(p.id)
 }
 
-func (p *muxerVariantFMP4Part) reader() (io.ReadCloser, error) {
+func (p *muxerPart) reader() (io.ReadCloser, error) {
 	return p.storage.Reader()
 }
 
-func (p *muxerVariantFMP4Part) duration() time.Duration {
+func (p *muxerPart) duration() time.Duration {
 	if p.videoTrack != nil {
 		ret := uint64(0)
 		for _, e := range p.videoSamples {
@@ -76,7 +76,7 @@ func (p *muxerVariantFMP4Part) duration() time.Duration {
 		time.Duration(mpeg4audio.SamplesPerAccessUnit) / time.Duration(p.audioTrack.ClockRate())
 }
 
-func (p *muxerVariantFMP4Part) finalize() error {
+func (p *muxerPart) finalize() error {
 	part := fmp4.Part{}
 
 	if p.videoSamples != nil {
@@ -109,7 +109,7 @@ func (p *muxerVariantFMP4Part) finalize() error {
 	return nil
 }
 
-func (p *muxerVariantFMP4Part) writeH264(sample *augmentedVideoSample) {
+func (p *muxerPart) writeH264(sample *augmentedVideoSample) {
 	if !p.videoStartDTSFilled {
 		p.videoStartDTSFilled = true
 		p.videoStartDTS = sample.dts
@@ -122,7 +122,7 @@ func (p *muxerVariantFMP4Part) writeH264(sample *augmentedVideoSample) {
 	p.videoSamples = append(p.videoSamples, &sample.PartSample)
 }
 
-func (p *muxerVariantFMP4Part) writeAudio(sample *augmentedAudioSample) {
+func (p *muxerPart) writeAudio(sample *augmentedAudioSample) {
 	if !p.audioStartDTSFilled {
 		p.audioStartDTSFilled = true
 		p.audioStartDTS = sample.dts

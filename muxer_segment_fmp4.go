@@ -11,7 +11,7 @@ import (
 	"github.com/bluenviron/gohlslib/pkg/storage"
 )
 
-type muxerVariantFMP4Segment struct {
+type muxerSegmentFMP4 struct {
 	lowLatency      bool
 	id              uint64
 	startTime       time.Time
@@ -20,17 +20,17 @@ type muxerVariantFMP4Segment struct {
 	videoTrack      format.Format
 	audioTrack      format.Format
 	genPartID       func() uint64
-	onPartFinalized func(*muxerVariantFMP4Part)
+	onPartFinalized func(*muxerPart)
 
 	name             string
 	storage          storage.Segment
 	size             uint64
-	parts            []*muxerVariantFMP4Part
-	currentPart      *muxerVariantFMP4Part
+	parts            []*muxerPart
+	currentPart      *muxerPart
 	renderedDuration time.Duration
 }
 
-func newMuxerVariantFMP4Segment(
+func newMuxerSegmentFMP4(
 	lowLatency bool,
 	id uint64,
 	startTime time.Time,
@@ -40,9 +40,9 @@ func newMuxerVariantFMP4Segment(
 	audioTrack format.Format,
 	factory storage.Factory,
 	genPartID func() uint64,
-	onPartFinalized func(*muxerVariantFMP4Part),
-) (*muxerVariantFMP4Segment, error) {
-	s := &muxerVariantFMP4Segment{
+	onPartFinalized func(*muxerPart),
+) (*muxerSegmentFMP4, error) {
+	s := &muxerSegmentFMP4{
 		lowLatency:      lowLatency,
 		id:              id,
 		startTime:       startTime,
@@ -61,7 +61,7 @@ func newMuxerVariantFMP4Segment(
 		return nil, err
 	}
 
-	s.currentPart = newMuxerVariantFMP4Part(
+	s.currentPart = newMuxerPart(
 		s.videoTrack,
 		s.audioTrack,
 		s.genPartID(),
@@ -71,19 +71,23 @@ func newMuxerVariantFMP4Segment(
 	return s, nil
 }
 
-func (s *muxerVariantFMP4Segment) close() {
+func (s *muxerSegmentFMP4) close() {
 	s.storage.Remove()
 }
 
-func (s *muxerVariantFMP4Segment) reader() (io.ReadCloser, error) {
-	return s.storage.Reader()
+func (s *muxerSegmentFMP4) getName() string {
+	return s.name
 }
 
-func (s *muxerVariantFMP4Segment) getRenderedDuration() time.Duration {
+func (s *muxerSegmentFMP4) getDuration() time.Duration {
 	return s.renderedDuration
 }
 
-func (s *muxerVariantFMP4Segment) finalize(
+func (s *muxerSegmentFMP4) reader() (io.ReadCloser, error) {
+	return s.storage.Reader()
+}
+
+func (s *muxerSegmentFMP4) finalize(
 	nextVideoSampleDTS time.Duration,
 ) error {
 	if s.currentPart.videoSamples != nil || s.currentPart.audioSamples != nil {
@@ -111,7 +115,7 @@ func (s *muxerVariantFMP4Segment) finalize(
 	return nil
 }
 
-func (s *muxerVariantFMP4Segment) writeH264(sample *augmentedVideoSample, adjustedPartDuration time.Duration) error {
+func (s *muxerSegmentFMP4) writeH264(sample *augmentedVideoSample, adjustedPartDuration time.Duration) error {
 	size := uint64(len(sample.Payload))
 	if (s.size + size) > s.segmentMaxSize {
 		return fmt.Errorf("reached maximum segment size")
@@ -131,7 +135,7 @@ func (s *muxerVariantFMP4Segment) writeH264(sample *augmentedVideoSample, adjust
 		s.parts = append(s.parts, s.currentPart)
 		s.onPartFinalized(s.currentPart)
 
-		s.currentPart = newMuxerVariantFMP4Part(
+		s.currentPart = newMuxerPart(
 			s.videoTrack,
 			s.audioTrack,
 			s.genPartID(),
@@ -142,7 +146,7 @@ func (s *muxerVariantFMP4Segment) writeH264(sample *augmentedVideoSample, adjust
 	return nil
 }
 
-func (s *muxerVariantFMP4Segment) writeAudio(sample *augmentedAudioSample, adjustedPartDuration time.Duration) error {
+func (s *muxerSegmentFMP4) writeAudio(sample *augmentedAudioSample, adjustedPartDuration time.Duration) error {
 	size := uint64(len(sample.Payload))
 	if (s.size + size) > s.segmentMaxSize {
 		return fmt.Errorf("reached maximum segment size")
@@ -162,7 +166,7 @@ func (s *muxerVariantFMP4Segment) writeAudio(sample *augmentedAudioSample, adjus
 		s.parts = append(s.parts, s.currentPart)
 		s.onPartFinalized(s.currentPart)
 
-		s.currentPart = newMuxerVariantFMP4Part(
+		s.currentPart = newMuxerPart(
 			s.videoTrack,
 			s.audioTrack,
 			s.genPartID(),

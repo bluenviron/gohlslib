@@ -10,29 +10,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aler9/gortsplib/v2/pkg/format"
-
 	"github.com/bluenviron/gohlslib/pkg/playlist"
 )
 
-type muxerVariantFMP4SegmentOrGap interface {
-	getRenderedDuration() time.Duration
-}
-
-type muxerVariantFMP4Gap struct {
-	renderedDuration time.Duration
-}
-
-func (g muxerVariantFMP4Gap) getRenderedDuration() time.Duration {
-	return g.renderedDuration
-}
-
-func targetDurationFMP4(segments []muxerVariantFMP4SegmentOrGap) int {
+func targetDuration(segments []muxerSegment) int {
 	ret := int(0)
 
 	// EXTINF, when rounded to the nearest integer, must be <= EXT-X-TARGETDURATION
 	for _, sog := range segments {
-		v := int(math.Round(sog.getRenderedDuration().Seconds()))
+		v := int(math.Round(sog.getDuration().Seconds()))
 		if v > ret {
 			ret = v
 		}
@@ -42,13 +28,13 @@ func targetDurationFMP4(segments []muxerVariantFMP4SegmentOrGap) int {
 }
 
 func partTargetDuration(
-	segments []muxerVariantFMP4SegmentOrGap,
-	nextSegmentParts []*muxerVariantFMP4Part,
+	segments []muxerSegment,
+	nextSegmentParts []*muxerPart,
 ) time.Duration {
 	var ret time.Duration
 
 	for _, sog := range segments {
-		seg, ok := sog.(*muxerVariantFMP4Segment)
+		seg, ok := sog.(*muxerSegmentFMP4)
 		if !ok {
 			continue
 		}
@@ -69,44 +55,38 @@ func partTargetDuration(
 	return ret
 }
 
-type muxerVariantFMP4Playlist struct {
-	lowLatency   bool
+type muxerMediaPlaylist struct {
+	variant      MuxerVariant
 	segmentCount int
-	videoTrack   format.Format
-	audioTrack   format.Format
 
 	mutex              sync.Mutex
 	cond               *sync.Cond
 	closed             bool
-	segments           []muxerVariantFMP4SegmentOrGap
-	segmentsByName     map[string]*muxerVariantFMP4Segment
+	segments           []muxerSegment
+	segmentsByName     map[string]muxerSegment
 	segmentDeleteCount int
-	partsByName        map[string]*muxerVariantFMP4Part
+	partsByName        map[string]*muxerPart
 	nextSegmentID      uint64
-	nextSegmentParts   []*muxerVariantFMP4Part
+	nextSegmentParts   []*muxerPart
 	nextPartID         uint64
 }
 
-func newMuxerVariantFMP4Playlist(
-	lowLatency bool,
+func newMuxerMediaPlaylist(
+	variant MuxerVariant,
 	segmentCount int,
-	videoTrack format.Format,
-	audioTrack format.Format,
-) *muxerVariantFMP4Playlist {
-	p := &muxerVariantFMP4Playlist{
-		lowLatency:     lowLatency,
+) *muxerMediaPlaylist {
+	p := &muxerMediaPlaylist{
+		variant:        variant,
 		segmentCount:   segmentCount,
-		videoTrack:     videoTrack,
-		audioTrack:     audioTrack,
-		segmentsByName: make(map[string]*muxerVariantFMP4Segment),
-		partsByName:    make(map[string]*muxerVariantFMP4Part),
+		segmentsByName: make(map[string]muxerSegment),
+		partsByName:    make(map[string]*muxerPart),
 	}
 	p.cond = sync.NewCond(&p.mutex)
 
 	return p
 }
 
-func (p *muxerVariantFMP4Playlist) close() {
+func (p *muxerMediaPlaylist) close() {
 	func() {
 		p.mutex.Lock()
 		defer p.mutex.Unlock()
@@ -116,26 +96,24 @@ func (p *muxerVariantFMP4Playlist) close() {
 	p.cond.Broadcast()
 
 	for _, segment := range p.segments {
-		if segment2, ok := segment.(*muxerVariantFMP4Segment); ok {
-			segment2.close()
-		}
+		segment.close()
 	}
 }
 
-func (p *muxerVariantFMP4Playlist) hasContent() bool {
-	if p.lowLatency {
-		return len(p.segments) >= 1
+func (p *muxerMediaPlaylist) hasContent() bool {
+	if p.variant == MuxerVariantFMP4 {
+		return len(p.segments) >= 2
 	}
-	return len(p.segments) >= 2
+	return len(p.segments) >= 1
 }
 
-func (p *muxerVariantFMP4Playlist) hasPart(segmentID uint64, partID uint64) bool {
+func (p *muxerMediaPlaylist) hasPart(segmentID uint64, partID uint64) bool {
 	if !p.hasContent() {
 		return false
 	}
 
 	for _, sop := range p.segments {
-		seg, ok := sop.(*muxerVariantFMP4Segment)
+		seg, ok := sop.(*muxerSegmentFMP4)
 		if !ok {
 			continue
 		}
@@ -167,12 +145,13 @@ func (p *muxerVariantFMP4Playlist) hasPart(segmentID uint64, partID uint64) bool
 	return true
 }
 
-func (p *muxerVariantFMP4Playlist) file(name string, msn string, part string, skip string) *MuxerFileResponse {
+func (p *muxerMediaPlaylist) file(name string, msn string, part string, skip string) *MuxerFileResponse {
 	switch {
 	case name == "stream.m3u8":
 		return p.playlistReader(msn, part, skip)
 
-	case strings.HasSuffix(name, ".mp4"):
+	case (p.variant != MuxerVariantMPEGTS && strings.HasSuffix(name, ".mp4")) ||
+		(p.variant == MuxerVariantMPEGTS && strings.HasSuffix(name, ".ts")):
 		return p.segmentReader(name)
 
 	default:
@@ -180,10 +159,10 @@ func (p *muxerVariantFMP4Playlist) file(name string, msn string, part string, sk
 	}
 }
 
-func (p *muxerVariantFMP4Playlist) playlistReader(msn string, part string, skip string) *MuxerFileResponse {
+func (p *muxerMediaPlaylist) playlistReader(msn string, part string, skip string) *MuxerFileResponse {
 	isDeltaUpdate := false
 
-	if p.lowLatency {
+	if p.variant == MuxerVariantLowLatency {
 		isDeltaUpdate = skip == "YES" || skip == "v2"
 
 		var msnint uint64
@@ -260,8 +239,40 @@ func (p *muxerVariantFMP4Playlist) playlistReader(msn string, part string, skip 
 	}
 }
 
-func (p *muxerVariantFMP4Playlist) generatePlaylist(isDeltaUpdate bool) []byte {
-	targetDuration := targetDurationFMP4(p.segments)
+func (p *muxerMediaPlaylist) generatePlaylist(isDeltaUpdate bool) []byte {
+	if p.variant == MuxerVariantMPEGTS {
+		return p.generatePlaylistMPEGTS()
+	}
+	return p.generatePlaylistFMP4(isDeltaUpdate)
+}
+
+func (p *muxerMediaPlaylist) generatePlaylistMPEGTS() []byte {
+	pl := &playlist.Media{
+		Version: 3,
+		AllowCache: func() *bool {
+			v := false
+			return &v
+		}(),
+		TargetDuration: targetDuration(p.segments),
+		MediaSequence:  p.segmentDeleteCount,
+	}
+
+	for _, s := range p.segments {
+		if seg, ok := s.(*muxerSegmentMPEGTS); ok {
+			pl.Segments = append(pl.Segments, &playlist.MediaSegment{
+				DateTime: &seg.startTime,
+				Duration: seg.getDuration(),
+				URI:      seg.name + ".ts",
+			})
+		}
+	}
+
+	byts, _ := pl.Marshal()
+	return byts
+}
+
+func (p *muxerMediaPlaylist) generatePlaylistFMP4(isDeltaUpdate bool) []byte {
+	targetDuration := targetDuration(p.segments)
 	skipBoundary := time.Duration(targetDuration) * 6 * time.Second
 
 	pl := &playlist.Media{
@@ -270,7 +281,7 @@ func (p *muxerVariantFMP4Playlist) generatePlaylist(isDeltaUpdate bool) []byte {
 		MediaSequence:  p.segmentDeleteCount,
 	}
 
-	if p.lowLatency {
+	if p.variant == MuxerVariantLowLatency {
 		partTarget := partTargetDuration(p.segments, p.nextSegmentParts)
 		partHoldBack := (partTarget * 25) / 10
 
@@ -295,7 +306,7 @@ func (p *muxerVariantFMP4Playlist) generatePlaylist(isDeltaUpdate bool) []byte {
 		var curDuration time.Duration
 		shown := 0
 		for _, segment := range p.segments {
-			curDuration += segment.getRenderedDuration()
+			curDuration += segment.getDuration()
 			if curDuration >= skipBoundary {
 				break
 			}
@@ -314,7 +325,7 @@ func (p *muxerVariantFMP4Playlist) generatePlaylist(isDeltaUpdate bool) []byte {
 		}
 
 		switch seg := sog.(type) {
-		case *muxerVariantFMP4Segment:
+		case *muxerSegmentFMP4:
 			plse := &playlist.MediaSegment{
 				Duration: seg.renderedDuration,
 				URI:      seg.name + ".mp4",
@@ -324,7 +335,7 @@ func (p *muxerVariantFMP4Playlist) generatePlaylist(isDeltaUpdate bool) []byte {
 				plse.DateTime = &seg.startTime
 			}
 
-			if p.lowLatency && (len(p.segments)-i) <= 2 {
+			if p.variant == MuxerVariantLowLatency && (len(p.segments)-i) <= 2 {
 				for _, part := range seg.parts {
 					plse.Parts = append(plse.Parts, &playlist.MediaPart{
 						Duration:    part.renderedDuration,
@@ -336,7 +347,7 @@ func (p *muxerVariantFMP4Playlist) generatePlaylist(isDeltaUpdate bool) []byte {
 
 			pl.Segments = append(pl.Segments, plse)
 
-		case *muxerVariantFMP4Gap:
+		case *muxerGap:
 			pl.Segments = append(pl.Segments, &playlist.MediaSegment{
 				Gap:      true,
 				Duration: seg.renderedDuration,
@@ -345,7 +356,7 @@ func (p *muxerVariantFMP4Playlist) generatePlaylist(isDeltaUpdate bool) []byte {
 		}
 	}
 
-	if p.lowLatency {
+	if p.variant == MuxerVariantLowLatency {
 		for _, part := range p.nextSegmentParts {
 			pl.Parts = append(pl.Parts, &playlist.MediaPart{
 				Duration:    part.renderedDuration,
@@ -362,14 +373,13 @@ func (p *muxerVariantFMP4Playlist) generatePlaylist(isDeltaUpdate bool) []byte {
 	}
 
 	byts, _ := pl.Marshal()
-
 	return byts
 }
 
-func (p *muxerVariantFMP4Playlist) segmentReader(fname string) *MuxerFileResponse {
+func (p *muxerMediaPlaylist) segmentReader(fname string) *MuxerFileResponse {
 	switch {
 	case strings.HasPrefix(fname, "seg"):
-		base := strings.TrimSuffix(fname, ".mp4")
+		base := strings.TrimSuffix(strings.TrimSuffix(fname, ".mp4"), ".ts")
 
 		p.mutex.Lock()
 		segment, ok := p.segmentsByName[base]
@@ -387,12 +397,17 @@ func (p *muxerVariantFMP4Playlist) segmentReader(fname string) *MuxerFileRespons
 		return &MuxerFileResponse{
 			Status: http.StatusOK,
 			Header: map[string]string{
-				"Content-Type": "video/mp4",
+				"Content-Type": func() string {
+					if p.variant == MuxerVariantMPEGTS {
+						return "video/MP2T"
+					}
+					return "video/mp4"
+				}(),
 			},
 			Body: r,
 		}
 
-	case strings.HasPrefix(fname, "part"):
+	case p.variant == MuxerVariantLowLatency && strings.HasPrefix(fname, "part"):
 		base := strings.TrimSuffix(fname, ".mp4")
 
 		p.mutex.Lock()
@@ -458,36 +473,40 @@ func (p *muxerVariantFMP4Playlist) segmentReader(fname string) *MuxerFileRespons
 	}
 }
 
-func (p *muxerVariantFMP4Playlist) onSegmentFinalized(segment *muxerVariantFMP4Segment) {
+func (p *muxerMediaPlaylist) onSegmentFinalized(segment muxerSegment) {
 	func() {
 		p.mutex.Lock()
 		defer p.mutex.Unlock()
 
 		// add initial gaps, required by iOS LL-HLS
-		if p.lowLatency && len(p.segments) == 0 {
+		if p.variant == MuxerVariantLowLatency && len(p.segments) == 0 {
 			for i := 0; i < 7; i++ {
-				p.segments = append(p.segments, &muxerVariantFMP4Gap{
-					renderedDuration: segment.renderedDuration,
+				p.segments = append(p.segments, &muxerGap{
+					renderedDuration: segment.getDuration(),
 				})
 			}
 		}
 
-		p.segmentsByName[segment.name] = segment
+		p.segmentsByName[segment.getName()] = segment
 		p.segments = append(p.segments, segment)
-		p.nextSegmentID = segment.id + 1
+
+		if seg, ok := segment.(*muxerSegmentFMP4); ok {
+			p.nextSegmentID = seg.id + 1
+		}
+
 		p.nextSegmentParts = p.nextSegmentParts[:0]
 
 		if len(p.segments) > p.segmentCount {
 			toDelete := p.segments[0]
 
-			if toDeleteSeg, ok := toDelete.(*muxerVariantFMP4Segment); ok {
+			if toDeleteSeg, ok := toDelete.(*muxerSegmentFMP4); ok {
 				for _, part := range toDeleteSeg.parts {
 					delete(p.partsByName, part.name())
 				}
-
-				toDeleteSeg.close()
-				delete(p.segmentsByName, toDeleteSeg.name)
 			}
+
+			toDelete.close()
+			delete(p.segmentsByName, toDelete.getName())
 
 			p.segments = p.segments[1:]
 			p.segmentDeleteCount++
@@ -497,7 +516,7 @@ func (p *muxerVariantFMP4Playlist) onSegmentFinalized(segment *muxerVariantFMP4S
 	p.cond.Broadcast()
 }
 
-func (p *muxerVariantFMP4Playlist) onPartFinalized(part *muxerVariantFMP4Part) {
+func (p *muxerMediaPlaylist) onPartFinalized(part *muxerPart) {
 	func() {
 		p.mutex.Lock()
 		defer p.mutex.Unlock()
