@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -20,12 +19,6 @@ import (
 
 	"github.com/bluenviron/gohlslib/pkg/fmp4"
 )
-
-type testLogger struct{}
-
-func (testLogger) Log(level LogLevel, format string, args ...interface{}) {
-	log.Printf(format, args...)
-}
 
 var serverCert = []byte(`-----BEGIN CERTIFICATE-----
 MIIDazCCAlOgAwIBAgIUXw1hEC3LFpTsllv7D3ARJyEq7sIwDQYJKoZIhvcNAQEL
@@ -279,7 +272,6 @@ func TestClientMPEGTS(t *testing.T) {
 			c := &Client{
 				URI:         prefix + "://localhost:5780/stream.m3u8",
 				Fingerprint: "33949E05FFFB5FF3E8AA16F8213A6251B4D9363804BA53233C4DA9A46D6F2739",
-				Logger:      testLogger{},
 			}
 
 			onH264 := func(pts time.Duration, unit interface{}) {
@@ -357,8 +349,7 @@ func TestClientFMP4(t *testing.T) {
 	}
 
 	c := &Client{
-		URI:    "http://localhost:5780/stream.m3u8",
-		Logger: testLogger{},
+		URI: "http://localhost:5780/stream.m3u8",
 	}
 
 	c.OnTracks(func(tracks []format.Format) error {
@@ -427,8 +418,7 @@ func TestClientInvalidSequenceID(t *testing.T) {
 	defer s.close()
 
 	c := &Client{
-		URI:    "http://localhost:5780/stream.m3u8",
-		Logger: testLogger{},
+		URI: "http://localhost:5780/stream.m3u8",
 	}
 	require.NoError(t, err)
 

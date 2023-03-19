@@ -44,7 +44,7 @@ General features:
 |name|state|
 |----|-----|
 |Parse and produce M3U8 playlists|TODO (producer is ready)|
-|Examples|TODO|
+|Examples|TODO (missing muxer)|
 |Detach from gortsplib|TODO|
 
 ## Table of contents
@@ -56,7 +56,7 @@ General features:
 
 ## Examples
 
-TODO
+* [client](examples/client/main.go)
 
 ## API Documentation
 

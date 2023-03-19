@@ -7,6 +7,7 @@ package gohlslib
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/url"
 	"time"
 
@@ -45,6 +46,12 @@ type ClientLogger interface {
 	Log(level LogLevel, format string, args ...interface{})
 }
 
+type defaultLogger struct{}
+
+func (defaultLogger) Log(level LogLevel, format string, args ...interface{}) {
+	log.Printf(format, args...)
+}
+
 // Client is a HLS client.
 type Client struct {
 	// URL of the playlist.
@@ -57,7 +64,8 @@ type Client struct {
 	// openssl x509 -in server.crt -noout -fingerprint -sha256 | cut -d "=" -f2 | tr -d ':'
 	Fingerprint string
 
-	// logger that receives log messages.
+	// object that receives log messages.
+	// It defaults to an object that prints to stdout.
 	Logger ClientLogger
 
 	ctx         context.Context
@@ -72,6 +80,10 @@ type Client struct {
 
 // Start starts the client.
 func (c *Client) Start() error {
+	if c.Logger == nil {
+		c.Logger = defaultLogger{}
+	}
+
 	var err error
 	c.playlistURL, err = url.Parse(c.URI)
 	if err != nil {

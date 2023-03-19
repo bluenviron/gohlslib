@@ -1,10 +1,13 @@
+test-examples:
+	go build -o /dev/null ./examples/...
+
 test-pkg:
 	go test -v -race -coverprofile=coverage-pkg.txt ./pkg/...
 
 test-root:
 	go test -v -race -coverprofile=coverage-root.txt .
 
-test-nodocker: test-pkg test-root
+test-nodocker: test-examples test-pkg test-root
 
 define DOCKERFILE_TEST
 FROM $(BASE_IMAGE)
