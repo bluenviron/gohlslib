@@ -95,7 +95,7 @@ type clientTimeSync interface{}
 
 type clientDownloaderPrimary struct {
 	primaryPlaylistURL *url.URL
-	logger             ClientLogger
+	log                LogFunc
 	onTracks           func([]format.Format) error
 	onData             map[format.Format]func(time.Duration, interface{})
 	rp                 *clientRoutinePool
@@ -114,7 +114,7 @@ type clientDownloaderPrimary struct {
 func newClientDownloaderPrimary(
 	primaryPlaylistURL *url.URL,
 	fingerprint string,
-	logger ClientLogger,
+	log LogFunc,
 	rp *clientRoutinePool,
 	onTracks func([]format.Format) error,
 	onData map[format.Format]func(time.Duration, interface{}),
@@ -141,7 +141,7 @@ func newClientDownloaderPrimary(
 
 	return &clientDownloaderPrimary{
 		primaryPlaylistURL: primaryPlaylistURL,
-		logger:             logger,
+		log:                log,
 		onTracks:           onTracks,
 		onData:             onData,
 		rp:                 rp,
@@ -157,7 +157,7 @@ func newClientDownloaderPrimary(
 }
 
 func (d *clientDownloaderPrimary) run(ctx context.Context) error {
-	d.logger.Log(LogLevelDebug, "downloading primary playlist %s", d.primaryPlaylistURL)
+	d.log(LogLevelDebug, "downloading primary playlist %s", d.primaryPlaylistURL)
 
 	pl, err := clientDownloadPlaylist(ctx, d.httpClient, d.primaryPlaylistURL)
 	if err != nil {
@@ -168,13 +168,13 @@ func (d *clientDownloaderPrimary) run(ctx context.Context) error {
 
 	switch plt := pl.(type) {
 	case *m3u8.MediaPlaylist:
-		d.logger.Log(LogLevelDebug, "primary playlist is a stream playlist")
+		d.log(LogLevelDebug, "primary playlist is a stream playlist")
 		ds := newClientDownloaderStream(
 			true,
 			d.httpClient,
 			d.primaryPlaylistURL,
 			plt,
-			d.logger,
+			d.log,
 			d.rp,
 			d.onStreamTracks,
 			d.onSetLeadingTimeSync,
@@ -200,7 +200,7 @@ func (d *clientDownloaderPrimary) run(ctx context.Context) error {
 			d.httpClient,
 			u,
 			nil,
-			d.logger,
+			d.log,
 			d.rp,
 			d.onStreamTracks,
 			d.onSetLeadingTimeSync,
@@ -226,7 +226,7 @@ func (d *clientDownloaderPrimary) run(ctx context.Context) error {
 				d.httpClient,
 				u,
 				nil,
-				d.logger,
+				d.log,
 				d.rp,
 				d.onStreamTracks,
 				d.onSetLeadingTimeSync,

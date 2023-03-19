@@ -41,14 +41,10 @@ const (
 	LogLevelError
 )
 
-// ClientLogger allows to receive log lines.
-type ClientLogger interface {
-	Log(level LogLevel, format string, args ...interface{})
-}
+// LogFunc is the prototype of the log function.
+type LogFunc func(level LogLevel, format string, args ...interface{})
 
-type defaultLogger struct{}
-
-func (defaultLogger) Log(level LogLevel, format string, args ...interface{}) {
+func defaultLog(level LogLevel, format string, args ...interface{}) {
 	log.Printf(format, args...)
 }
 
@@ -64,9 +60,9 @@ type Client struct {
 	// openssl x509 -in server.crt -noout -fingerprint -sha256 | cut -d "=" -f2 | tr -d ':'
 	Fingerprint string
 
-	// object that receives log messages.
-	// It defaults to an object that prints to stdout.
-	Logger ClientLogger
+	// function that receives log messages.
+	// It defaults to log.Printf.
+	Log LogFunc
 
 	ctx         context.Context
 	ctxCancel   func()
@@ -80,8 +76,8 @@ type Client struct {
 
 // Start starts the client.
 func (c *Client) Start() error {
-	if c.Logger == nil {
-		c.Logger = defaultLogger{}
+	if c.Log == nil {
+		c.Log = defaultLog
 	}
 
 	var err error
@@ -130,7 +126,7 @@ func (c *Client) runInner() error {
 	dl := newClientDownloaderPrimary(
 		c.playlistURL,
 		c.Fingerprint,
-		c.Logger,
+		c.Log,
 		rp,
 		c.onTracks,
 		c.onData,

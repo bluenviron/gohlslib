@@ -7,7 +7,6 @@ require (
 	github.com/aler9/gortsplib/v2 v2.1.7
 	github.com/asticode/go-astits v1.11.0
 	github.com/gin-gonic/gin v1.9.0
-	github.com/gookit/color v1.4.2
 	github.com/grafov/m3u8 v0.11.1
 	github.com/orcaman/writerseeker v0.0.0
 	github.com/stretchr/testify v1.8.2
@@ -37,7 +36,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.9 // indirect
-	github.com/xo/terminfo v0.0.0-20210125001918-ca9a967f8778 // indirect
 	golang.org/x/arch v0.0.0-20210923205945-b76863e36670 // indirect
 	golang.org/x/crypto v0.5.0 // indirect
 	golang.org/x/net v0.7.0 // indirect

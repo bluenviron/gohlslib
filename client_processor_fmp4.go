@@ -27,7 +27,7 @@ func fmp4PickLeadingTrack(init *fmp4.Init) int {
 type clientProcessorFMP4 struct {
 	isLeading            bool
 	segmentQueue         *clientSegmentQueue
-	logger               ClientLogger
+	log                  LogFunc
 	rp                   *clientRoutinePool
 	onSetLeadingTimeSync func(clientTimeSync)
 	onGetLeadingTimeSync func(context.Context) (clientTimeSync, bool)
@@ -46,7 +46,7 @@ func newClientProcessorFMP4(
 	isLeading bool,
 	initFile []byte,
 	segmentQueue *clientSegmentQueue,
-	logger ClientLogger,
+	log LogFunc,
 	rp *clientRoutinePool,
 	onStreamFormats func(context.Context, []format.Format) bool,
 	onSetLeadingTimeSync func(clientTimeSync),
@@ -56,7 +56,7 @@ func newClientProcessorFMP4(
 	p := &clientProcessorFMP4{
 		isLeading:            isLeading,
 		segmentQueue:         segmentQueue,
-		logger:               logger,
+		log:                  log,
 		rp:                   rp,
 		onSetLeadingTimeSync: onSetLeadingTimeSync,
 		onGetLeadingTimeSync: onGetLeadingTimeSync,
