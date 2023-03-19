@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/abema/go-mp4 v0.10.1
-	github.com/aler9/gortsplib/v2 v2.1.7
+	github.com/aler9/gortsplib/v2 v2.2.0
 	github.com/asticode/go-astits v1.11.0
 	github.com/gin-gonic/gin v1.9.0
 	github.com/grafov/m3u8 v0.11.1
