@@ -12,7 +12,6 @@ import (
 	"github.com/aler9/gortsplib/v2/pkg/format"
 	"github.com/asticode/go-astits"
 
-	"github.com/bluenviron/gohlslib/pkg/logger"
 	"github.com/bluenviron/gohlslib/pkg/mpegts"
 )
 
@@ -195,7 +194,7 @@ func (p *clientProcessorMPEGTS) initializeTrackProcs(ts *clientTimeSyncMPEGTS) {
 			cb = func(pts time.Duration, payload []byte) error {
 				nalus, err := h264.AnnexBUnmarshal(payload)
 				if err != nil {
-					p.logger.Log(logger.Warn, "unable to decode Annex-B: %s", err)
+					p.logger.Log(LogLevelWarn, "unable to decode Annex-B: %s", err)
 					return nil
 				}
 

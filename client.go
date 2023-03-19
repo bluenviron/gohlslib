@@ -11,8 +11,6 @@ import (
 	"time"
 
 	"github.com/aler9/gortsplib/v2/pkg/format"
-
-	"github.com/bluenviron/gohlslib/pkg/logger"
 )
 
 const (
@@ -31,9 +29,20 @@ func clientAbsoluteURL(base *url.URL, relative string) (*url.URL, error) {
 	return base.ResolveReference(u), nil
 }
 
+// LogLevel is a log level.
+type LogLevel int
+
+// Log levels.
+const (
+	LogLevelDebug LogLevel = iota + 1
+	LogLevelInfo
+	LogLevelWarn
+	LogLevelError
+)
+
 // ClientLogger allows to receive log lines.
 type ClientLogger interface {
-	Log(level logger.Level, format string, args ...interface{})
+	Log(level LogLevel, format string, args ...interface{})
 }
 
 // Client is a HLS client.

@@ -19,12 +19,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/bluenviron/gohlslib/pkg/fmp4"
-	"github.com/bluenviron/gohlslib/pkg/logger"
 )
 
 type testLogger struct{}
 
-func (testLogger) Log(level logger.Level, format string, args ...interface{}) {
+func (testLogger) Log(level LogLevel, format string, args ...interface{}) {
 	log.Printf(format, args...)
 }
 

@@ -12,7 +12,6 @@ import (
 	"github.com/aler9/gortsplib/v2/pkg/format"
 	gm3u8 "github.com/grafov/m3u8"
 
-	"github.com/bluenviron/gohlslib/pkg/logger"
 	"github.com/bluenviron/gohlslib/pkg/m3u8"
 )
 
@@ -158,7 +157,7 @@ func (d *clientDownloaderStream) run(ctx context.Context) error {
 }
 
 func (d *clientDownloaderStream) downloadPlaylist(ctx context.Context) (*m3u8.MediaPlaylist, error) {
-	d.logger.Log(logger.Debug, "downloading stream playlist %s", d.playlistURL.String())
+	d.logger.Log(LogLevelDebug, "downloading stream playlist %s", d.playlistURL.String())
 
 	pl, err := clientDownloadPlaylist(ctx, d.httpClient, d.playlistURL)
 	if err != nil {
@@ -181,7 +180,7 @@ func (d *clientDownloaderStream) downloadSegment(ctx context.Context,
 		return nil, err
 	}
 
-	d.logger.Log(logger.Debug, "downloading segment %s", u)
+	d.logger.Log(LogLevelDebug, "downloading segment %s", u)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, err
@@ -234,7 +233,7 @@ func (d *clientDownloaderStream) fillSegmentQueue(ctx context.Context,
 			return fmt.Errorf("following segment not found or not ready yet")
 		}
 
-		d.logger.Log(logger.Debug, "segment inverse position: %d", invPos)
+		d.logger.Log(LogLevelDebug, "segment inverse position: %d", invPos)
 
 		if !pl.Closed && invPos > clientLiveMaxInvPosition {
 			return fmt.Errorf("playback is too late")

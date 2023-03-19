@@ -16,7 +16,6 @@ import (
 	gm3u8 "github.com/grafov/m3u8"
 
 	"github.com/bluenviron/gohlslib/pkg/codecparams"
-	"github.com/bluenviron/gohlslib/pkg/logger"
 	"github.com/bluenviron/gohlslib/pkg/m3u8"
 )
 
@@ -158,7 +157,7 @@ func newClientDownloaderPrimary(
 }
 
 func (d *clientDownloaderPrimary) run(ctx context.Context) error {
-	d.logger.Log(logger.Debug, "downloading primary playlist %s", d.primaryPlaylistURL)
+	d.logger.Log(LogLevelDebug, "downloading primary playlist %s", d.primaryPlaylistURL)
 
 	pl, err := clientDownloadPlaylist(ctx, d.httpClient, d.primaryPlaylistURL)
 	if err != nil {
@@ -169,7 +168,7 @@ func (d *clientDownloaderPrimary) run(ctx context.Context) error {
 
 	switch plt := pl.(type) {
 	case *m3u8.MediaPlaylist:
-		d.logger.Log(logger.Debug, "primary playlist is a stream playlist")
+		d.logger.Log(LogLevelDebug, "primary playlist is a stream playlist")
 		ds := newClientDownloaderStream(
 			true,
 			d.httpClient,
