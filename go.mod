@@ -7,7 +7,7 @@ require (
 	github.com/aler9/gortsplib/v2 v2.2.1
 	github.com/asticode/go-astits v1.11.0
 	github.com/gin-gonic/gin v1.9.0
-	github.com/grafov/m3u8 v0.11.1
+	github.com/grafov/m3u8 v0.11.2
 	github.com/orcaman/writerseeker v0.0.0
 	github.com/stretchr/testify v1.8.2
 )
