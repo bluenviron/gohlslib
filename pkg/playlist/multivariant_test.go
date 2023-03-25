@@ -12,6 +12,10 @@ func TestMultivariantMarshal(t *testing.T) {
 		IndependentSegments: true,
 		Variants: []*MultivariantVariant{{
 			Bandwidth: 155000,
+			AverageBandwidth: func() *int {
+				v := 120000
+				return &v
+			}(),
 			Codecs: []string{
 				"avc1.42c028",
 				"mp4a.40.2",
@@ -34,7 +38,8 @@ func TestMultivariantMarshal(t *testing.T) {
 		"#EXT-X-VERSION:9\n"+
 		"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 		"\n"+
-		"#EXT-X-STREAM-INF:BANDWIDTH=155000,CODECS=\"avc1.42c028,mp4a.40.2\",RESOLUTION=1280x720,FRAME-RATE=24.000\n"+
+		"#EXT-X-STREAM-INF:BANDWIDTH=155000,AVERAGE-BANDWIDTH=120000,"+
+		"CODECS=\"avc1.42c028,mp4a.40.2\",RESOLUTION=1280x720,FRAME-RATE=24.000\n"+
 		"stream.m3u8\n",
 		string(byts))
 }

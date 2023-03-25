@@ -214,9 +214,13 @@ func (m *Muxer) File(name string, msn string, part string, skip string) *MuxerFi
 }
 
 func (m *Muxer) multistreamPlaylist() *MuxerFileResponse {
-	bandwidth := int(m.mediaPlaylist.bandwidth())
+	bandwidth, averageBandwidth := m.mediaPlaylist.bandwidth()
+
 	if bandwidth == 0 {
 		bandwidth = 200000
+	}
+	if averageBandwidth == 0 {
+		averageBandwidth = 200000
 	}
 
 	var resolution *string
@@ -261,7 +265,8 @@ func (m *Muxer) multistreamPlaylist() *MuxerFileResponse {
 		}(),
 		IndependentSegments: true,
 		Variants: []*playlist.MultivariantVariant{{
-			Bandwidth: bandwidth,
+			Bandwidth:        bandwidth,
+			AverageBandwidth: &averageBandwidth,
 			Codecs: func() []string {
 				var codecs []string
 				if m.VideoTrack != nil {
