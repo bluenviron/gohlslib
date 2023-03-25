@@ -473,25 +473,32 @@ func (p *muxerMediaPlaylist) segmentReader(fname string) *MuxerFileResponse {
 	}
 }
 
-func (p *muxerMediaPlaylist) bandwidth() uint64 {
+func (p *muxerMediaPlaylist) bandwidth() (int, int) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
 	if len(p.segments) == 0 {
-		return 0
+		return 0, 0
 	}
 
+	var maxBandwidth uint64
 	var sizes uint64
 	var durations time.Duration
 
 	for _, seg := range p.segments {
 		if _, ok := seg.(*muxerGap); !ok {
+			bandwidth := 8 * seg.getSize() * uint64(time.Second) / uint64(seg.getDuration())
+			if bandwidth > maxBandwidth {
+				maxBandwidth = bandwidth
+			}
 			sizes += seg.getSize()
 			durations += seg.getDuration()
 		}
 	}
 
-	return 8 * sizes * uint64(time.Second) / uint64(durations)
+	averageBandwidth := 8 * sizes * uint64(time.Second) / uint64(durations)
+
+	return int(maxBandwidth), int(averageBandwidth)
 }
 
 func (p *muxerMediaPlaylist) onSegmentFinalized(segment muxerSegment) {
