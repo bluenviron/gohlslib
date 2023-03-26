@@ -13,13 +13,24 @@ import (
 	"time"
 
 	"github.com/aler9/gortsplib/v2/pkg/format"
-	gm3u8 "github.com/grafov/m3u8"
 
-	"github.com/bluenviron/gohlslib/pkg/codecparams"
-	"github.com/bluenviron/gohlslib/pkg/m3u8"
+	"github.com/bluenviron/gohlslib/pkg/playlist"
 )
 
-func clientDownloadPlaylist(ctx context.Context, httpClient *http.Client, ur *url.URL) (m3u8.Playlist, error) {
+func checkSupport(codecs []string) bool {
+	for _, codec := range codecs {
+		if !strings.HasPrefix(codec, "avc1.") &&
+			!strings.HasPrefix(codec, "hvc1.") &&
+			!strings.HasPrefix(codec, "hev1.") &&
+			!strings.HasPrefix(codec, "mp4a.") &&
+			codec != "opus" {
+			return false
+		}
+	}
+	return true
+}
+
+func clientDownloadPlaylist(ctx context.Context, httpClient *http.Client, ur *url.URL) (playlist.Playlist, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ur.String(), nil)
 	if err != nil {
 		return nil, err
@@ -40,13 +51,13 @@ func clientDownloadPlaylist(ctx context.Context, httpClient *http.Client, ur *ur
 		return nil, err
 	}
 
-	return m3u8.Unmarshal(byts)
+	return playlist.Unmarshal(byts)
 }
 
-func pickLeadingPlaylist(variants []*gm3u8.Variant) *gm3u8.Variant {
-	var candidates []*gm3u8.Variant //nolint:prealloc
+func pickLeadingPlaylist(variants []*playlist.MultivariantVariant) *playlist.MultivariantVariant {
+	var candidates []*playlist.MultivariantVariant //nolint:prealloc
 	for _, v := range variants {
-		if v.Codecs != "" && !codecparams.CheckSupport(v.Codecs) {
+		if !checkSupport(v.Codecs) {
 			continue
 		}
 		candidates = append(candidates, v)
@@ -56,21 +67,21 @@ func pickLeadingPlaylist(variants []*gm3u8.Variant) *gm3u8.Variant {
 	}
 
 	// pick the variant with the greatest bandwidth
-	var leadingPlaylist *gm3u8.Variant
+	var leadingPlaylist *playlist.MultivariantVariant
 	for _, v := range candidates {
 		if leadingPlaylist == nil ||
-			v.VariantParams.Bandwidth > leadingPlaylist.VariantParams.Bandwidth {
+			v.Bandwidth > leadingPlaylist.Bandwidth {
 			leadingPlaylist = v
 		}
 	}
 	return leadingPlaylist
 }
 
-func pickAudioPlaylist(alternatives []*gm3u8.Alternative, groupID string) *gm3u8.Alternative {
-	candidates := func() []*gm3u8.Alternative {
-		var ret []*gm3u8.Alternative
+func pickAudioPlaylist(alternatives []*playlist.MultivariantRendition, groupID string) *playlist.MultivariantRendition {
+	candidates := func() []*playlist.MultivariantRendition {
+		var ret []*playlist.MultivariantRendition
 		for _, alt := range alternatives {
-			if alt.GroupId == groupID {
+			if alt.GroupID == groupID {
 				ret = append(ret, alt)
 			}
 		}
@@ -167,7 +178,7 @@ func (d *clientDownloaderPrimary) run(ctx context.Context) error {
 	streamCount := 0
 
 	switch plt := pl.(type) {
-	case *m3u8.MediaPlaylist:
+	case *playlist.Media:
 		d.log(LogLevelDebug, "primary playlist is a stream playlist")
 		ds := newClientDownloaderStream(
 			true,
@@ -184,7 +195,7 @@ func (d *clientDownloaderPrimary) run(ctx context.Context) error {
 		d.rp.add(ds)
 		streamCount++
 
-	case *m3u8.MasterPlaylist:
+	case *playlist.Multivariant:
 		leadingPlaylist := pickLeadingPlaylist(plt.Variants)
 		if leadingPlaylist == nil {
 			return fmt.Errorf("no variants with supported codecs found")
@@ -211,7 +222,7 @@ func (d *clientDownloaderPrimary) run(ctx context.Context) error {
 		streamCount++
 
 		if leadingPlaylist.Audio != "" {
-			audioPlaylist := pickAudioPlaylist(plt.Alternatives, leadingPlaylist.Audio)
+			audioPlaylist := pickAudioPlaylist(plt.Renditions, leadingPlaylist.Audio)
 			if audioPlaylist == nil {
 				return fmt.Errorf("audio playlist with id \"%s\" not found", leadingPlaylist.Audio)
 			}

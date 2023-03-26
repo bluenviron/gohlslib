@@ -223,7 +223,7 @@ func (m *Muxer) multistreamPlaylist() *MuxerFileResponse {
 		averageBandwidth = 200000
 	}
 
-	var resolution *string
+	var resolution string
 	var frameRate *float64
 
 	if m.VideoTrack != nil {
@@ -232,8 +232,7 @@ func (m *Muxer) multistreamPlaylist() *MuxerFileResponse {
 			var sps h264.SPS
 			err := sps.Unmarshal(ttrack.SafeSPS())
 			if err == nil {
-				v := strconv.FormatInt(int64(sps.Width()), 10) + "x" + strconv.FormatInt(int64(sps.Height()), 10)
-				resolution = &v
+				resolution = strconv.FormatInt(int64(sps.Width()), 10) + "x" + strconv.FormatInt(int64(sps.Height()), 10)
 
 				f := sps.FPS()
 				if f != 0 {
@@ -245,8 +244,7 @@ func (m *Muxer) multistreamPlaylist() *MuxerFileResponse {
 			var sps h265.SPS
 			err := sps.Unmarshal(ttrack.SafeSPS())
 			if err == nil {
-				v := strconv.FormatInt(int64(sps.Width()), 10) + "x" + strconv.FormatInt(int64(sps.Height()), 10)
-				resolution = &v
+				resolution = strconv.FormatInt(int64(sps.Width()), 10) + "x" + strconv.FormatInt(int64(sps.Height()), 10)
 
 				f := sps.FPS()
 				if f != 0 {
@@ -270,16 +268,16 @@ func (m *Muxer) multistreamPlaylist() *MuxerFileResponse {
 			Codecs: func() []string {
 				var codecs []string
 				if m.VideoTrack != nil {
-					codecs = append(codecs, codecparams.Generate(m.VideoTrack))
+					codecs = append(codecs, codecparams.Marshal(m.VideoTrack))
 				}
 				if m.AudioTrack != nil {
-					codecs = append(codecs, codecparams.Generate(m.AudioTrack))
+					codecs = append(codecs, codecparams.Marshal(m.AudioTrack))
 				}
 				return codecs
 			}(),
 			Resolution: resolution,
 			FrameRate:  frameRate,
-			URL:        "stream.m3u8",
+			URI:        "stream.m3u8",
 		}},
 	}
 

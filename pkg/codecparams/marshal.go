@@ -98,8 +98,8 @@ func encodeGeneralConstraintIndicatorFlags(v *h265.SPS_ProfileTierLevel) string 
 	return strings.Join(ret, ".")
 }
 
-// Generate generates codec parameters of given tracks.
-func Generate(track format.Format) string {
+// Marshal generates codec parameters of given tracks.
+func Marshal(track format.Format) string {
 	switch ttrack := track.(type) {
 	case *format.H264:
 		sps := ttrack.SafeSPS()

@@ -18,7 +18,7 @@ Client features:
 |----|-----|
 |Read MPEG-TS streams|OK|
 |Read fMP4 streams|OK|
-|Read Low-latency streams|TODO (needs a new M3U8 parser)|
+|Read Low-latency streams|TODO|
 |Read H264 tracks|OK|
 |Read H265 tracks|OK|
 |Read MPEG4 Audio (AAC) tracks|OK|
@@ -43,7 +43,7 @@ General features:
 
 |name|state|
 |----|-----|
-|Parse and produce M3U8 playlists|TODO (producer is ready)|
+|Parse and produce M3U8 playlists|OK|
 |Examples|TODO (missing muxer)|
 |Detach from gortsplib|TODO|
 
@@ -56,6 +56,7 @@ General features:
 
 ## Examples
 
+* [playlist-parser](examples/playlist-parser/main.go)
 * [client](examples/client/main.go)
 
 ## API Documentation
