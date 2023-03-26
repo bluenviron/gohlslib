@@ -10,43 +10,33 @@ import (
 	"time"
 
 	"github.com/aler9/gortsplib/v2/pkg/format"
-	gm3u8 "github.com/grafov/m3u8"
 
-	"github.com/bluenviron/gohlslib/pkg/m3u8"
+	"github.com/bluenviron/gohlslib/pkg/playlist"
 )
 
-func segmentsLen(segments []*gm3u8.MediaSegment) int {
-	for i, seg := range segments {
-		if seg == nil {
-			return i
-		}
-	}
-	return 0
-}
-
-func findSegmentWithInvPosition(segments []*gm3u8.MediaSegment, pos int) *gm3u8.MediaSegment {
-	index := len(segments) - pos
+func findSegmentWithInvPosition(segments []*playlist.MediaSegment, invPos int) (*playlist.MediaSegment, int) {
+	index := len(segments) - invPos
 	if index < 0 {
-		return nil
-	}
-
-	return segments[index]
-}
-
-func findSegmentWithID(seqNo uint64, segments []*gm3u8.MediaSegment, id uint64) (*gm3u8.MediaSegment, int) {
-	index := int(int64(id) - int64(seqNo))
-	if index < 0 || index >= len(segments) {
 		return nil, 0
 	}
 
-	return segments[index], len(segments) - index
+	return segments[index], index
+}
+
+func findSegmentWithID(seqNo int, segments []*playlist.MediaSegment, id int) (*playlist.MediaSegment, int, int) {
+	index := int(int64(id) - int64(seqNo))
+	if index < 0 || index >= len(segments) {
+		return nil, 0, 0
+	}
+
+	return segments[index], index, len(segments) - index
 }
 
 type clientDownloaderStream struct {
 	isLeading            bool
 	httpClient           *http.Client
 	playlistURL          *url.URL
-	initialPlaylist      *m3u8.MediaPlaylist
+	initialPlaylist      *playlist.Media
 	log                  LogFunc
 	rp                   *clientRoutinePool
 	onStreamTracks       func(context.Context, []format.Format) bool
@@ -54,14 +44,14 @@ type clientDownloaderStream struct {
 	onGetLeadingTimeSync func(context.Context) (clientTimeSync, bool)
 	onData               map[format.Format]func(time.Duration, interface{})
 
-	curSegmentID *uint64
+	curSegmentID *int
 }
 
 func newClientDownloaderStream(
 	isLeading bool,
 	httpClient *http.Client,
 	playlistURL *url.URL,
-	initialPlaylist *m3u8.MediaPlaylist,
+	initialPlaylist *playlist.Media,
 	log LogFunc,
 	rp *clientRoutinePool,
 	onStreamTracks func(context.Context, []format.Format) bool,
@@ -97,7 +87,11 @@ func (d *clientDownloaderStream) run(ctx context.Context) error {
 	segmentQueue := newClientSegmentQueue()
 
 	if initialPlaylist.Map != nil && initialPlaylist.Map.URI != "" {
-		byts, err := d.downloadSegment(ctx, initialPlaylist.Map.URI, initialPlaylist.Map.Offset, initialPlaylist.Map.Limit)
+		byts, err := d.downloadSegment(
+			ctx,
+			initialPlaylist.Map.URI,
+			initialPlaylist.Map.ByteRangeStart,
+			initialPlaylist.Map.ByteRangeLength)
 		if err != nil {
 			return err
 		}
@@ -156,7 +150,7 @@ func (d *clientDownloaderStream) run(ctx context.Context) error {
 	}
 }
 
-func (d *clientDownloaderStream) downloadPlaylist(ctx context.Context) (*m3u8.MediaPlaylist, error) {
+func (d *clientDownloaderStream) downloadPlaylist(ctx context.Context) (*playlist.Media, error) {
 	d.log(LogLevelDebug, "downloading stream playlist %s", d.playlistURL.String())
 
 	pl, err := clientDownloadPlaylist(ctx, d.httpClient, d.playlistURL)
@@ -164,7 +158,7 @@ func (d *clientDownloaderStream) downloadPlaylist(ctx context.Context) (*m3u8.Me
 		return nil, err
 	}
 
-	plt, ok := pl.(*m3u8.MediaPlaylist)
+	plt, ok := pl.(*playlist.Media)
 	if !ok {
 		return nil, fmt.Errorf("invalid playlist")
 	}
@@ -172,8 +166,11 @@ func (d *clientDownloaderStream) downloadPlaylist(ctx context.Context) (*m3u8.Me
 	return plt, nil
 }
 
-func (d *clientDownloaderStream) downloadSegment(ctx context.Context,
-	uri string, offset int64, limit int64,
+func (d *clientDownloaderStream) downloadSegment(
+	ctx context.Context,
+	uri string,
+	start *uint64,
+	length *uint64,
 ) ([]byte, error) {
 	u, err := clientAbsoluteURL(d.playlistURL, uri)
 	if err != nil {
@@ -186,8 +183,12 @@ func (d *clientDownloaderStream) downloadSegment(ctx context.Context,
 		return nil, err
 	}
 
-	if limit != 0 {
-		req.Header.Add("Range", "bytes="+strconv.FormatInt(offset, 10)+"-"+strconv.FormatInt(offset+limit-1, 10))
+	if length != nil {
+		if start == nil {
+			v := uint64(0)
+			start = &v
+		}
+		req.Header.Add("Range", "bytes="+strconv.FormatUint(*start, 10)+"-"+strconv.FormatUint(*start+*length-1, 10))
 	}
 
 	res, err := d.httpClient.Do(req)
@@ -208,15 +209,17 @@ func (d *clientDownloaderStream) downloadSegment(ctx context.Context,
 	return byts, nil
 }
 
-func (d *clientDownloaderStream) fillSegmentQueue(ctx context.Context,
-	pl *m3u8.MediaPlaylist, segmentQueue *clientSegmentQueue,
+func (d *clientDownloaderStream) fillSegmentQueue(
+	ctx context.Context,
+	pl *playlist.Media,
+	segmentQueue *clientSegmentQueue,
 ) error {
-	pl.Segments = pl.Segments[:segmentsLen(pl.Segments)]
-	var seg *gm3u8.MediaSegment
+	var seg *playlist.MediaSegment
+	var segPos int
 
 	if d.curSegmentID == nil {
-		if !pl.Closed { // live stream: start from clientLiveStartingInvPosition
-			seg = findSegmentWithInvPosition(pl.Segments, clientLiveStartingInvPosition)
+		if !pl.Endlist { // live stream: start from clientLiveStartingInvPosition
+			seg, segPos = findSegmentWithInvPosition(pl.Segments, clientLiveStartingInvPosition)
 			if seg == nil {
 				return fmt.Errorf("there aren't enough segments to fill the buffer")
 			}
@@ -228,29 +231,29 @@ func (d *clientDownloaderStream) fillSegmentQueue(ctx context.Context,
 		}
 	} else {
 		var invPos int
-		seg, invPos = findSegmentWithID(pl.SeqNo, pl.Segments, *d.curSegmentID+1)
+		seg, segPos, invPos = findSegmentWithID(pl.MediaSequence, pl.Segments, *d.curSegmentID+1)
 		if seg == nil {
 			return fmt.Errorf("following segment not found or not ready yet")
 		}
 
 		d.log(LogLevelDebug, "segment inverse position: %d", invPos)
 
-		if !pl.Closed && invPos > clientLiveMaxInvPosition {
+		if !pl.Endlist && invPos > clientLiveMaxInvPosition {
 			return fmt.Errorf("playback is too late")
 		}
 	}
 
-	v := seg.SeqId
+	v := pl.MediaSequence + segPos
 	d.curSegmentID = &v
 
-	byts, err := d.downloadSegment(ctx, seg.URI, seg.Offset, seg.Limit)
+	byts, err := d.downloadSegment(ctx, seg.URI, seg.ByteRangeStart, seg.ByteRangeLength)
 	if err != nil {
 		return err
 	}
 
 	segmentQueue.push(byts)
 
-	if pl.Closed && pl.Segments[len(pl.Segments)-1] == seg {
+	if pl.Endlist && pl.Segments[len(pl.Segments)-1] == seg {
 		<-ctx.Done()
 		return fmt.Errorf("stream has ended")
 	}

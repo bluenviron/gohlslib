@@ -240,14 +240,14 @@ func TestClientMPEGTS(t *testing.T) {
 
 				ctx.Writer.Header().Set("Content-Type", `application/x-mpegURL`)
 				io.Copy(ctx.Writer, bytes.NewReader([]byte(`#EXTM3U
-				#EXT-X-VERSION:3
-				#EXT-X-ALLOW-CACHE:NO
-				#EXT-X-TARGETDURATION:2
-				#EXT-X-MEDIA-SEQUENCE:0
-				#EXTINF:2,
-				`+segment+`
-				#EXT-X-ENDLIST
-				`)))
+#EXT-X-VERSION:3
+#EXT-X-ALLOW-CACHE:NO
+#EXT-X-TARGETDURATION:2
+#EXT-X-MEDIA-SEQUENCE:0
+#EXTINF:2,
+`+segment+`
+#EXT-X-ENDLIST
+`)))
 			})
 
 			router.GET("/segment.ts", func(ctx *gin.Context) {
@@ -312,14 +312,15 @@ func TestClientFMP4(t *testing.T) {
 	router.GET("/stream.m3u8", func(ctx *gin.Context) {
 		ctx.Writer.Header().Set("Content-Type", `application/x-mpegURL`)
 		io.Copy(ctx.Writer, bytes.NewReader([]byte(`#EXTM3U
-		#EXT-X-VERSION:7
-		#EXT-X-MEDIA-SEQUENCE:20
-		#EXT-X-INDEPENDENT-SEGMENTS
-		#EXT-X-MAP:URI="init.mp4"
-		#EXTINF:2,
-		segment.mp4
-		#EXT-X-ENDLIST
-		`)))
+#EXT-X-VERSION:7
+#EXT-X-MEDIA-SEQUENCE:20
+#EXT-X-INDEPENDENT-SEGMENTS
+#EXT-X-TARGETDURATION:2
+#EXT-X-MAP:URI="init.mp4"
+#EXTINF:2,
+segment.mp4
+#EXT-X-ENDLIST
+`)))
 	})
 
 	router.GET("/init.mp4", func(ctx *gin.Context) {
@@ -380,31 +381,31 @@ func TestClientInvalidSequenceID(t *testing.T) {
 			firstPlaylist = false
 			io.Copy(ctx.Writer, bytes.NewReader([]byte(
 				`#EXTM3U
-			#EXT-X-VERSION:3
-			#EXT-X-ALLOW-CACHE:NO
-			#EXT-X-TARGETDURATION:2
-			#EXT-X-MEDIA-SEQUENCE:2
-			#EXTINF:2,
-			segment1.ts
-			#EXTINF:2,
-			segment1.ts
-			#EXTINF:2,
-			segment1.ts
-			`)))
+#EXT-X-VERSION:3
+#EXT-X-ALLOW-CACHE:NO
+#EXT-X-TARGETDURATION:2
+#EXT-X-MEDIA-SEQUENCE:2
+#EXTINF:2,
+segment1.ts
+#EXTINF:2,
+segment1.ts
+#EXTINF:2,
+segment1.ts
+`)))
 		} else {
 			io.Copy(ctx.Writer, bytes.NewReader([]byte(
 				`#EXTM3U
-			#EXT-X-VERSION:3
-			#EXT-X-ALLOW-CACHE:NO
-			#EXT-X-TARGETDURATION:2
-			#EXT-X-MEDIA-SEQUENCE:4
-			#EXTINF:2,
-			segment1.ts
-			#EXTINF:2,
-			segment1.ts
-			#EXTINF:2,
-			segment1.ts
-			`)))
+#EXT-X-VERSION:3
+#EXT-X-ALLOW-CACHE:NO
+#EXT-X-TARGETDURATION:2
+#EXT-X-MEDIA-SEQUENCE:4
+#EXTINF:2,
+segment1.ts
+#EXTINF:2,
+segment1.ts
+#EXTINF:2,
+segment1.ts
+`)))
 		}
 	})
 
