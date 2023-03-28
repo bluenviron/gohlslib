@@ -73,40 +73,40 @@ type MuxerFileResponse struct {
 
 // Muxer is a HLS muxer.
 type Muxer struct {
+	//
+	// parameters (all optional except VideoTrack or AudioTrack).
+	//
+	// video track.
+	VideoTrack format.Format
+	// audio track.
+	AudioTrack format.Format
 	// Variant to use.
 	// It defaults to MuxerVariantLowLatency
 	Variant MuxerVariant
-
 	// Number of HLS segments to keep on the server.
 	// Segments allow to seek through the stream.
 	// Their number doesn't influence latency.
+	// It defaults to 7.
 	SegmentCount int
-
 	// Minimum duration of each segment.
 	// A player usually puts 3 segments in a buffer before reproducing the stream.
 	// The final segment duration is also influenced by the interval between IDR frames,
 	// since the server changes the duration in order to include at least one IDR frame
 	// in each segment.
+	// It defaults to 1sec.
 	SegmentDuration time.Duration
-
 	// Minimum duration of each part.
 	// Parts are used in Low-Latency HLS in place of segments.
 	// A player usually puts 3 parts in a buffer before reproducing the stream.
 	// Part duration is influenced by the distance between video/audio samples
 	// and is adjusted in order to produce segments with a similar duration.
+	// It defaults to 200ms.
 	PartDuration time.Duration
-
 	// Maximum size of each segment.
 	// This prevents RAM exhaustion.
+	// It defaults to 50MB.
 	SegmentMaxSize uint64
-
-	// video track.
-	VideoTrack format.Format
-
-	// audio track.
-	AudioTrack format.Format
-
-	// (optional) directory in which to save segments.
+	// Directory in which to save segments.
 	// This decreases performance, since saving segments on disk is less performant
 	// than saving them on RAM, but allows to preserve RAM.
 	Directory string
@@ -126,6 +126,30 @@ type Muxer struct {
 func (m *Muxer) Start() error {
 	if m.Variant == 0 {
 		m.Variant = MuxerVariantLowLatency
+	}
+	if m.SegmentCount == 0 {
+		m.SegmentCount = 7
+	}
+	if m.SegmentDuration == 0 {
+		m.SegmentDuration = 1 * time.Second
+	}
+	if m.PartDuration == 0 {
+		m.PartDuration = 200 * time.Millisecond
+	}
+	if m.SegmentMaxSize == 0 {
+		m.SegmentMaxSize = 50 * 1024 * 1024
+	}
+
+	switch m.Variant {
+	case MuxerVariantLowLatency:
+		if m.SegmentCount < 7 {
+			return fmt.Errorf("Low-Latency HLS requires at least 7 segments")
+		}
+
+	default:
+		if m.SegmentCount < 3 {
+			return fmt.Errorf("The minimum number of HLS segments is 3")
+		}
 	}
 
 	var factory storage.Factory

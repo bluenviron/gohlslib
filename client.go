@@ -50,16 +50,17 @@ func defaultLog(level LogLevel, format string, args ...interface{}) {
 
 // Client is a HLS client.
 type Client struct {
-	// URL of the playlist.
+	//
+	// Parameters (all optional except URI)
+	//
+	// URI of the playlist.
 	URI string
-
 	// if the playlist certificate is self-signed
 	// or invalid, you can provide the fingerprint of the certificate in order to
 	// validate it anyway. It can be obtained by running:
 	// openssl s_client -connect source_ip:source_port </dev/null 2>/dev/null | sed -n '/BEGIN/,/END/p' > server.crt
 	// openssl x509 -in server.crt -noout -fingerprint -sha256 | cut -d "=" -f2 | tr -d ':'
 	Fingerprint string
-
 	// function that receives log messages.
 	// It defaults to log.Printf.
 	Log LogFunc
