@@ -58,7 +58,7 @@ type MuxerVariant int
 
 // supported variants.
 const (
-	MuxerVariantMPEGTS MuxerVariant = iota
+	MuxerVariantMPEGTS MuxerVariant = iota + 1
 	MuxerVariantFMP4
 	MuxerVariantLowLatency
 )
@@ -74,6 +74,7 @@ type MuxerFileResponse struct {
 // Muxer is a HLS muxer.
 type Muxer struct {
 	// Variant to use.
+	// It defaults to MuxerVariantLowLatency
 	Variant MuxerVariant
 
 	// Number of HLS segments to keep on the server.
@@ -123,6 +124,10 @@ type Muxer struct {
 
 // Start initializes the muxer.
 func (m *Muxer) Start() error {
+	if m.Variant == 0 {
+		m.Variant = MuxerVariantLowLatency
+	}
+
 	var factory storage.Factory
 	if m.Directory != "" {
 		factory = storage.NewFactoryDisk(m.Directory)
