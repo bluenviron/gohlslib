@@ -63,10 +63,14 @@ func TestMuxerVideoAudio(t *testing.T) {
 			}
 
 			m := &Muxer{
-				Variant:         v,
-				SegmentCount:    3,
+				Variant: v,
+				SegmentCount: func() int {
+					if ca == "lowLatency" {
+						return 7
+					}
+					return 3
+				}(),
 				SegmentDuration: 1 * time.Second,
-				SegmentMaxSize:  50 * 1024 * 1024,
 				VideoTrack:      videoTrack,
 				AudioTrack:      audioTrack,
 			}
@@ -297,7 +301,6 @@ func TestMuxerVideoOnly(t *testing.T) {
 				Variant:         v,
 				SegmentCount:    3,
 				SegmentDuration: 1 * time.Second,
-				SegmentMaxSize:  50 * 1024 * 1024,
 				VideoTrack:      videoTrack,
 			}
 
@@ -425,7 +428,6 @@ func TestMuxerAudioOnly(t *testing.T) {
 				Variant:         v,
 				SegmentCount:    3,
 				SegmentDuration: 1 * time.Second,
-				SegmentMaxSize:  50 * 1024 * 1024,
 				AudioTrack:      audioTrack,
 			}
 
@@ -528,7 +530,6 @@ func TestMuxerCloseBeforeFirstSegmentReader(t *testing.T) {
 		Variant:         MuxerVariantMPEGTS,
 		SegmentCount:    3,
 		SegmentDuration: 1 * time.Second,
-		SegmentMaxSize:  50 * 1024 * 1024,
 		VideoTrack:      videoTrack,
 	}
 
@@ -561,6 +562,7 @@ func TestMuxerMaxSegmentSize(t *testing.T) {
 		Variant:         MuxerVariantMPEGTS,
 		SegmentCount:    3,
 		SegmentDuration: 1 * time.Second,
+		SegmentMaxSize:  1,
 		VideoTrack:      videoTrack,
 	}
 
@@ -587,7 +589,6 @@ func TestMuxerDoubleRead(t *testing.T) {
 		Variant:         MuxerVariantMPEGTS,
 		SegmentCount:    3,
 		SegmentDuration: 1 * time.Second,
-		SegmentMaxSize:  50 * 1024 * 1024,
 		VideoTrack:      videoTrack,
 	}
 
@@ -639,10 +640,9 @@ func TestMuxerFMP4ZeroDuration(t *testing.T) {
 	}
 
 	m := &Muxer{
-		Variant:         MuxerVariantLowLatency,
+		Variant:         MuxerVariantFMP4,
 		SegmentCount:    3,
 		SegmentDuration: 1 * time.Second,
-		SegmentMaxSize:  50 * 1024 * 1024,
 		VideoTrack:      videoTrack,
 	}
 
@@ -693,7 +693,6 @@ func TestMuxerSaveToDisk(t *testing.T) {
 				Variant:         v,
 				SegmentCount:    3,
 				SegmentDuration: 1 * time.Second,
-				SegmentMaxSize:  50 * 1024 * 1024,
 				VideoTrack:      videoTrack,
 				Directory:       dir,
 			}
