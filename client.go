@@ -1,6 +1,7 @@
 /*
 Package gohlslib is a HLS client and muxer library for the Go programming language.
-Examples are available at https://github.com/bluenviron/gohlslib/tree/master/examples
+
+Examples are available at https://github.com/bluenviron/gohlslib/tree/main/examples
 */
 package gohlslib
 
