@@ -11,7 +11,7 @@ test-nodocker: test-examples test-pkg test-root
 
 define DOCKERFILE_TEST
 FROM $(BASE_IMAGE)
-RUN apk add --no-cache make git gcc musl-dev pkgconfig ffmpeg-dev
+RUN apk add --no-cache make git gcc musl-dev
 WORKDIR /s
 COPY go.mod go.sum ./
 RUN go mod download
