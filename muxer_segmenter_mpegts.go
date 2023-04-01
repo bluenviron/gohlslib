@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/aler9/gortsplib/v2/pkg/codecs/h264"
-	"github.com/aler9/gortsplib/v2/pkg/format"
+	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
+	"github.com/bluenviron/mediacommon/pkg/formats/mpegts"
 
-	"github.com/bluenviron/gohlslib/pkg/mpegts"
+	"github.com/bluenviron/gohlslib/pkg/codecs"
 	"github.com/bluenviron/gohlslib/pkg/storage"
 )
 
@@ -15,11 +15,33 @@ const (
 	mpegtsSegmentMinAUCount = 100
 )
 
+func trackHLSToMPEGTS(t *Track) *mpegts.Track {
+	if t == nil {
+		return nil
+	}
+
+	switch tcodec := t.Codec.(type) {
+	case *codecs.H264:
+		return &mpegts.Track{
+			Codec: &mpegts.CodecH264{},
+		}
+
+	case *codecs.MPEG4Audio:
+		return &mpegts.Track{
+			Codec: &mpegts.CodecMPEG4Audio{
+				Config: tcodec.Config,
+			},
+		}
+	}
+
+	return nil
+}
+
 type muxerSegmenterMPEGTS struct {
 	segmentDuration time.Duration
 	segmentMaxSize  uint64
-	videoTrack      *format.H264
-	audioTrack      *format.MPEG4Audio
+	videoTrack      *Track
+	audioTrack      *Track
 	factory         storage.Factory
 	onSegmentReady  func(muxerSegment)
 
@@ -34,8 +56,8 @@ type muxerSegmenterMPEGTS struct {
 func newMuxerSegmenterMPEGTS(
 	segmentDuration time.Duration,
 	segmentMaxSize uint64,
-	videoTrack *format.H264,
-	audioTrack *format.MPEG4Audio,
+	videoTrack *Track,
+	audioTrack *Track,
 	factory storage.Factory,
 	onSegmentReady func(muxerSegment),
 ) *muxerSegmenterMPEGTS {
@@ -49,8 +71,8 @@ func newMuxerSegmenterMPEGTS(
 	}
 
 	m.writer = mpegts.NewWriter(
-		videoTrack,
-		audioTrack)
+		trackHLSToMPEGTS(videoTrack),
+		trackHLSToMPEGTS(audioTrack))
 
 	return m
 }
@@ -109,8 +131,7 @@ func (m *muxerSegmenterMPEGTS) writeH26x(ntp time.Time, pts time.Duration, nalus
 			m.genSegmentID(),
 			ntp,
 			m.segmentMaxSize,
-			m.videoTrack,
-			m.audioTrack,
+			m.videoTrack != nil,
 			m.writer,
 			m.factory)
 		if err != nil {
@@ -141,8 +162,7 @@ func (m *muxerSegmenterMPEGTS) writeH26x(ntp time.Time, pts time.Duration, nalus
 				m.genSegmentID(),
 				ntp,
 				m.segmentMaxSize,
-				m.videoTrack,
-				m.audioTrack,
+				m.videoTrack != nil,
 				m.writer,
 				m.factory,
 			)
@@ -178,8 +198,7 @@ func (m *muxerSegmenterMPEGTS) writeAudio(ntp time.Time, pts time.Duration, au [
 				m.genSegmentID(),
 				ntp,
 				m.segmentMaxSize,
-				m.videoTrack,
-				m.audioTrack,
+				m.videoTrack != nil,
 				m.writer,
 				m.factory,
 			)
@@ -200,8 +219,7 @@ func (m *muxerSegmenterMPEGTS) writeAudio(ntp time.Time, pts time.Duration, au [
 					m.genSegmentID(),
 					ntp,
 					m.segmentMaxSize,
-					m.videoTrack,
-					m.audioTrack,
+					m.videoTrack != nil,
 					m.writer,
 					m.factory,
 				)

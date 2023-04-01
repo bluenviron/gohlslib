@@ -3,10 +3,11 @@ package fmp4
 import (
 	"testing"
 
-	"github.com/aler9/gortsplib/v2/pkg/codecs/mpeg4audio"
-	"github.com/aler9/gortsplib/v2/pkg/format"
+	"github.com/bluenviron/mediacommon/pkg/codecs/mpeg4audio"
 	"github.com/orcaman/writerseeker"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bluenviron/gohlslib/pkg/codecs"
 )
 
 var testSPS = []byte{
@@ -16,23 +17,17 @@ var testSPS = []byte{
 	0x20,
 }
 
-var testVideoTrack = &format.H264{
-	PayloadTyp:        96,
-	SPS:               testSPS,
-	PPS:               []byte{0x08},
-	PacketizationMode: 1,
+var testVideoTrack = &codecs.H264{
+	SPS: testSPS,
+	PPS: []byte{0x08},
 }
 
-var testAudioTrack = &format.MPEG4Audio{
-	PayloadTyp: 96,
-	Config: &mpeg4audio.Config{
+var testAudioTrack = &codecs.MPEG4Audio{
+	Config: mpeg4audio.Config{
 		Type:         2,
 		SampleRate:   44100,
 		ChannelCount: 2,
 	},
-	SizeLength:       13,
-	IndexLength:      3,
-	IndexDeltaLength: 3,
 }
 
 var casesInit = []struct {
@@ -147,7 +142,7 @@ var casesInit = []struct {
 				{
 					ID:        1,
 					TimeScale: 90000,
-					Format:    testVideoTrack,
+					Codec:     testVideoTrack,
 				},
 			},
 		},
@@ -255,9 +250,8 @@ var casesInit = []struct {
 				{
 					ID:        1,
 					TimeScale: 90000,
-					Format: &format.H265{
-						PayloadTyp: 96,
-						VPS:        []byte{0x01, 0x02, 0x03, 0x04},
+					Codec: &codecs.H265{
+						VPS: []byte{0x01, 0x02, 0x03, 0x04},
 						SPS: []byte{
 							0x42, 0x01, 0x01, 0x01, 0x60, 0x00, 0x00, 0x03,
 							0x00, 0x90, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03,
@@ -378,8 +372,8 @@ var casesInit = []struct {
 			Tracks: []*InitTrack{
 				{
 					ID:        1,
-					TimeScale: uint32(testAudioTrack.ClockRate()),
-					Format:    testAudioTrack,
+					TimeScale: uint32(testAudioTrack.SampleRate),
+					Codec:     testAudioTrack,
 				},
 			},
 		},
@@ -471,9 +465,8 @@ var casesInit = []struct {
 				{
 					ID:        1,
 					TimeScale: 48000,
-					Format: &format.Opus{
-						PayloadTyp: 96,
-						IsStereo:   true,
+					Codec: &codecs.Opus{
+						Channels: 2,
 					},
 				},
 			},
@@ -650,12 +643,12 @@ var casesInit = []struct {
 				{
 					ID:        1,
 					TimeScale: 90000,
-					Format:    testVideoTrack,
+					Codec:     testVideoTrack,
 				},
 				{
 					ID:        2,
-					TimeScale: uint32(testAudioTrack.ClockRate()),
-					Format:    testAudioTrack,
+					TimeScale: uint32(testAudioTrack.SampleRate),
+					Codec:     testAudioTrack,
 				},
 			},
 		},
@@ -796,8 +789,7 @@ func TestInitUnmarshalExternal(t *testing.T) {
 					{
 						ID:        256,
 						TimeScale: 10000000,
-						Format: &format.H264{
-							PayloadTyp: 96,
+						Codec: &codecs.H264{
 							SPS: []byte{
 								0x67, 0x42, 0xc0, 0x1f, 0xd9, 0x00, 0xf0, 0x11,
 								0x7e, 0xf0, 0x11, 0x00, 0x00, 0x03, 0x00, 0x01,
@@ -807,7 +799,6 @@ func TestInitUnmarshalExternal(t *testing.T) {
 							PPS: []byte{
 								0x68, 0xcb, 0x8c, 0xb2,
 							},
-							PacketizationMode: 1,
 						},
 					},
 				},
@@ -972,8 +963,7 @@ func TestInitUnmarshalExternal(t *testing.T) {
 				Tracks: []*InitTrack{{
 					ID:        1,
 					TimeScale: 6000,
-					Format: &format.H265{
-						PayloadTyp: 96,
+					Codec: &codecs.H265{
 						VPS: []byte{
 							0x40, 0x01, 0x0c, 0x01, 0xff, 0xff, 0x02, 0x20,
 							0x00, 0x00, 0x03, 0x00, 0xb0, 0x00, 0x00, 0x03,
@@ -1092,16 +1082,12 @@ func TestInitUnmarshalExternal(t *testing.T) {
 					{
 						ID:        257,
 						TimeScale: 10000000,
-						Format: &format.MPEG4Audio{
-							PayloadTyp: 96,
-							Config: &mpeg4audio.Config{
+						Codec: &codecs.MPEG4Audio{
+							Config: mpeg4audio.Config{
 								Type:         mpeg4audio.ObjectTypeAACLC,
 								SampleRate:   48000,
 								ChannelCount: 2,
 							},
-							SizeLength:       13,
-							IndexLength:      3,
-							IndexDeltaLength: 3,
 						},
 					},
 				},
@@ -1255,9 +1241,7 @@ func TestInitUnmarshalExternal(t *testing.T) {
 				Tracks: []*InitTrack{{
 					ID:        1,
 					TimeScale: 6000,
-					Format: &format.H264{
-						PayloadTyp:        96,
-						PacketizationMode: 1,
+					Codec: &codecs.H264{
 						SPS: []byte{
 							0x27, 0x64, 0x00, 0x2a, 0xac, 0x52, 0x14, 0x07,
 							0x80, 0x22, 0x7e, 0x5f, 0xfc, 0x00, 0x04, 0x00,

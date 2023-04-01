@@ -6,9 +6,10 @@ import (
 	"io"
 
 	gomp4 "github.com/abema/go-mp4"
-	"github.com/aler9/gortsplib/v2/pkg/codecs/h265"
-	"github.com/aler9/gortsplib/v2/pkg/codecs/mpeg4audio"
-	"github.com/aler9/gortsplib/v2/pkg/format"
+	"github.com/bluenviron/mediacommon/pkg/codecs/h265"
+	"github.com/bluenviron/mediacommon/pkg/codecs/mpeg4audio"
+
+	"github.com/bluenviron/gohlslib/pkg/codecs"
 )
 
 // Init is a FMP4 initialization file.
@@ -108,11 +109,9 @@ func (i *Init) Unmarshal(byts []byte) error {
 				pps = avcc.PictureParameterSets[0].NALUnit
 			}
 
-			curTrack.Format = &format.H264{
-				PayloadTyp:        96,
-				SPS:               sps,
-				PPS:               pps,
-				PacketizationMode: 1,
+			curTrack.Codec = &codecs.H264{
+				SPS: sps,
+				PPS: pps,
 			}
 			state = waitingTrak
 
@@ -169,11 +168,10 @@ func (i *Init) Unmarshal(byts []byte) error {
 				return nil, fmt.Errorf("PPS not provided")
 			}
 
-			curTrack.Format = &format.H265{
-				PayloadTyp: 96,
-				VPS:        vps,
-				SPS:        sps,
-				PPS:        pps,
+			curTrack.Codec = &codecs.H265{
+				VPS: vps,
+				SPS: sps,
+				PPS: pps,
 			}
 			state = waitingTrak
 
@@ -212,12 +210,8 @@ func (i *Init) Unmarshal(byts []byte) error {
 				return nil, fmt.Errorf("invalid MPEG4-audio configuration: %s", err)
 			}
 
-			curTrack.Format = &format.MPEG4Audio{
-				PayloadTyp:       96,
-				Config:           &c,
-				SizeLength:       13,
-				IndexLength:      3,
-				IndexDeltaLength: 3,
+			curTrack.Codec = &codecs.MPEG4Audio{
+				Config: c,
 			}
 			state = waitingTrak
 
@@ -238,9 +232,8 @@ func (i *Init) Unmarshal(byts []byte) error {
 			}
 			dops := box.(*DOps)
 
-			curTrack.Format = &format.Opus{
-				PayloadTyp: 96,
-				IsStereo:   (dops.OutputChannelCount == 2),
+			curTrack.Codec = &codecs.Opus{
+				Channels: int(dops.OutputChannelCount),
 			}
 			state = waitingTrak
 

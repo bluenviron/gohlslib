@@ -10,13 +10,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aler9/gortsplib/v2/pkg/codecs/h264"
-	"github.com/aler9/gortsplib/v2/pkg/format"
 	"github.com/asticode/go-astits"
+
+	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
 	"github.com/gin-gonic/gin"
 	"github.com/orcaman/writerseeker"
 	"github.com/stretchr/testify/require"
 
+	"github.com/bluenviron/gohlslib/pkg/codecs"
 	"github.com/bluenviron/gohlslib/pkg/fmp4"
 )
 
@@ -125,7 +126,7 @@ func mp4Init(t *testing.T, w io.Writer) {
 			{
 				ID:        1,
 				TimeScale: 90000,
-				Format: &format.H264{
+				Codec: &codecs.H264{
 					SPS: []byte{
 						0x67, 0x42, 0xc0, 0x28, 0xd9, 0x00, 0x78, 0x02,
 						0x27, 0xe5, 0x84, 0x00, 0x00, 0x03, 0x00, 0x04,
@@ -284,12 +285,9 @@ func TestClientMPEGTS(t *testing.T) {
 				close(packetRecv)
 			}
 
-			c.OnTracks(func(tracks []format.Format) error {
+			c.OnTracks(func(tracks []*Track) error {
 				require.Equal(t, 1, len(tracks))
-				require.Equal(t, &format.H264{
-					PayloadTyp:        96,
-					PacketizationMode: 1,
-				}, tracks[0])
+				require.Equal(t, &codecs.H264{}, tracks[0].Codec)
 				c.OnData(tracks[0], onH264)
 				return nil
 			})
@@ -353,9 +351,9 @@ segment.mp4
 		URI: "http://localhost:5780/stream.m3u8",
 	}
 
-	c.OnTracks(func(tracks []format.Format) error {
+	c.OnTracks(func(tracks []*Track) error {
 		require.Equal(t, 1, len(tracks))
-		_, ok := tracks[0].(*format.H264)
+		_, ok := tracks[0].Codec.(*codecs.H264)
 		require.Equal(t, true, ok)
 		c.OnData(tracks[0], onH264)
 		return nil
@@ -423,7 +421,7 @@ segment1.ts
 	}
 	require.NoError(t, err)
 
-	c.OnTracks(func(tracks []format.Format) error {
+	c.OnTracks(func(tracks []*Track) error {
 		return nil
 	})
 

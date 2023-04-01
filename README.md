@@ -45,7 +45,6 @@ General features:
 |----|-----|
 |Parse and produce M3U8 playlists|OK|
 |Examples|TODO (missing muxer)|
-|Detach from gortsplib|TODO|
 
 ## Table of contents
 

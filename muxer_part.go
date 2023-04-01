@@ -5,8 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/aler9/gortsplib/v2/pkg/codecs/mpeg4audio"
-	"github.com/aler9/gortsplib/v2/pkg/format"
+	"github.com/bluenviron/mediacommon/pkg/codecs/mpeg4audio"
 
 	"github.com/bluenviron/gohlslib/pkg/fmp4"
 	"github.com/bluenviron/gohlslib/pkg/storage"
@@ -17,10 +16,11 @@ func fmp4PartName(id uint64) string {
 }
 
 type muxerPart struct {
-	videoTrack format.Format
-	audioTrack format.Format
-	id         uint64
-	storage    storage.Part
+	videoTrack          *Track
+	audioTrack          *Track
+	audioTrackTimeScale uint32
+	id                  uint64
+	storage             storage.Part
 
 	isIndependent       bool
 	videoSamples        []*fmp4.PartSample
@@ -33,16 +33,18 @@ type muxerPart struct {
 }
 
 func newMuxerPart(
-	videoTrack format.Format,
-	audioTrack format.Format,
+	videoTrack *Track,
+	audioTrack *Track,
+	audioTrackTimeScale uint32,
 	id uint64,
 	storage storage.Part,
 ) *muxerPart {
 	p := &muxerPart{
-		videoTrack: videoTrack,
-		audioTrack: audioTrack,
-		id:         id,
-		storage:    storage,
+		videoTrack:          videoTrack,
+		audioTrack:          audioTrack,
+		audioTrackTimeScale: audioTrackTimeScale,
+		id:                  id,
+		storage:             storage,
 	}
 
 	if videoTrack == nil {
@@ -73,7 +75,7 @@ func (p *muxerPart) duration() time.Duration {
 	// not the real duration,
 	// otherwise on iPhone iOS the stream freezes.
 	return time.Duration(len(p.audioSamples)) * time.Second *
-		time.Duration(mpeg4audio.SamplesPerAccessUnit) / time.Duration(p.audioTrack.ClockRate())
+		time.Duration(mpeg4audio.SamplesPerAccessUnit) / time.Duration(p.audioTrackTimeScale)
 }
 
 func (p *muxerPart) finalize() error {
@@ -91,7 +93,7 @@ func (p *muxerPart) finalize() error {
 	if p.audioSamples != nil {
 		part.Tracks = append(part.Tracks, &fmp4.PartTrack{
 			ID:       1 + len(part.Tracks),
-			BaseTime: durationGoToMp4(p.audioStartDTS, uint32(p.audioTrack.ClockRate())),
+			BaseTime: durationGoToMp4(p.audioStartDTS, p.audioTrackTimeScale),
 			Samples:  p.audioSamples,
 		})
 	}

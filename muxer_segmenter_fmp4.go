@@ -4,13 +4,25 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/aler9/gortsplib/v2/pkg/codecs/h264"
-	"github.com/aler9/gortsplib/v2/pkg/codecs/h265"
-	"github.com/aler9/gortsplib/v2/pkg/format"
+	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
+	"github.com/bluenviron/mediacommon/pkg/codecs/h265"
 
+	"github.com/bluenviron/gohlslib/pkg/codecs"
 	"github.com/bluenviron/gohlslib/pkg/fmp4"
 	"github.com/bluenviron/gohlslib/pkg/storage"
 )
+
+func fmp4TimeScale(c codecs.Codec) uint32 {
+	switch tcodec := c.(type) {
+	case *codecs.MPEG4Audio:
+		return uint32(tcodec.SampleRate)
+
+	case *codecs.Opus:
+		return 48000
+	}
+
+	return 0
+}
 
 func partDurationIsCompatible(partDuration time.Duration, sampleDuration time.Duration) bool {
 	if sampleDuration > partDuration {
@@ -52,12 +64,12 @@ type dtsExtractor interface {
 	Extract([][]byte, time.Duration) (time.Duration, error)
 }
 
-func allocateDTSExtractor(track format.Format) dtsExtractor {
-	switch track.(type) {
-	case *format.H264:
+func allocateDTSExtractor(track *Track) dtsExtractor {
+	switch track.Codec.(type) {
+	case *codecs.H264:
 		return h264.NewDTSExtractor()
 
-	case *format.H265:
+	case *codecs.H265:
 		return h265.NewDTSExtractor()
 	}
 	return nil
@@ -80,12 +92,13 @@ type muxerSegmenterFMP4 struct {
 	segmentDuration    time.Duration
 	partDuration       time.Duration
 	segmentMaxSize     uint64
-	videoTrack         format.Format
-	audioTrack         format.Format
+	videoTrack         *Track
+	audioTrack         *Track
 	factory            storage.Factory
 	onSegmentFinalized func(muxerSegment)
 	onPartFinalized    func(*muxerPart)
 
+	audioTrackTimeScale            uint32
 	startDTS                       time.Duration
 	videoFirstRandomAccessReceived bool
 	videoDTSExtractor              dtsExtractor
@@ -106,8 +119,8 @@ func newMuxerSegmenterFMP4(
 	segmentDuration time.Duration,
 	partDuration time.Duration,
 	segmentMaxSize uint64,
-	videoTrack format.Format,
-	audioTrack format.Format,
+	videoTrack *Track,
+	audioTrack *Track,
 	factory storage.Factory,
 	onSegmentFinalized func(muxerSegment),
 	onPartFinalized func(*muxerPart),
@@ -123,6 +136,10 @@ func newMuxerSegmenterFMP4(
 		onSegmentFinalized: onSegmentFinalized,
 		onPartFinalized:    onPartFinalized,
 		sampleDurations:    make(map[time.Duration]struct{}),
+	}
+
+	if audioTrack != nil {
+		m.audioTrackTimeScale = fmp4TimeScale(audioTrack.Codec)
 	}
 
 	// add initial gaps, required by iOS LL-HLS
@@ -176,8 +193,8 @@ func (m *muxerSegmenterFMP4) adjustPartDuration(du time.Duration) {
 func (m *muxerSegmenterFMP4) writeH26x(ntp time.Time, pts time.Duration, au [][]byte) error {
 	randomAccessPresent := false
 
-	switch m.videoTrack.(type) {
-	case *format.H264:
+	switch m.videoTrack.Codec.(type) {
+	case *codecs.H264:
 		nonIDRPresent := false
 
 		for _, nalu := range au {
@@ -196,7 +213,7 @@ func (m *muxerSegmenterFMP4) writeH26x(ntp time.Time, pts time.Duration, au [][]
 			return nil
 		}
 
-	case *format.H265:
+	case *codecs.H265:
 		for _, nalu := range au {
 			typ := h265.NALUType((nalu[0] >> 1) & 0b111111)
 
@@ -283,6 +300,7 @@ func (m *muxerSegmenterFMP4) writeH26xEntry(
 			m.segmentMaxSize,
 			m.videoTrack,
 			m.audioTrack,
+			m.audioTrackTimeScale,
 			m.factory,
 			m.genPartID,
 			m.onPartFinalized,
@@ -322,6 +340,7 @@ func (m *muxerSegmenterFMP4) writeH26xEntry(
 				m.segmentMaxSize,
 				m.videoTrack,
 				m.audioTrack,
+				m.audioTrackTimeScale,
 				m.factory,
 				m.genPartID,
 				m.onPartFinalized,
@@ -369,7 +388,7 @@ func (m *muxerSegmenterFMP4) writeAudio(ntp time.Time, dts time.Duration, au []b
 	if sample == nil {
 		return nil
 	}
-	sample.Duration = uint32(durationGoToMp4(m.nextAudioSample.dts-sample.dts, uint32(m.audioTrack.ClockRate())))
+	sample.Duration = uint32(durationGoToMp4(m.nextAudioSample.dts-sample.dts, m.audioTrackTimeScale))
 
 	if m.videoTrack == nil {
 		if m.currentSegment == nil {
@@ -383,6 +402,7 @@ func (m *muxerSegmenterFMP4) writeAudio(ntp time.Time, dts time.Duration, au []b
 				m.segmentMaxSize,
 				m.videoTrack,
 				m.audioTrack,
+				m.audioTrackTimeScale,
 				m.factory,
 				m.genPartID,
 				m.onPartFinalized,
@@ -422,6 +442,7 @@ func (m *muxerSegmenterFMP4) writeAudio(ntp time.Time, dts time.Duration, au []b
 			m.segmentMaxSize,
 			m.videoTrack,
 			m.audioTrack,
+			m.audioTrackTimeScale,
 			m.factory,
 			m.genPartID,
 			m.onPartFinalized,

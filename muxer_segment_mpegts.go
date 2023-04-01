@@ -6,16 +6,14 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/aler9/gortsplib/v2/pkg/format"
-
-	"github.com/bluenviron/gohlslib/pkg/mpegts"
 	"github.com/bluenviron/gohlslib/pkg/storage"
+
+	"github.com/bluenviron/mediacommon/pkg/formats/mpegts"
 )
 
 type muxerSegmentMPEGTS struct {
 	segmentMaxSize uint64
-	videoTrack     *format.H264
-	audioTrack     *format.MPEG4Audio
+	hasVideoTrack  bool
 	writer         *mpegts.Writer
 
 	storage      storage.Segment
@@ -32,15 +30,13 @@ func newMuxerSegmentMPEGTS(
 	id uint64,
 	startTime time.Time,
 	segmentMaxSize uint64,
-	videoTrack *format.H264,
-	audioTrack *format.MPEG4Audio,
+	hasVideoTrack bool,
 	writer *mpegts.Writer,
 	factory storage.Factory,
 ) (*muxerSegmentMPEGTS, error) {
 	s := &muxerSegmentMPEGTS{
 		segmentMaxSize: segmentMaxSize,
-		videoTrack:     videoTrack,
-		audioTrack:     audioTrack,
+		hasVideoTrack:  hasVideoTrack,
 		writer:         writer,
 		startTime:      startTime,
 		name:           "seg" + strconv.FormatUint(id, 10),
@@ -129,7 +125,7 @@ func (t *muxerSegmentMPEGTS) writeAAC(
 		return err
 	}
 
-	if t.videoTrack == nil {
+	if !t.hasVideoTrack {
 		t.audioAUCount++
 
 		if t.startDTS == nil {

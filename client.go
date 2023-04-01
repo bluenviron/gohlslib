@@ -11,8 +11,6 @@ import (
 	"log"
 	"net/url"
 	"time"
-
-	"github.com/aler9/gortsplib/v2/pkg/format"
 )
 
 const (
@@ -72,8 +70,8 @@ type Client struct {
 
 	ctx         context.Context
 	ctxCancel   func()
-	onTracks    func([]format.Format) error
-	onData      map[format.Format]func(time.Duration, interface{})
+	onTracks    func([]*Track) error
+	onData      map[*Track]func(time.Duration, interface{})
 	playlistURL *url.URL
 
 	// out
@@ -94,7 +92,7 @@ func (c *Client) Start() error {
 
 	c.ctx, c.ctxCancel = context.WithCancel(context.Background())
 
-	c.onData = make(map[format.Format]func(time.Duration, interface{}))
+	c.onData = make(map[*Track]func(time.Duration, interface{}))
 	c.outErr = make(chan error, 1)
 
 	go c.run()
@@ -113,12 +111,12 @@ func (c *Client) Wait() chan error {
 }
 
 // OnTracks sets a callback that is called when tracks are read.
-func (c *Client) OnTracks(cb func([]format.Format) error) {
+func (c *Client) OnTracks(cb func([]*Track) error) {
 	c.onTracks = cb
 }
 
 // OnData sets a callback that is called when data arrives.
-func (c *Client) OnData(forma format.Format, cb func(time.Duration, interface{})) {
+func (c *Client) OnData(forma *Track, cb func(time.Duration, interface{})) {
 	c.onData[forma] = cb
 }
 

@@ -9,30 +9,32 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aler9/gortsplib/v2/pkg/codecs/h264"
-	"github.com/aler9/gortsplib/v2/pkg/codecs/h265"
-	"github.com/aler9/gortsplib/v2/pkg/format"
+	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
+	"github.com/bluenviron/mediacommon/pkg/codecs/h265"
 	"github.com/orcaman/writerseeker"
 
 	"github.com/bluenviron/gohlslib/pkg/codecparams"
+	"github.com/bluenviron/gohlslib/pkg/codecs"
 	"github.com/bluenviron/gohlslib/pkg/fmp4"
 	"github.com/bluenviron/gohlslib/pkg/playlist"
 	"github.com/bluenviron/gohlslib/pkg/storage"
 )
 
-func extractVideoParams(track format.Format) [][]byte {
-	switch ttrack := track.(type) {
-	case *format.H264:
+func extractVideoParams(track *Track) [][]byte {
+	switch tcodec := track.Codec.(type) {
+	case *codecs.H264:
+		sps, pps := tcodec.SafeParams()
 		params := make([][]byte, 2)
-		params[0] = ttrack.SafeSPS()
-		params[1] = ttrack.SafePPS()
+		params[0] = sps
+		params[1] = pps
 		return params
 
-	case *format.H265:
+	case *codecs.H265:
+		vps, sps, pps := tcodec.SafeParams()
 		params := make([][]byte, 3)
-		params[0] = ttrack.SafeVPS()
-		params[1] = ttrack.SafeSPS()
-		params[2] = ttrack.SafePPS()
+		params[0] = vps
+		params[1] = sps
+		params[2] = pps
 		return params
 
 	default:
@@ -77,9 +79,9 @@ type Muxer struct {
 	// parameters (all optional except VideoTrack or AudioTrack).
 	//
 	// video track.
-	VideoTrack format.Format
+	VideoTrack *Track
 	// audio track.
-	AudioTrack format.Format
+	AudioTrack *Track
 	// Variant to use.
 	// It defaults to MuxerVariantLowLatency
 	Variant MuxerVariant
@@ -159,23 +161,16 @@ func (m *Muxer) Start() error {
 		factory = storage.NewFactoryRAM()
 	}
 
-	var videoTrackH264 *format.H264
-	var audioTrackMPEG4Audio *format.MPEG4Audio
-
 	if m.Variant == MuxerVariantMPEGTS {
 		if m.VideoTrack != nil {
-			var ok bool
-			videoTrackH264, ok = m.VideoTrack.(*format.H264)
-			if !ok {
+			if _, ok := m.VideoTrack.Codec.(*codecs.H264); !ok {
 				return fmt.Errorf(
 					"the MPEG-TS variant of HLS only supports H264 video. Use the fMP4 or Low-Latency variants instead")
 			}
 		}
 
 		if m.AudioTrack != nil {
-			var ok bool
-			audioTrackMPEG4Audio, ok = m.AudioTrack.(*format.MPEG4Audio)
-			if !ok {
+			if _, ok := m.AudioTrack.Codec.(*codecs.MPEG4Audio); !ok {
 				return fmt.Errorf(
 					"the MPEG-TS variant of HLS only supports MPEG4-audio. Use the fMP4 or Low-Latency variants instead")
 			}
@@ -190,8 +185,8 @@ func (m *Muxer) Start() error {
 		m.segmenter = newMuxerSegmenterMPEGTS(
 			m.SegmentDuration,
 			m.SegmentMaxSize,
-			videoTrackH264,
-			audioTrackMPEG4Audio,
+			m.VideoTrack,
+			m.AudioTrack,
 			factory,
 			m.mediaPlaylist.onSegmentFinalized,
 		)
@@ -256,10 +251,11 @@ func (m *Muxer) multistreamPlaylist() *MuxerFileResponse {
 	var frameRate *float64
 
 	if m.VideoTrack != nil {
-		switch ttrack := m.VideoTrack.(type) {
-		case *format.H264:
+		switch tcodec := m.VideoTrack.Codec.(type) {
+		case *codecs.H264:
+			sps0, _ := tcodec.SafeParams()
 			var sps h264.SPS
-			err := sps.Unmarshal(ttrack.SafeSPS())
+			err := sps.Unmarshal(sps0)
 			if err == nil {
 				resolution = strconv.FormatInt(int64(sps.Width()), 10) + "x" + strconv.FormatInt(int64(sps.Height()), 10)
 
@@ -269,9 +265,10 @@ func (m *Muxer) multistreamPlaylist() *MuxerFileResponse {
 				}
 			}
 
-		case *format.H265:
+		case *codecs.H265:
+			_, sps0, _ := tcodec.SafeParams()
 			var sps h265.SPS
-			err := sps.Unmarshal(ttrack.SafeSPS())
+			err := sps.Unmarshal(sps0)
 			if err == nil {
 				resolution = strconv.FormatInt(int64(sps.Width()), 10) + "x" + strconv.FormatInt(int64(sps.Height()), 10)
 
@@ -297,10 +294,10 @@ func (m *Muxer) multistreamPlaylist() *MuxerFileResponse {
 			Codecs: func() []string {
 				var codecs []string
 				if m.VideoTrack != nil {
-					codecs = append(codecs, codecparams.Marshal(m.VideoTrack))
+					codecs = append(codecs, codecparams.Marshal(m.VideoTrack.Codec))
 				}
 				if m.AudioTrack != nil {
-					codecs = append(codecs, codecparams.Marshal(m.AudioTrack))
+					codecs = append(codecs, codecparams.Marshal(m.AudioTrack.Codec))
 				}
 				return codecs
 			}(),
@@ -347,7 +344,7 @@ func (m *Muxer) initFile() *MuxerFileResponse {
 			init.Tracks = append(init.Tracks, &fmp4.InitTrack{
 				ID:        trackID,
 				TimeScale: 90000,
-				Format:    m.VideoTrack,
+				Codec:     m.VideoTrack.Codec,
 			})
 			trackID++
 		}
@@ -355,8 +352,8 @@ func (m *Muxer) initFile() *MuxerFileResponse {
 		if m.AudioTrack != nil {
 			init.Tracks = append(init.Tracks, &fmp4.InitTrack{
 				ID:        trackID,
-				TimeScale: uint32(m.AudioTrack.ClockRate()),
-				Format:    m.AudioTrack,
+				TimeScale: m.segmenter.(*muxerSegmenterFMP4).audioTrackTimeScale,
+				Codec:     m.AudioTrack.Codec,
 			})
 		}
 
