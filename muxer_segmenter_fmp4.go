@@ -102,7 +102,6 @@ type muxerSegmenterFMP4 struct {
 	startDTS                       time.Duration
 	videoFirstRandomAccessReceived bool
 	videoDTSExtractor              dtsExtractor
-	lastVideoParams                [][]byte
 	currentSegment                 *muxerSegmentFMP4
 	nextSegmentID                  uint64
 	nextPartID                     uint64
@@ -190,48 +189,12 @@ func (m *muxerSegmenterFMP4) adjustPartDuration(du time.Duration) {
 	}
 }
 
-func (m *muxerSegmenterFMP4) writeH26x(ntp time.Time, pts time.Duration, au [][]byte) error {
-	randomAccessPresent := false
-
-	switch m.videoTrack.Codec.(type) {
-	case *codecs.H264:
-		nonIDRPresent := false
-
-		for _, nalu := range au {
-			typ := h264.NALUType(nalu[0] & 0x1F)
-
-			switch typ {
-			case h264.NALUTypeIDR:
-				randomAccessPresent = true
-
-			case h264.NALUTypeNonIDR:
-				nonIDRPresent = true
-			}
-		}
-
-		if !randomAccessPresent && !nonIDRPresent {
-			return nil
-		}
-
-	case *codecs.H265:
-		for _, nalu := range au {
-			typ := h265.NALUType((nalu[0] >> 1) & 0b111111)
-
-			switch typ {
-			case h265.NALUType_IDR_W_RADL, h265.NALUType_IDR_N_LP, h265.NALUType_CRA_NUT:
-				randomAccessPresent = true
-			}
-		}
-	}
-
-	return m.writeH26xEntry(ntp, pts, au, randomAccessPresent)
-}
-
-func (m *muxerSegmenterFMP4) writeH26xEntry(
+func (m *muxerSegmenterFMP4) writeH26x(
 	ntp time.Time,
 	pts time.Duration,
 	au [][]byte,
 	randomAccessPresent bool,
+	forceSwitch bool,
 ) error {
 	var dts time.Duration
 
@@ -243,7 +206,6 @@ func (m *muxerSegmenterFMP4) writeH26xEntry(
 
 		m.videoFirstRandomAccessReceived = true
 		m.videoDTSExtractor = allocateDTSExtractor(m.videoTrack)
-		m.lastVideoParams = extractVideoParams(m.videoTrack)
 
 		var err error
 		dts, err = m.videoDTSExtractor.Extract(au, pts)
@@ -318,44 +280,39 @@ func (m *muxerSegmenterFMP4) writeH26xEntry(
 	}
 
 	// switch segment
-	if randomAccessPresent {
-		videoParams := extractVideoParams(m.videoTrack)
-		paramsChanged := !videoParamsEqual(m.lastVideoParams, videoParams)
+	if randomAccessPresent &&
+		((m.nextVideoSample.dts-m.currentSegment.startDTS) >= m.segmentDuration ||
+			forceSwitch) {
+		err := m.currentSegment.finalize(m.nextVideoSample.dts)
+		if err != nil {
+			return err
+		}
+		m.onSegmentFinalized(m.currentSegment)
 
-		if (m.nextVideoSample.dts-m.currentSegment.startDTS) >= m.segmentDuration ||
-			paramsChanged {
-			err := m.currentSegment.finalize(m.nextVideoSample.dts)
-			if err != nil {
-				return err
-			}
-			m.onSegmentFinalized(m.currentSegment)
+		m.firstSegmentFinalized = true
 
-			m.firstSegmentFinalized = true
+		m.currentSegment, err = newMuxerSegmentFMP4(
+			m.lowLatency,
+			m.genSegmentID(),
+			m.nextVideoSample.ntp,
+			m.nextVideoSample.dts,
+			m.segmentMaxSize,
+			m.videoTrack,
+			m.audioTrack,
+			m.audioTrackTimeScale,
+			m.factory,
+			m.genPartID,
+			m.onPartFinalized,
+		)
+		if err != nil {
+			return err
+		}
 
-			m.currentSegment, err = newMuxerSegmentFMP4(
-				m.lowLatency,
-				m.genSegmentID(),
-				m.nextVideoSample.ntp,
-				m.nextVideoSample.dts,
-				m.segmentMaxSize,
-				m.videoTrack,
-				m.audioTrack,
-				m.audioTrackTimeScale,
-				m.factory,
-				m.genPartID,
-				m.onPartFinalized,
-			)
-			if err != nil {
-				return err
-			}
+		if forceSwitch {
+			m.firstSegmentFinalized = false
 
-			if paramsChanged {
-				m.lastVideoParams = videoParams
-				m.firstSegmentFinalized = false
-
-				// reset adjusted part duration
-				m.sampleDurations = make(map[time.Duration]struct{})
-			}
+			// reset adjusted part duration
+			m.sampleDurations = make(map[time.Duration]struct{})
 		}
 	}
 

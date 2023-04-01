@@ -20,41 +20,6 @@ import (
 	"github.com/bluenviron/gohlslib/pkg/storage"
 )
 
-func extractVideoParams(track *Track) [][]byte {
-	switch tcodec := track.Codec.(type) {
-	case *codecs.H264:
-		sps, pps := tcodec.SafeParams()
-		params := make([][]byte, 2)
-		params[0] = sps
-		params[1] = pps
-		return params
-
-	case *codecs.H265:
-		vps, sps, pps := tcodec.SafeParams()
-		params := make([][]byte, 3)
-		params[0] = vps
-		params[1] = sps
-		params[2] = pps
-		return params
-
-	default:
-		return nil
-	}
-}
-
-func videoParamsEqual(p1 [][]byte, p2 [][]byte) bool {
-	if len(p1) != len(p2) {
-		return true
-	}
-
-	for i, p := range p1 {
-		if !bytes.Equal(p2[i], p) {
-			return false
-		}
-	}
-	return true
-}
-
 // MuxerVariant is a muxer variant.
 type MuxerVariant int
 
@@ -117,11 +82,11 @@ type Muxer struct {
 	// private
 	//
 
-	mediaPlaylist   *muxerMediaPlaylist
-	segmenter       muxerSegmenter
-	mutex           sync.Mutex
-	lastVideoParams [][]byte
-	initContent     []byte
+	mediaPlaylist *muxerMediaPlaylist
+	segmenter     muxerSegmenter
+	mutex         sync.RWMutex
+	initContent   []byte
+	forceSwitch   bool
 }
 
 // Start initializes the muxer.
@@ -216,7 +181,98 @@ func (m *Muxer) Close() {
 
 // WriteH26x writes an H264 or an H265 access unit.
 func (m *Muxer) WriteH26x(ntp time.Time, pts time.Duration, au [][]byte) error {
-	return m.segmenter.writeH26x(ntp, pts, au)
+	randomAccessPresent := false
+	forceSwitch := false
+
+	switch tcodec := m.VideoTrack.Codec.(type) {
+	case *codecs.H264:
+		nonIDRPresent := false
+		sps := tcodec.SPS
+		pps := tcodec.PPS
+		update := false
+
+		for _, nalu := range au {
+			typ := h264.NALUType(nalu[0] & 0x1F)
+
+			switch typ {
+			case h264.NALUTypeIDR:
+				randomAccessPresent = true
+
+			case h264.NALUTypeNonIDR:
+				nonIDRPresent = true
+
+			case h264.NALUTypeSPS:
+				if !bytes.Equal(sps, nalu) {
+					sps = nalu
+				}
+
+			case h264.NALUTypePPS:
+				if !bytes.Equal(pps, nalu) {
+					pps = nalu
+				}
+			}
+		}
+
+		if update {
+			m.mutex.Lock()
+			tcodec.SPS = sps
+			tcodec.PPS = pps
+			m.initContent = nil
+			m.mutex.Unlock()
+			m.forceSwitch = true
+		}
+
+		if !randomAccessPresent && !nonIDRPresent {
+			return nil
+		}
+
+	case *codecs.H265:
+		vps := tcodec.VPS
+		sps := tcodec.SPS
+		pps := tcodec.PPS
+		update := false
+
+		for _, nalu := range au {
+			typ := h265.NALUType((nalu[0] >> 1) & 0b111111)
+
+			switch typ {
+			case h265.NALUType_IDR_W_RADL, h265.NALUType_IDR_N_LP, h265.NALUType_CRA_NUT:
+				randomAccessPresent = true
+
+			case h265.NALUType_VPS_NUT:
+				if !bytes.Equal(vps, nalu) {
+					vps = nalu
+				}
+
+			case h265.NALUType_SPS_NUT:
+				if !bytes.Equal(sps, nalu) {
+					sps = nalu
+				}
+
+			case h265.NALUType_PPS_NUT:
+				if !bytes.Equal(pps, nalu) {
+					pps = nalu
+				}
+			}
+		}
+
+		if update {
+			m.mutex.Lock()
+			tcodec.VPS = vps
+			tcodec.SPS = sps
+			tcodec.PPS = pps
+			m.initContent = nil
+			m.mutex.Unlock()
+			m.forceSwitch = true
+		}
+	}
+
+	if randomAccessPresent && m.forceSwitch {
+		m.forceSwitch = false
+		forceSwitch = true
+	}
+
+	return m.segmenter.writeH26x(ntp, pts, au, randomAccessPresent, forceSwitch)
 }
 
 // WriteAudio writes an audio access unit.
@@ -238,6 +294,9 @@ func (m *Muxer) File(name string, msn string, part string, skip string) *MuxerFi
 }
 
 func (m *Muxer) multistreamPlaylist() *MuxerFileResponse {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
 	bandwidth, averageBandwidth := m.mediaPlaylist.bandwidth()
 
 	if bandwidth == 0 {
@@ -253,9 +312,8 @@ func (m *Muxer) multistreamPlaylist() *MuxerFileResponse {
 	if m.VideoTrack != nil {
 		switch tcodec := m.VideoTrack.Codec.(type) {
 		case *codecs.H264:
-			sps0, _ := tcodec.SafeParams()
 			var sps h264.SPS
-			err := sps.Unmarshal(sps0)
+			err := sps.Unmarshal(tcodec.SPS)
 			if err == nil {
 				resolution = strconv.FormatInt(int64(sps.Width()), 10) + "x" + strconv.FormatInt(int64(sps.Height()), 10)
 
@@ -266,9 +324,8 @@ func (m *Muxer) multistreamPlaylist() *MuxerFileResponse {
 			}
 
 		case *codecs.H265:
-			_, sps0, _ := tcodec.SafeParams()
 			var sps h265.SPS
-			err := sps.Unmarshal(sps0)
+			err := sps.Unmarshal(tcodec.SPS)
 			if err == nil {
 				resolution = strconv.FormatInt(int64(sps.Width()), 10) + "x" + strconv.FormatInt(int64(sps.Height()), 10)
 
@@ -318,25 +375,11 @@ func (m *Muxer) multistreamPlaylist() *MuxerFileResponse {
 	}
 }
 
-func (m *Muxer) mustRegenerateInit() bool {
-	if m.VideoTrack == nil {
-		return false
-	}
-
-	videoParams := extractVideoParams(m.VideoTrack)
-	if !videoParamsEqual(videoParams, m.lastVideoParams) {
-		m.lastVideoParams = videoParams
-		return true
-	}
-
-	return false
-}
-
 func (m *Muxer) initFile() *MuxerFileResponse {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	if m.initContent == nil || m.mustRegenerateInit() {
+	if m.initContent == nil {
 		init := fmp4.Init{}
 		trackID := 1
 

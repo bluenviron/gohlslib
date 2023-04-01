@@ -90,33 +90,25 @@ func (m *muxerSegmenterMPEGTS) genSegmentID() uint64 {
 	return id
 }
 
-func (m *muxerSegmenterMPEGTS) writeH26x(ntp time.Time, pts time.Duration, nalus [][]byte) error {
-	idrPresent := false
-	nonIDRPresent := false
-
-	for _, nalu := range nalus {
-		typ := h264.NALUType(nalu[0] & 0x1F)
-		switch typ {
-		case h264.NALUTypeIDR:
-			idrPresent = true
-
-		case h264.NALUTypeNonIDR:
-			nonIDRPresent = true
-		}
-	}
-
+func (m *muxerSegmenterMPEGTS) writeH26x(
+	ntp time.Time,
+	pts time.Duration,
+	au [][]byte,
+	randomAccessPresent bool,
+	forceSwitch bool,
+) error {
 	var dts time.Duration
 
 	if m.currentSegment == nil {
 		// skip groups silently until we find one with a IDR
-		if !idrPresent {
+		if !randomAccessPresent {
 			return nil
 		}
 
 		m.videoDTSExtractor = h264.NewDTSExtractor()
 
 		var err error
-		dts, err = m.videoDTSExtractor.Extract(nalus, pts)
+		dts, err = m.videoDTSExtractor.Extract(au, pts)
 		if err != nil {
 			return fmt.Errorf("unable to extract DTS: %v", err)
 		}
@@ -138,12 +130,8 @@ func (m *muxerSegmenterMPEGTS) writeH26x(ntp time.Time, pts time.Duration, nalus
 			return err
 		}
 	} else {
-		if !idrPresent && !nonIDRPresent {
-			return nil
-		}
-
 		var err error
-		dts, err = m.videoDTSExtractor.Extract(nalus, pts)
+		dts, err = m.videoDTSExtractor.Extract(au, pts)
 		if err != nil {
 			return fmt.Errorf("unable to extract DTS: %v", err)
 		}
@@ -152,8 +140,9 @@ func (m *muxerSegmenterMPEGTS) writeH26x(ntp time.Time, pts time.Duration, nalus
 		pts -= m.startDTS
 
 		// switch segment
-		if idrPresent &&
-			(dts-*m.currentSegment.startDTS) >= m.segmentDuration {
+		if randomAccessPresent &&
+			((dts-*m.currentSegment.startDTS) >= m.segmentDuration ||
+				forceSwitch) {
 			m.currentSegment.finalize(dts)
 			m.onSegmentReady(m.currentSegment)
 
@@ -176,8 +165,8 @@ func (m *muxerSegmenterMPEGTS) writeH26x(ntp time.Time, pts time.Duration, nalus
 		ntp.Sub(m.startPCR),
 		dts,
 		pts,
-		idrPresent,
-		nalus)
+		randomAccessPresent,
+		au)
 	if err != nil {
 		return err
 	}

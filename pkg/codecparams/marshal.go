@@ -102,15 +102,13 @@ func encodeGeneralConstraintIndicatorFlags(v *h265.SPS_ProfileTierLevel) string 
 func Marshal(codec codecs.Codec) string {
 	switch tcodec := codec.(type) {
 	case *codecs.H264:
-		sps, _ := tcodec.SafeParams()
-		if len(sps) >= 4 {
-			return "avc1." + hex.EncodeToString(sps[1:4])
+		if len(tcodec.SPS) >= 4 {
+			return "avc1." + hex.EncodeToString(tcodec.SPS[1:4])
 		}
 
 	case *codecs.H265:
-		_, sps0, _ := tcodec.SafeParams()
 		var sps h265.SPS
-		err := sps.Unmarshal(sps0)
+		err := sps.Unmarshal(tcodec.SPS)
 		if err == nil {
 			return "hvc1." +
 				encodeProfileSpace(sps.ProfileTierLevel.GeneralProfileSpace) +

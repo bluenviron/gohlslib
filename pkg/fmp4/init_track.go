@@ -67,7 +67,7 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 
 	switch tcodec := track.Codec.(type) {
 	case *codecs.H264:
-		h264SPS, h264PPS = tcodec.SafeParams()
+		h264SPS, h264PPS = tcodec.SPS, tcodec.PPS
 
 		err = h264SPSP.Unmarshal(h264SPS)
 		if err != nil {
@@ -78,7 +78,7 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 		height = h264SPSP.Height()
 
 	case *codecs.H265:
-		h265VPS, h265SPS, h265PPS = tcodec.SafeParams()
+		h265VPS, h265SPS, h265PPS = tcodec.VPS, tcodec.SPS, tcodec.PPS
 
 		err = h265SPSP.Unmarshal(h265SPS)
 		if err != nil {
