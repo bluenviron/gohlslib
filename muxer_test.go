@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aler9/gortsplib/v2/pkg/codecs/mpeg4audio"
-	"github.com/aler9/gortsplib/v2/pkg/format"
+	"github.com/bluenviron/mediacommon/pkg/codecs/mpeg4audio"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bluenviron/gohlslib/pkg/codecs"
 )
 
 var testTime = time.Date(2010, 0o1, 0o1, 0o1, 0o1, 0o1, 0, time.UTC)
@@ -24,26 +25,24 @@ var testSPS = []byte{
 	0x20,
 }
 
-func TestMuxerVideoAudio(t *testing.T) {
-	videoTrack := &format.H264{
-		PayloadTyp:        96,
-		SPS:               testSPS,
-		PPS:               []byte{0x08},
-		PacketizationMode: 1,
-	}
+var testVideoTrack = &Track{
+	Codec: &codecs.H264{
+		SPS: testSPS,
+		PPS: []byte{0x08},
+	},
+}
 
-	audioTrack := &format.MPEG4Audio{
-		PayloadTyp: 97,
-		Config: &mpeg4audio.Config{
+var testAudioTrack = &Track{
+	Codec: &codecs.MPEG4Audio{
+		Config: mpeg4audio.Config{
 			Type:         2,
 			SampleRate:   44100,
 			ChannelCount: 2,
 		},
-		SizeLength:       13,
-		IndexLength:      3,
-		IndexDeltaLength: 3,
-	}
+	},
+}
 
+func TestMuxerVideoAudio(t *testing.T) {
 	for _, ca := range []string{
 		"mpegts",
 		"fmp4",
@@ -71,8 +70,8 @@ func TestMuxerVideoAudio(t *testing.T) {
 					return 3
 				}(),
 				SegmentDuration: 1 * time.Second,
-				VideoTrack:      videoTrack,
-				AudioTrack:      audioTrack,
+				VideoTrack:      testVideoTrack,
+				AudioTrack:      testAudioTrack,
 			}
 
 			err := m.Start()
@@ -278,13 +277,6 @@ func TestMuxerVideoAudio(t *testing.T) {
 }
 
 func TestMuxerVideoOnly(t *testing.T) {
-	videoTrack := &format.H264{
-		PayloadTyp:        96,
-		SPS:               testSPS,
-		PPS:               []byte{0x08},
-		PacketizationMode: 1,
-	}
-
 	for _, ca := range []string{
 		"mpegts",
 		"fmp4",
@@ -301,7 +293,7 @@ func TestMuxerVideoOnly(t *testing.T) {
 				Variant:         v,
 				SegmentCount:    3,
 				SegmentDuration: 1 * time.Second,
-				VideoTrack:      videoTrack,
+				VideoTrack:      testVideoTrack,
 			}
 
 			err := m.Start()
@@ -400,18 +392,6 @@ func TestMuxerVideoOnly(t *testing.T) {
 }
 
 func TestMuxerAudioOnly(t *testing.T) {
-	audioTrack := &format.MPEG4Audio{
-		PayloadTyp: 97,
-		Config: &mpeg4audio.Config{
-			Type:         2,
-			SampleRate:   44100,
-			ChannelCount: 2,
-		},
-		SizeLength:       13,
-		IndexLength:      3,
-		IndexDeltaLength: 3,
-	}
-
 	for _, ca := range []string{
 		"mpegts",
 		"fmp4",
@@ -428,7 +408,7 @@ func TestMuxerAudioOnly(t *testing.T) {
 				Variant:         v,
 				SegmentCount:    3,
 				SegmentDuration: 1 * time.Second,
-				AudioTrack:      audioTrack,
+				AudioTrack:      testAudioTrack,
 			}
 
 			err := m.Start()
@@ -519,18 +499,11 @@ func TestMuxerAudioOnly(t *testing.T) {
 }
 
 func TestMuxerCloseBeforeFirstSegmentReader(t *testing.T) {
-	videoTrack := &format.H264{
-		PayloadTyp:        96,
-		SPS:               testSPS,
-		PPS:               []byte{0x08},
-		PacketizationMode: 1,
-	}
-
 	m := &Muxer{
 		Variant:         MuxerVariantMPEGTS,
 		SegmentCount:    3,
 		SegmentDuration: 1 * time.Second,
-		VideoTrack:      videoTrack,
+		VideoTrack:      testVideoTrack,
 	}
 
 	err := m.Start()
@@ -551,19 +524,12 @@ func TestMuxerCloseBeforeFirstSegmentReader(t *testing.T) {
 }
 
 func TestMuxerMaxSegmentSize(t *testing.T) {
-	videoTrack := &format.H264{
-		PayloadTyp:        96,
-		SPS:               testSPS,
-		PPS:               []byte{0x08},
-		PacketizationMode: 1,
-	}
-
 	m := &Muxer{
 		Variant:         MuxerVariantMPEGTS,
 		SegmentCount:    3,
 		SegmentDuration: 1 * time.Second,
 		SegmentMaxSize:  1,
-		VideoTrack:      videoTrack,
+		VideoTrack:      testVideoTrack,
 	}
 
 	err := m.Start()
@@ -578,18 +544,11 @@ func TestMuxerMaxSegmentSize(t *testing.T) {
 }
 
 func TestMuxerDoubleRead(t *testing.T) {
-	videoTrack := &format.H264{
-		PayloadTyp:        96,
-		SPS:               testSPS,
-		PPS:               []byte{0x08},
-		PacketizationMode: 1,
-	}
-
 	m := &Muxer{
 		Variant:         MuxerVariantMPEGTS,
 		SegmentCount:    3,
 		SegmentDuration: 1 * time.Second,
-		VideoTrack:      videoTrack,
+		VideoTrack:      testVideoTrack,
 	}
 
 	err := m.Start()
@@ -632,18 +591,11 @@ func TestMuxerDoubleRead(t *testing.T) {
 }
 
 func TestMuxerFMP4ZeroDuration(t *testing.T) {
-	videoTrack := &format.H264{
-		PayloadTyp:        96,
-		SPS:               testSPS,
-		PPS:               []byte{0x08},
-		PacketizationMode: 1,
-	}
-
 	m := &Muxer{
 		Variant:         MuxerVariantFMP4,
 		SegmentCount:    3,
 		SegmentDuration: 1 * time.Second,
-		VideoTrack:      videoTrack,
+		VideoTrack:      testVideoTrack,
 	}
 
 	err := m.Start()
@@ -675,13 +627,6 @@ func TestMuxerSaveToDisk(t *testing.T) {
 			require.NoError(t, err)
 			defer os.RemoveAll(dir)
 
-			videoTrack := &format.H264{
-				PayloadTyp:        96,
-				SPS:               testSPS,
-				PPS:               []byte{0x08},
-				PacketizationMode: 1,
-			}
-
 			var v MuxerVariant
 			if ca == "mpegts" {
 				v = MuxerVariantMPEGTS
@@ -693,7 +638,7 @@ func TestMuxerSaveToDisk(t *testing.T) {
 				Variant:         v,
 				SegmentCount:    3,
 				SegmentDuration: 1 * time.Second,
-				VideoTrack:      videoTrack,
+				VideoTrack:      testVideoTrack,
 				Directory:       dir,
 			}
 

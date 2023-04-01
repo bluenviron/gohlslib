@@ -5,8 +5,6 @@ import (
 	"time"
 
 	"github.com/bluenviron/gohlslib"
-
-	"github.com/aler9/gortsplib/v2/pkg/format"
 )
 
 // This example shows how to read a HLS stream.
@@ -18,9 +16,9 @@ func main() {
 	}
 
 	// setup a hook that is called when tracks are parsed
-	c.OnTracks(func(tracks []format.Format) error {
+	c.OnTracks(func(tracks []*gohlslib.Track) error {
 		for _, track := range tracks {
-			log.Printf("detected track of type %T\n", track)
+			log.Printf("detected track with codec %T\n", track.Codec)
 
 			// setup a hook that is called when data is received
 			ttrack := track

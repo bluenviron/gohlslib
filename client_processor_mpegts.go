@@ -7,18 +7,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aler9/gortsplib/v2/pkg/codecs/h264"
-	"github.com/aler9/gortsplib/v2/pkg/codecs/mpeg4audio"
-	"github.com/aler9/gortsplib/v2/pkg/format"
 	"github.com/asticode/go-astits"
 
-	"github.com/bluenviron/gohlslib/pkg/mpegts"
+	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
+	"github.com/bluenviron/mediacommon/pkg/codecs/mpeg4audio"
+	"github.com/bluenviron/mediacommon/pkg/formats/mpegts"
+
+	"github.com/bluenviron/gohlslib/pkg/codecs"
 )
 
 func mpegtsPickLeadingTrack(mpegtsTracks []*mpegts.Track) uint16 {
 	// pick first video track
 	for _, mt := range mpegtsTracks {
-		if _, ok := mt.Format.(*format.H264); ok {
+		if _, ok := mt.Codec.(*mpegts.CodecH264); ok {
 			return mt.ES.ElementaryPID
 		}
 	}
@@ -27,16 +28,35 @@ func mpegtsPickLeadingTrack(mpegtsTracks []*mpegts.Track) uint16 {
 	return mpegtsTracks[0].ES.ElementaryPID
 }
 
+func trackMPEGTSToHLS(mt *mpegts.Track) *Track {
+	switch tcodec := mt.Codec.(type) {
+	case *mpegts.CodecH264:
+		return &Track{
+			Codec: &codecs.H264{},
+		}
+
+	case *mpegts.CodecMPEG4Audio:
+		return &Track{
+			Codec: &codecs.MPEG4Audio{
+				Config: tcodec.Config,
+			},
+		}
+	}
+
+	return nil
+}
+
 type clientProcessorMPEGTS struct {
 	isLeading            bool
 	segmentQueue         *clientSegmentQueue
 	log                  LogFunc
 	rp                   *clientRoutinePool
-	onStreamFormats      func(context.Context, []format.Format) bool
+	onStreamTracks       func(context.Context, []*Track) bool
 	onSetLeadingTimeSync func(clientTimeSync)
 	onGetLeadingTimeSync func(context.Context) (clientTimeSync, bool)
-	onData               map[format.Format]func(time.Duration, interface{})
+	onData               map[*Track]func(time.Duration, interface{})
 
+	tracks          []*Track
 	mpegtsTracks    []*mpegts.Track
 	leadingTrackPID uint16
 	trackProcs      map[uint16]*clientProcessorMPEGTSTrack
@@ -47,17 +67,17 @@ func newClientProcessorMPEGTS(
 	segmentQueue *clientSegmentQueue,
 	log LogFunc,
 	rp *clientRoutinePool,
-	onStreamFormats func(context.Context, []format.Format) bool,
+	onStreamTracks func(context.Context, []*Track) bool,
 	onSetLeadingTimeSync func(clientTimeSync),
 	onGetLeadingTimeSync func(context.Context) (clientTimeSync, bool),
-	onData map[format.Format]func(time.Duration, interface{}),
+	onData map[*Track]func(time.Duration, interface{}),
 ) *clientProcessorMPEGTS {
 	return &clientProcessorMPEGTS{
 		isLeading:            isLeading,
 		segmentQueue:         segmentQueue,
 		log:                  log,
 		rp:                   rp,
-		onStreamFormats:      onStreamFormats,
+		onStreamTracks:       onStreamTracks,
 		onSetLeadingTimeSync: onSetLeadingTimeSync,
 		onGetLeadingTimeSync: onGetLeadingTimeSync,
 		onData:               onData,
@@ -89,8 +109,8 @@ func (p *clientProcessorMPEGTS) processSegment(ctx context.Context, byts []byte)
 		}
 
 		for _, track := range p.mpegtsTracks {
-			switch track.Format.(type) {
-			case *format.H264, *format.MPEG4Audio:
+			switch track.Codec.(type) {
+			case *mpegts.CodecH264, *mpegts.CodecMPEG4Audio:
 			default:
 				return fmt.Errorf("unsupported track type: %T", track)
 			}
@@ -98,12 +118,12 @@ func (p *clientProcessorMPEGTS) processSegment(ctx context.Context, byts []byte)
 
 		p.leadingTrackPID = mpegtsPickLeadingTrack(p.mpegtsTracks)
 
-		tracks := make([]format.Format, len(p.mpegtsTracks))
+		p.tracks = make([]*Track, len(p.mpegtsTracks))
 		for i, mt := range p.mpegtsTracks {
-			tracks[i] = mt.Format
+			p.tracks[i] = trackMPEGTSToHLS(mt)
 		}
 
-		ok := p.onStreamFormats(ctx, tracks)
+		ok := p.onStreamTracks(ctx, p.tracks)
 		if !ok {
 			return fmt.Errorf("terminated")
 		}
@@ -180,17 +200,17 @@ func (p *clientProcessorMPEGTS) processSegment(ctx context.Context, byts []byte)
 func (p *clientProcessorMPEGTS) initializeTrackProcs(ts *clientTimeSyncMPEGTS) {
 	p.trackProcs = make(map[uint16]*clientProcessorMPEGTSTrack)
 
-	for _, track := range p.mpegtsTracks {
+	for i, track := range p.tracks {
 		var cb func(time.Duration, []byte) error
 
-		cb2, ok := p.onData[track.Format]
+		cb2, ok := p.onData[track]
 		if !ok {
 			cb2 = func(time.Duration, interface{}) {
 			}
 		}
 
-		switch track.Format.(type) {
-		case *format.H264:
+		switch track.Codec.(type) {
+		case *codecs.H264:
 			cb = func(pts time.Duration, payload []byte) error {
 				nalus, err := h264.AnnexBUnmarshal(payload)
 				if err != nil {
@@ -202,7 +222,7 @@ func (p *clientProcessorMPEGTS) initializeTrackProcs(ts *clientTimeSyncMPEGTS) {
 				return nil
 			}
 
-		case *format.MPEG4Audio:
+		case *codecs.MPEG4Audio:
 			cb = func(pts time.Duration, payload []byte) error {
 				var adtsPkts mpeg4audio.ADTSPackets
 				err := adtsPkts.Unmarshal(payload)
@@ -225,6 +245,6 @@ func (p *clientProcessorMPEGTS) initializeTrackProcs(ts *clientTimeSyncMPEGTS) {
 			cb,
 		)
 		p.rp.add(proc)
-		p.trackProcs[track.ES.ElementaryPID] = proc
+		p.trackProcs[p.mpegtsTracks[i].ES.ElementaryPID] = proc
 	}
 }

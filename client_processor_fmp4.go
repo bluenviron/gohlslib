@@ -5,17 +5,17 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/aler9/gortsplib/v2/pkg/codecs/h264"
-	"github.com/aler9/gortsplib/v2/pkg/format"
+	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
 
+	"github.com/bluenviron/gohlslib/pkg/codecs"
 	"github.com/bluenviron/gohlslib/pkg/fmp4"
 )
 
 func fmp4PickLeadingTrack(init *fmp4.Init) int {
 	// pick first video track
 	for _, track := range init.Tracks {
-		switch track.Format.(type) {
-		case *format.H264, *format.H265:
+		switch track.Codec.(type) {
+		case *codecs.H264, *codecs.H265:
 			return track.ID
 		}
 	}
@@ -31,8 +31,9 @@ type clientProcessorFMP4 struct {
 	rp                   *clientRoutinePool
 	onSetLeadingTimeSync func(clientTimeSync)
 	onGetLeadingTimeSync func(context.Context) (clientTimeSync, bool)
-	onData               map[format.Format]func(time.Duration, interface{})
+	onData               map[*Track]func(time.Duration, interface{})
 
+	tracks         []*Track
 	init           fmp4.Init
 	leadingTrackID int
 	trackProcs     map[int]*clientProcessorFMP4Track
@@ -48,10 +49,10 @@ func newClientProcessorFMP4(
 	segmentQueue *clientSegmentQueue,
 	log LogFunc,
 	rp *clientRoutinePool,
-	onStreamFormats func(context.Context, []format.Format) bool,
+	onStreamTracks func(context.Context, []*Track) bool,
 	onSetLeadingTimeSync func(clientTimeSync),
 	onGetLeadingTimeSync func(context.Context) (clientTimeSync, bool),
-	onData map[format.Format]func(time.Duration, interface{}),
+	onData map[*Track]func(time.Duration, interface{}),
 ) (*clientProcessorFMP4, error) {
 	p := &clientProcessorFMP4{
 		isLeading:            isLeading,
@@ -71,12 +72,14 @@ func newClientProcessorFMP4(
 
 	p.leadingTrackID = fmp4PickLeadingTrack(&p.init)
 
-	tracks := make([]format.Format, len(p.init.Tracks))
+	p.tracks = make([]*Track, len(p.init.Tracks))
 	for i, track := range p.init.Tracks {
-		tracks[i] = track.Format
+		p.tracks[i] = &Track{
+			Codec: track.Codec,
+		}
 	}
 
-	ok := onStreamFormats(ctx, tracks)
+	ok := onStreamTracks(ctx, p.tracks)
 	if !ok {
 		return nil, fmt.Errorf("terminated")
 	}
@@ -181,17 +184,17 @@ func (p *clientProcessorFMP4) onPartTrackProcessed(ctx context.Context) {
 func (p *clientProcessorFMP4) initializeTrackProcs(ts *clientTimeSyncFMP4) {
 	p.trackProcs = make(map[int]*clientProcessorFMP4Track)
 
-	for _, track := range p.init.Tracks {
+	for i, track := range p.tracks {
 		var cb func(time.Duration, []byte) error
 
-		cb2, ok := p.onData[track.Format]
+		cb2, ok := p.onData[track]
 		if !ok {
 			cb2 = func(time.Duration, interface{}) {
 			}
 		}
 
-		switch track.Format.(type) {
-		case *format.H264, *format.H265:
+		switch track.Codec.(type) {
+		case *codecs.H264, *codecs.H265:
 			cb = func(pts time.Duration, payload []byte) error {
 				nalus, err := h264.AVCCUnmarshal(payload)
 				if err != nil {
@@ -202,7 +205,7 @@ func (p *clientProcessorFMP4) initializeTrackProcs(ts *clientTimeSyncFMP4) {
 				return nil
 			}
 
-		case *format.MPEG4Audio, *format.Opus:
+		case *codecs.MPEG4Audio, *codecs.Opus:
 			cb = func(pts time.Duration, payload []byte) error {
 				cb2(pts, payload)
 				return nil
@@ -210,12 +213,12 @@ func (p *clientProcessorFMP4) initializeTrackProcs(ts *clientTimeSyncFMP4) {
 		}
 
 		proc := newClientProcessorFMP4Track(
-			track.TimeScale,
+			p.init.Tracks[i].TimeScale,
 			ts,
 			p.onPartTrackProcessed,
 			cb,
 		)
 		p.rp.add(proc)
-		p.trackProcs[track.ID] = proc
+		p.trackProcs[p.init.Tracks[i].ID] = proc
 	}
 }

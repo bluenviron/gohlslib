@@ -6,21 +6,20 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/aler9/gortsplib/v2/pkg/format"
-
 	"github.com/bluenviron/gohlslib/pkg/storage"
 )
 
 type muxerSegmentFMP4 struct {
-	lowLatency      bool
-	id              uint64
-	startTime       time.Time
-	startDTS        time.Duration
-	segmentMaxSize  uint64
-	videoTrack      format.Format
-	audioTrack      format.Format
-	genPartID       func() uint64
-	onPartFinalized func(*muxerPart)
+	lowLatency          bool
+	id                  uint64
+	startTime           time.Time
+	startDTS            time.Duration
+	segmentMaxSize      uint64
+	videoTrack          *Track
+	audioTrack          *Track
+	audioTrackTimeScale uint32
+	genPartID           func() uint64
+	onPartFinalized     func(*muxerPart)
 
 	name          string
 	storage       storage.Segment
@@ -36,23 +35,25 @@ func newMuxerSegmentFMP4(
 	startTime time.Time,
 	startDTS time.Duration,
 	segmentMaxSize uint64,
-	videoTrack format.Format,
-	audioTrack format.Format,
+	videoTrack *Track,
+	audioTrack *Track,
+	audioTrackTimeScale uint32,
 	factory storage.Factory,
 	genPartID func() uint64,
 	onPartFinalized func(*muxerPart),
 ) (*muxerSegmentFMP4, error) {
 	s := &muxerSegmentFMP4{
-		lowLatency:      lowLatency,
-		id:              id,
-		startTime:       startTime,
-		startDTS:        startDTS,
-		segmentMaxSize:  segmentMaxSize,
-		videoTrack:      videoTrack,
-		audioTrack:      audioTrack,
-		genPartID:       genPartID,
-		onPartFinalized: onPartFinalized,
-		name:            "seg" + strconv.FormatUint(id, 10),
+		lowLatency:          lowLatency,
+		id:                  id,
+		startTime:           startTime,
+		startDTS:            startDTS,
+		segmentMaxSize:      segmentMaxSize,
+		videoTrack:          videoTrack,
+		audioTrack:          audioTrack,
+		audioTrackTimeScale: audioTrackTimeScale,
+		genPartID:           genPartID,
+		onPartFinalized:     onPartFinalized,
+		name:                "seg" + strconv.FormatUint(id, 10),
 	}
 
 	var err error
@@ -64,6 +65,7 @@ func newMuxerSegmentFMP4(
 	s.currentPart = newMuxerPart(
 		s.videoTrack,
 		s.audioTrack,
+		s.audioTrackTimeScale,
 		s.genPartID(),
 		s.storage.NewPart(),
 	)
@@ -142,6 +144,7 @@ func (s *muxerSegmentFMP4) writeH264(sample *augmentedVideoSample, adjustedPartD
 		s.currentPart = newMuxerPart(
 			s.videoTrack,
 			s.audioTrack,
+			s.audioTrackTimeScale,
 			s.genPartID(),
 			s.storage.NewPart(),
 		)
@@ -173,6 +176,7 @@ func (s *muxerSegmentFMP4) writeAudio(sample *augmentedAudioSample, adjustedPart
 		s.currentPart = newMuxerPart(
 			s.videoTrack,
 			s.audioTrack,
+			s.audioTrackTimeScale,
 			s.genPartID(),
 			s.storage.NewPart(),
 		)

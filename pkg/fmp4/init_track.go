@@ -2,16 +2,18 @@ package fmp4
 
 import (
 	gomp4 "github.com/abema/go-mp4"
-	"github.com/aler9/gortsplib/v2/pkg/codecs/h264"
-	"github.com/aler9/gortsplib/v2/pkg/codecs/h265"
-	"github.com/aler9/gortsplib/v2/pkg/format"
+
+	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
+	"github.com/bluenviron/mediacommon/pkg/codecs/h265"
+
+	"github.com/bluenviron/gohlslib/pkg/codecs"
 )
 
 // InitTrack is a track of Init.
 type InitTrack struct {
 	ID        int
 	TimeScale uint32
-	Format    format.Format
+	Codec     codecs.Codec
 }
 
 func (track *InitTrack) marshal(w *mp4Writer) error {
@@ -63,10 +65,9 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 	var width int
 	var height int
 
-	switch ttrack := track.Format.(type) {
-	case *format.H264:
-		h264SPS = ttrack.SafeSPS()
-		h264PPS = ttrack.SafePPS()
+	switch tcodec := track.Codec.(type) {
+	case *codecs.H264:
+		h264SPS, h264PPS = tcodec.SafeParams()
 
 		err = h264SPSP.Unmarshal(h264SPS)
 		if err != nil {
@@ -76,10 +77,8 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 		width = h264SPSP.Width()
 		height = h264SPSP.Height()
 
-	case *format.H265:
-		h265VPS = ttrack.SafeVPS()
-		h265SPS = ttrack.SafeSPS()
-		h265PPS = ttrack.SafePPS()
+	case *codecs.H265:
+		h265VPS, h265SPS, h265PPS = tcodec.SafeParams()
 
 		err = h265SPSP.Unmarshal(h265SPS)
 		if err != nil {
@@ -90,8 +89,8 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 		height = h265SPSP.Height()
 	}
 
-	switch track.Format.(type) {
-	case *format.H264, *format.H265:
+	switch track.Codec.(type) {
+	case *codecs.H264, *codecs.H265:
 		_, err = w.writeBox(&gomp4.Tkhd{ // <tkhd/>
 			FullBox: gomp4.FullBox{
 				Flags: [3]byte{0, 0, 3},
@@ -105,7 +104,7 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 			return err
 		}
 
-	case *format.MPEG4Audio, *format.Opus:
+	case *codecs.MPEG4Audio, *codecs.Opus:
 		_, err = w.writeBox(&gomp4.Tkhd{ // <tkhd/>
 			FullBox: gomp4.FullBox{
 				Flags: [3]byte{0, 0, 3},
@@ -133,8 +132,8 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 		return err
 	}
 
-	switch track.Format.(type) {
-	case *format.H264, *format.H265:
+	switch track.Codec.(type) {
+	case *codecs.H264, *codecs.H265:
 		_, err = w.writeBox(&gomp4.Hdlr{ // <hdlr/>
 			HandlerType: [4]byte{'v', 'i', 'd', 'e'},
 			Name:        "VideoHandler",
@@ -143,7 +142,7 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 			return err
 		}
 
-	case *format.MPEG4Audio, *format.Opus:
+	case *codecs.MPEG4Audio, *codecs.Opus:
 		_, err = w.writeBox(&gomp4.Hdlr{ // <hdlr/>
 			HandlerType: [4]byte{'s', 'o', 'u', 'n'},
 			Name:        "SoundHandler",
@@ -158,8 +157,8 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 		return err
 	}
 
-	switch track.Format.(type) {
-	case *format.H264, *format.H265:
+	switch track.Codec.(type) {
+	case *codecs.H264, *codecs.H265:
 		_, err = w.writeBox(&gomp4.Vmhd{ // <vmhd/>
 			FullBox: gomp4.FullBox{
 				Flags: [3]byte{0, 0, 1},
@@ -169,7 +168,7 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 			return err
 		}
 
-	case *format.MPEG4Audio, *format.Opus:
+	case *codecs.MPEG4Audio, *codecs.Opus:
 		_, err = w.writeBox(&gomp4.Smhd{ // <smhd/>
 		})
 		if err != nil {
@@ -220,8 +219,8 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 		return err
 	}
 
-	switch ttrack := track.Format.(type) {
-	case *format.H264:
+	switch tcodec := track.Codec.(type) {
+	case *codecs.H264:
 		_, err = w.writeBoxStart(&gomp4.VisualSampleEntry{ // <avc1>
 			SampleEntry: gomp4.SampleEntry{
 				AnyTypeBox: gomp4.AnyTypeBox{
@@ -282,7 +281,7 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 			return err
 		}
 
-	case *format.H265:
+	case *codecs.H265:
 		_, err = w.writeBoxStart(&gomp4.VisualSampleEntry{ // <hev1>
 			SampleEntry: gomp4.SampleEntry{
 				AnyTypeBox: gomp4.AnyTypeBox{
@@ -366,7 +365,7 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 			return err
 		}
 
-	case *format.MPEG4Audio:
+	case *codecs.MPEG4Audio:
 		_, err = w.writeBoxStart(&gomp4.AudioSampleEntry{ // <mp4a>
 			SampleEntry: gomp4.SampleEntry{
 				AnyTypeBox: gomp4.AnyTypeBox{
@@ -374,15 +373,15 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 				},
 				DataReferenceIndex: 1,
 			},
-			ChannelCount: uint16(ttrack.Config.ChannelCount),
+			ChannelCount: uint16(tcodec.ChannelCount),
 			SampleSize:   16,
-			SampleRate:   uint32(ttrack.ClockRate() * 65536),
+			SampleRate:   uint32(tcodec.SampleRate * 65536),
 		})
 		if err != nil {
 			return err
 		}
 
-		enc, _ := ttrack.Config.Marshal()
+		enc, _ := tcodec.Config.Marshal()
 
 		_, err = w.writeBox(&gomp4.Esds{ // <esds/>
 			Descriptors: []gomp4.Descriptor{
@@ -434,7 +433,7 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 			return err
 		}
 
-	case *format.Opus:
+	case *codecs.Opus:
 		_, err = w.writeBoxStart(&gomp4.AudioSampleEntry{ // <Opus>
 			SampleEntry: gomp4.SampleEntry{
 				AnyTypeBox: gomp4.AnyTypeBox{
@@ -442,28 +441,18 @@ func (track *InitTrack) marshal(w *mp4Writer) error {
 				},
 				DataReferenceIndex: 1,
 			},
-			ChannelCount: func() uint16 {
-				if ttrack.IsStereo {
-					return 2
-				}
-				return 1
-			}(),
-			SampleSize: 16,
-			SampleRate: 48000 * 65536,
+			ChannelCount: uint16(tcodec.Channels),
+			SampleSize:   16,
+			SampleRate:   48000 * 65536,
 		})
 		if err != nil {
 			return err
 		}
 
 		_, err = w.writeBox(&DOps{ // <dOps/>
-			OutputChannelCount: func() uint8 {
-				if ttrack.IsStereo {
-					return 2
-				}
-				return 1
-			}(),
-			PreSkip:         312,
-			InputSampleRate: 48000,
+			OutputChannelCount: uint8(tcodec.Channels),
+			PreSkip:            312,
+			InputSampleRate:    48000,
 		})
 		if err != nil {
 			return err

@@ -9,8 +9,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/aler9/gortsplib/v2/pkg/format"
-
 	"github.com/bluenviron/gohlslib/pkg/playlist"
 )
 
@@ -39,10 +37,10 @@ type clientDownloaderStream struct {
 	initialPlaylist      *playlist.Media
 	log                  LogFunc
 	rp                   *clientRoutinePool
-	onStreamTracks       func(context.Context, []format.Format) bool
+	onStreamTracks       func(context.Context, []*Track) bool
 	onSetLeadingTimeSync func(clientTimeSync)
 	onGetLeadingTimeSync func(context.Context) (clientTimeSync, bool)
-	onData               map[format.Format]func(time.Duration, interface{})
+	onData               map[*Track]func(time.Duration, interface{})
 
 	curSegmentID *int
 }
@@ -54,10 +52,10 @@ func newClientDownloaderStream(
 	initialPlaylist *playlist.Media,
 	log LogFunc,
 	rp *clientRoutinePool,
-	onStreamTracks func(context.Context, []format.Format) bool,
+	onStreamTracks func(context.Context, []*Track) bool,
 	onSetLeadingTimeSync func(clientTimeSync),
 	onGetLeadingTimeSync func(context.Context) (clientTimeSync, bool),
-	onData map[format.Format]func(time.Duration, interface{}),
+	onData map[*Track]func(time.Duration, interface{}),
 ) *clientDownloaderStream {
 	return &clientDownloaderStream{
 		isLeading:            isLeading,

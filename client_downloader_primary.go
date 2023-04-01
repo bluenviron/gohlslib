@@ -12,8 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aler9/gortsplib/v2/pkg/format"
-
 	"github.com/bluenviron/gohlslib/pkg/playlist"
 )
 
@@ -107,15 +105,15 @@ type clientTimeSync interface{}
 type clientDownloaderPrimary struct {
 	primaryPlaylistURL *url.URL
 	log                LogFunc
-	onTracks           func([]format.Format) error
-	onData             map[format.Format]func(time.Duration, interface{})
+	onTracks           func([]*Track) error
+	onData             map[*Track]func(time.Duration, interface{})
 	rp                 *clientRoutinePool
 
 	httpClient      *http.Client
 	leadingTimeSync clientTimeSync
 
 	// in
-	streamTracks chan []format.Format
+	streamTracks chan []*Track
 
 	// out
 	startStreaming       chan struct{}
@@ -127,8 +125,8 @@ func newClientDownloaderPrimary(
 	fingerprint string,
 	log LogFunc,
 	rp *clientRoutinePool,
-	onTracks func([]format.Format) error,
-	onData map[format.Format]func(time.Duration, interface{}),
+	onTracks func([]*Track) error,
+	onData map[*Track]func(time.Duration, interface{}),
 ) *clientDownloaderPrimary {
 	var tlsConfig *tls.Config
 	if fingerprint != "" {
@@ -161,7 +159,7 @@ func newClientDownloaderPrimary(
 				TLSClientConfig: tlsConfig,
 			},
 		},
-		streamTracks:         make(chan []format.Format),
+		streamTracks:         make(chan []*Track),
 		startStreaming:       make(chan struct{}),
 		leadingTimeSyncReady: make(chan struct{}),
 	}
@@ -252,7 +250,7 @@ func (d *clientDownloaderPrimary) run(ctx context.Context) error {
 		return fmt.Errorf("invalid playlist")
 	}
 
-	var tracks []format.Format
+	var tracks []*Track
 
 	for i := 0; i < streamCount; i++ {
 		select {
@@ -277,7 +275,7 @@ func (d *clientDownloaderPrimary) run(ctx context.Context) error {
 	return nil
 }
 
-func (d *clientDownloaderPrimary) onStreamTracks(ctx context.Context, tracks []format.Format) bool {
+func (d *clientDownloaderPrimary) onStreamTracks(ctx context.Context, tracks []*Track) bool {
 	select {
 	case d.streamTracks <- tracks:
 	case <-ctx.Done():

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bluenviron/gohlslib/pkg/mpegts"
+	"github.com/bluenviron/mediacommon/pkg/formats/mpegts"
 )
 
 type clientTimeSyncMPEGTS struct {

@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aler9/gortsplib/v2/pkg/codecs/h265"
-	"github.com/aler9/gortsplib/v2/pkg/format"
+	"github.com/bluenviron/gohlslib/pkg/codecs"
+	"github.com/bluenviron/mediacommon/pkg/codecs/h265"
 )
 
 func encodeProfileSpace(v uint8) string {
@@ -99,17 +99,18 @@ func encodeGeneralConstraintIndicatorFlags(v *h265.SPS_ProfileTierLevel) string 
 }
 
 // Marshal generates codec parameters of given tracks.
-func Marshal(track format.Format) string {
-	switch ttrack := track.(type) {
-	case *format.H264:
-		sps := ttrack.SafeSPS()
+func Marshal(codec codecs.Codec) string {
+	switch tcodec := codec.(type) {
+	case *codecs.H264:
+		sps, _ := tcodec.SafeParams()
 		if len(sps) >= 4 {
 			return "avc1." + hex.EncodeToString(sps[1:4])
 		}
 
-	case *format.H265:
+	case *codecs.H265:
+		_, sps0, _ := tcodec.SafeParams()
 		var sps h265.SPS
-		err := sps.Unmarshal(ttrack.SafeSPS())
+		err := sps.Unmarshal(sps0)
 		if err == nil {
 			return "hvc1." +
 				encodeProfileSpace(sps.ProfileTierLevel.GeneralProfileSpace) +
@@ -120,11 +121,11 @@ func Marshal(track format.Format) string {
 				encodeGeneralConstraintIndicatorFlags(&sps.ProfileTierLevel)
 		}
 
-	case *format.MPEG4Audio:
+	case *codecs.MPEG4Audio:
 		// https://developer.mozilla.org/en-US/docs/Web/Media/Formats/codecs_parameter
-		return "mp4a.40." + strconv.FormatInt(int64(ttrack.Config.Type), 10)
+		return "mp4a.40." + strconv.FormatInt(int64(tcodec.Config.Type), 10)
 
-	case *format.Opus:
+	case *codecs.Opus:
 		return "opus"
 	}
 
