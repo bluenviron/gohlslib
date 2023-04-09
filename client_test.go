@@ -3,6 +3,7 @@ package gohlslib
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"io"
 	"net"
 	"net/http"
@@ -271,8 +272,14 @@ func TestClientMPEGTS(t *testing.T) {
 			}
 
 			c := &Client{
-				URI:         prefix + "://localhost:5780/stream.m3u8",
-				Fingerprint: "33949E05FFFB5FF3E8AA16F8213A6251B4D9363804BA53233C4DA9A46D6F2739",
+				URI: prefix + "://localhost:5780/stream.m3u8",
+				HTTPClient: &http.Client{
+					Transport: &http.Transport{
+						TLSClientConfig: &tls.Config{
+							InsecureSkipVerify: true,
+						},
+					},
+				},
 			}
 
 			onH264 := func(pts time.Duration, unit interface{}) {

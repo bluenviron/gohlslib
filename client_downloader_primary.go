@@ -2,9 +2,6 @@ package gohlslib
 
 import (
 	"context"
-	"crypto/sha256"
-	"crypto/tls"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
@@ -104,12 +101,12 @@ type clientTimeSync interface{}
 
 type clientDownloaderPrimary struct {
 	primaryPlaylistURL *url.URL
+	httpClient         *http.Client
 	log                LogFunc
 	onTracks           func([]*Track) error
 	onData             map[*Track]func(time.Duration, interface{})
 	rp                 *clientRoutinePool
 
-	httpClient      *http.Client
 	leadingTimeSync clientTimeSync
 
 	// in
@@ -122,43 +119,19 @@ type clientDownloaderPrimary struct {
 
 func newClientDownloaderPrimary(
 	primaryPlaylistURL *url.URL,
-	fingerprint string,
+	httpClient *http.Client,
 	log LogFunc,
 	rp *clientRoutinePool,
 	onTracks func([]*Track) error,
 	onData map[*Track]func(time.Duration, interface{}),
 ) *clientDownloaderPrimary {
-	var tlsConfig *tls.Config
-	if fingerprint != "" {
-		tlsConfig = &tls.Config{
-			InsecureSkipVerify: true,
-			VerifyConnection: func(cs tls.ConnectionState) error {
-				h := sha256.New()
-				h.Write(cs.PeerCertificates[0].Raw)
-				hstr := hex.EncodeToString(h.Sum(nil))
-				fingerprintLower := strings.ToLower(fingerprint)
-
-				if hstr != fingerprintLower {
-					return fmt.Errorf("server fingerprint do not match: expected %s, got %s",
-						fingerprintLower, hstr)
-				}
-
-				return nil
-			},
-		}
-	}
-
 	return &clientDownloaderPrimary{
-		primaryPlaylistURL: primaryPlaylistURL,
-		log:                log,
-		onTracks:           onTracks,
-		onData:             onData,
-		rp:                 rp,
-		httpClient: &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: tlsConfig,
-			},
-		},
+		primaryPlaylistURL:   primaryPlaylistURL,
+		httpClient:           httpClient,
+		log:                  log,
+		onTracks:             onTracks,
+		onData:               onData,
+		rp:                   rp,
 		streamTracks:         make(chan []*Track),
 		startStreaming:       make(chan struct{}),
 		leadingTimeSyncReady: make(chan struct{}),
