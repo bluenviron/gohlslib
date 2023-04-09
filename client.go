@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"net/url"
 	"time"
 )
@@ -54,12 +55,9 @@ type Client struct {
 	//
 	// URI of the playlist.
 	URI string
-	// if the playlist certificate is self-signed
-	// or invalid, you can provide the fingerprint of the certificate in order to
-	// validate it anyway. It can be obtained by running:
-	// openssl s_client -connect source_ip:source_port </dev/null 2>/dev/null | sed -n '/BEGIN/,/END/p' > server.crt
-	// openssl x509 -in server.crt -noout -fingerprint -sha256 | cut -d "=" -f2 | tr -d ':'
-	Fingerprint string
+	// HTTP client.
+	// It defaults to http.DefaultClient.
+	HTTPClient *http.Client
 	// function that receives log messages.
 	// It defaults to log.Printf.
 	Log LogFunc
@@ -80,6 +78,9 @@ type Client struct {
 
 // Start starts the client.
 func (c *Client) Start() error {
+	if c.HTTPClient == nil {
+		c.HTTPClient = http.DefaultClient
+	}
 	if c.Log == nil {
 		c.Log = defaultLog
 	}
@@ -129,7 +130,7 @@ func (c *Client) runInner() error {
 
 	dl := newClientDownloaderPrimary(
 		c.playlistURL,
-		c.Fingerprint,
+		c.HTTPClient,
 		c.Log,
 		rp,
 		c.onTracks,
