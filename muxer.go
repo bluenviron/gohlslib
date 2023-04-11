@@ -11,7 +11,6 @@ import (
 
 	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
 	"github.com/bluenviron/mediacommon/pkg/codecs/h265"
-	"github.com/orcaman/writerseeker"
 
 	"github.com/bluenviron/gohlslib/pkg/codecparams"
 	"github.com/bluenviron/gohlslib/pkg/codecs"
@@ -82,11 +81,13 @@ type Muxer struct {
 	// private
 	//
 
-	mediaPlaylist *muxerMediaPlaylist
-	segmenter     muxerSegmenter
-	mutex         sync.RWMutex
-	initContent   []byte
-	forceSwitch   bool
+	storageFactory storage.Factory
+	mediaPlaylist  *muxerMediaPlaylist
+	segmenter      muxerSegmenter
+	mutex          sync.RWMutex
+	closed         bool
+	initStorage    storage.File
+	forceSwitch    bool
 }
 
 // Start initializes the muxer.
@@ -119,13 +120,6 @@ func (m *Muxer) Start() error {
 		}
 	}
 
-	var factory storage.Factory
-	if m.Directory != "" {
-		factory = storage.NewFactoryDisk(m.Directory)
-	} else {
-		factory = storage.NewFactoryRAM()
-	}
-
 	if m.Variant == MuxerVariantMPEGTS {
 		if m.VideoTrack != nil {
 			if _, ok := m.VideoTrack.Codec.(*codecs.H264); !ok {
@@ -142,6 +136,12 @@ func (m *Muxer) Start() error {
 		}
 	}
 
+	if m.Directory != "" {
+		m.storageFactory = storage.NewFactoryDisk(m.Directory)
+	} else {
+		m.storageFactory = storage.NewFactoryRAM()
+	}
+
 	m.mediaPlaylist = newMuxerMediaPlaylist(
 		m.Variant,
 		m.SegmentCount)
@@ -152,7 +152,7 @@ func (m *Muxer) Start() error {
 			m.SegmentMaxSize,
 			m.VideoTrack,
 			m.AudioTrack,
-			factory,
+			m.storageFactory,
 			m.mediaPlaylist.onSegmentFinalized,
 		)
 	} else {
@@ -164,11 +164,13 @@ func (m *Muxer) Start() error {
 			m.SegmentMaxSize,
 			m.VideoTrack,
 			m.AudioTrack,
-			factory,
+			m.storageFactory,
 			m.mediaPlaylist.onSegmentFinalized,
 			m.mediaPlaylist.onPartFinalized,
 		)
 	}
+
+	m.generateInitFile()
 
 	return nil
 }
@@ -177,6 +179,16 @@ func (m *Muxer) Start() error {
 func (m *Muxer) Close() {
 	m.mediaPlaylist.close()
 	m.segmenter.close()
+
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	m.closed = true
+
+	if m.initStorage != nil {
+		m.initStorage.Remove()
+		m.initStorage = nil
+	}
 }
 
 // WriteH26x writes an H264 or an H265 access unit.
@@ -217,7 +229,7 @@ func (m *Muxer) WriteH26x(ntp time.Time, pts time.Duration, au [][]byte) error {
 			m.mutex.Lock()
 			tcodec.SPS = sps
 			tcodec.PPS = pps
-			m.initContent = nil
+			m.generateInitFile()
 			m.mutex.Unlock()
 			m.forceSwitch = true
 		}
@@ -261,7 +273,7 @@ func (m *Muxer) WriteH26x(ntp time.Time, pts time.Duration, au [][]byte) error {
 			tcodec.VPS = vps
 			tcodec.SPS = sps
 			tcodec.PPS = pps
-			m.initContent = nil
+			m.generateInitFile()
 			m.mutex.Unlock()
 			m.forceSwitch = true
 		}
@@ -376,37 +388,20 @@ func (m *Muxer) multistreamPlaylist() *MuxerFileResponse {
 }
 
 func (m *Muxer) initFile() *MuxerFileResponse {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
 
-	if m.initContent == nil {
-		init := fmp4.Init{}
-		trackID := 1
-
-		if m.VideoTrack != nil {
-			init.Tracks = append(init.Tracks, &fmp4.InitTrack{
-				ID:        trackID,
-				TimeScale: 90000,
-				Codec:     m.VideoTrack.Codec,
-			})
-			trackID++
+	if m.initStorage == nil {
+		return &MuxerFileResponse{
+			Status: http.StatusInternalServerError,
 		}
+	}
 
-		if m.AudioTrack != nil {
-			init.Tracks = append(init.Tracks, &fmp4.InitTrack{
-				ID:        trackID,
-				TimeScale: m.segmenter.(*muxerSegmenterFMP4).audioTrackTimeScale,
-				Codec:     m.AudioTrack.Codec,
-			})
+	r, err := m.initStorage.Reader()
+	if err != nil {
+		return &MuxerFileResponse{
+			Status: http.StatusInternalServerError,
 		}
-
-		buf := &writerseeker.WriterSeeker{}
-		err := init.Marshal(buf)
-		if err != nil {
-			return &MuxerFileResponse{Status: http.StatusNotFound}
-		}
-
-		m.initContent = buf.Bytes()
 	}
 
 	return &MuxerFileResponse{
@@ -414,6 +409,54 @@ func (m *Muxer) initFile() *MuxerFileResponse {
 		Header: map[string]string{
 			"Content-Type": "video/mp4",
 		},
-		Body: io.NopCloser(bytes.NewReader(m.initContent)),
+		Body: r,
 	}
+}
+
+func (m *Muxer) generateInitFile() error {
+	if m.Variant == MuxerVariantMPEGTS || m.closed {
+		return nil
+	}
+
+	if m.initStorage != nil {
+		m.initStorage.Remove()
+		m.initStorage = nil
+	}
+
+	init := fmp4.Init{}
+	trackID := 1
+
+	if m.VideoTrack != nil {
+		init.Tracks = append(init.Tracks, &fmp4.InitTrack{
+			ID:        trackID,
+			TimeScale: 90000,
+			Codec:     m.VideoTrack.Codec,
+		})
+		trackID++
+	}
+
+	if m.AudioTrack != nil {
+		init.Tracks = append(init.Tracks, &fmp4.InitTrack{
+			ID:        trackID,
+			TimeScale: m.segmenter.(*muxerSegmenterFMP4).audioTrackTimeScale,
+			Codec:     m.AudioTrack.Codec,
+		})
+	}
+
+	s, err := m.storageFactory.NewFile("init.mp4")
+	if err != nil {
+		return err
+	}
+	defer s.Finalize()
+
+	part := s.NewPart()
+	w := part.Writer()
+
+	err = init.Marshal(w)
+	if err != nil {
+		return err
+	}
+
+	m.initStorage = s
+	return nil
 }

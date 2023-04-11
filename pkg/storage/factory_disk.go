@@ -15,7 +15,7 @@ func NewFactoryDisk(dirPath string) Factory {
 	}
 }
 
-// NewSegment implements Factory.
-func (s *factoryDisk) NewSegment(fileName string) (Segment, error) {
-	return newSegmentDisk(filepath.Join(s.dirPath, fileName))
+// NewFile implements Factory.
+func (s *factoryDisk) NewFile(fileName string) (File, error) {
+	return newFileDisk(filepath.Join(s.dirPath, fileName))
 }

@@ -16,7 +16,7 @@ type muxerSegmentMPEGTS struct {
 	hasVideoTrack  bool
 	writer         *mpegts.Writer
 
-	storage      storage.Segment
+	storage      storage.File
 	storagePart  storage.Part
 	size         uint64
 	startTime    time.Time
@@ -43,7 +43,7 @@ func newMuxerSegmentMPEGTS(
 	}
 
 	var err error
-	s.storage, err = factory.NewSegment(s.name + ".ts")
+	s.storage, err = factory.NewFile(s.name + ".ts")
 	if err != nil {
 		return nil, err
 	}

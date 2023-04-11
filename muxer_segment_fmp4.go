@@ -22,7 +22,7 @@ type muxerSegmentFMP4 struct {
 	onPartFinalized     func(*muxerPart)
 
 	name          string
-	storage       storage.Segment
+	storage       storage.File
 	size          uint64
 	parts         []*muxerPart
 	currentPart   *muxerPart
@@ -57,7 +57,7 @@ func newMuxerSegmentFMP4(
 	}
 
 	var err error
-	s.storage, err = factory.NewSegment(s.name + ".mp4")
+	s.storage, err = factory.NewFile(s.name + ".mp4")
 	if err != nil {
 		return nil, err
 	}
