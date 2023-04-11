@@ -44,7 +44,7 @@ General features:
 |name|state|
 |----|-----|
 |Parse and produce M3U8 playlists|OK|
-|Examples|TODO (missing muxer)|
+|Examples|OK|
 
 ## Table of contents
 
@@ -57,6 +57,7 @@ General features:
 
 * [playlist-parser](examples/playlist-parser/main.go)
 * [client](examples/client/main.go)
+* [muxer](examples/muxer/main.go)
 
 ## API Documentation
 

@@ -1,7 +1,6 @@
 package gohlslib
 
 import (
-	"bytes"
 	"io"
 	"math"
 	"net/http"
@@ -145,21 +144,18 @@ func (p *muxerMediaPlaylist) hasPart(segmentID uint64, partID uint64) bool {
 	return true
 }
 
-func (p *muxerMediaPlaylist) file(name string, msn string, part string, skip string) *MuxerFileResponse {
+func (p *muxerMediaPlaylist) handleFile(name string, msn string, part string, skip string, w http.ResponseWriter) {
 	switch {
 	case name == "stream.m3u8":
-		return p.playlistReader(msn, part, skip)
+		p.handlePlaylist(msn, part, skip, w)
 
 	case (p.variant != MuxerVariantMPEGTS && strings.HasSuffix(name, ".mp4")) ||
 		(p.variant == MuxerVariantMPEGTS && strings.HasSuffix(name, ".ts")):
-		return p.segmentReader(name)
-
-	default:
-		return &MuxerFileResponse{Status: http.StatusNotFound}
+		p.handleSegmentOrPart(name, w)
 	}
 }
 
-func (p *muxerMediaPlaylist) playlistReader(msn string, part string, skip string) *MuxerFileResponse {
+func (p *muxerMediaPlaylist) handlePlaylist(msn string, part string, skip string, w http.ResponseWriter) {
 	isDeltaUpdate := false
 
 	if p.variant == MuxerVariantLowLatency {
@@ -170,7 +166,8 @@ func (p *muxerMediaPlaylist) playlistReader(msn string, part string, skip string
 			var err error
 			msnint, err = strconv.ParseUint(msn, 10, 64)
 			if err != nil {
-				return &MuxerFileResponse{Status: http.StatusBadRequest}
+				w.WriteHeader(http.StatusBadRequest)
+				return
 			}
 		}
 
@@ -179,7 +176,8 @@ func (p *muxerMediaPlaylist) playlistReader(msn string, part string, skip string
 			var err error
 			partint, err = strconv.ParseUint(part, 10, 64)
 			if err != nil {
-				return &MuxerFileResponse{Status: http.StatusBadRequest}
+				w.WriteHeader(http.StatusBadRequest)
+				return
 			}
 		}
 
@@ -193,7 +191,8 @@ func (p *muxerMediaPlaylist) playlistReader(msn string, part string, skip string
 			// Advance Part Limit, then the server SHOULD immediately return Bad
 			// Request, such as HTTP 400.
 			if msnint > (p.nextSegmentID + 1) {
-				return &MuxerFileResponse{Status: http.StatusBadRequest}
+				w.WriteHeader(http.StatusBadRequest)
+				return
 			}
 
 			for !p.closed && !p.hasPart(msnint, partint) {
@@ -201,21 +200,20 @@ func (p *muxerMediaPlaylist) playlistReader(msn string, part string, skip string
 			}
 
 			if p.closed {
-				return &MuxerFileResponse{Status: http.StatusNotFound}
+				w.WriteHeader(http.StatusInternalServerError)
+				return
 			}
 
-			return &MuxerFileResponse{
-				Status: http.StatusOK,
-				Header: map[string]string{
-					"Content-Type": `application/x-mpegURL`,
-				},
-				Body: io.NopCloser(bytes.NewReader(p.generatePlaylist(isDeltaUpdate))),
-			}
+			w.Header().Set("Content-Type", `application/x-mpegURL`)
+			w.WriteHeader(http.StatusOK)
+			w.Write(p.generatePlaylist(isDeltaUpdate))
+			return
 		}
 
 		// part without msn is not supported.
 		if part != "" {
-			return &MuxerFileResponse{Status: http.StatusBadRequest}
+			w.WriteHeader(http.StatusBadRequest)
+			return
 		}
 	}
 
@@ -227,16 +225,13 @@ func (p *muxerMediaPlaylist) playlistReader(msn string, part string, skip string
 	}
 
 	if p.closed {
-		return &MuxerFileResponse{Status: http.StatusNotFound}
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
-	return &MuxerFileResponse{
-		Status: http.StatusOK,
-		Header: map[string]string{
-			"Content-Type": `application/x-mpegURL`,
-		},
-		Body: io.NopCloser(bytes.NewReader(p.generatePlaylist(isDeltaUpdate))),
-	}
+	w.Header().Set("Content-Type", `application/x-mpegURL`)
+	w.WriteHeader(http.StatusOK)
+	w.Write(p.generatePlaylist(isDeltaUpdate))
 }
 
 func (p *muxerMediaPlaylist) generatePlaylist(isDeltaUpdate bool) []byte {
@@ -376,7 +371,7 @@ func (p *muxerMediaPlaylist) generatePlaylistFMP4(isDeltaUpdate bool) []byte {
 	return byts
 }
 
-func (p *muxerMediaPlaylist) segmentReader(fname string) *MuxerFileResponse {
+func (p *muxerMediaPlaylist) handleSegmentOrPart(fname string, w http.ResponseWriter) {
 	switch {
 	case strings.HasPrefix(fname, "seg"):
 		base := strings.TrimSuffix(strings.TrimSuffix(fname, ".mp4"), ".ts")
@@ -386,90 +381,72 @@ func (p *muxerMediaPlaylist) segmentReader(fname string) *MuxerFileResponse {
 		p.mutex.Unlock()
 
 		if !ok {
-			return &MuxerFileResponse{Status: http.StatusNotFound}
+			return
 		}
 
 		r, err := segment.reader()
 		if err != nil {
-			return &MuxerFileResponse{Status: http.StatusInternalServerError}
+			w.WriteHeader(http.StatusInternalServerError)
+			return
 		}
+		defer r.Close()
 
-		return &MuxerFileResponse{
-			Status: http.StatusOK,
-			Header: map[string]string{
-				"Content-Type": func() string {
-					if p.variant == MuxerVariantMPEGTS {
-						return "video/MP2T"
-					}
-					return "video/mp4"
-				}(),
-			},
-			Body: r,
-		}
+		w.Header().Set(
+			"Content-Type",
+			func() string {
+				if p.variant == MuxerVariantMPEGTS {
+					return "video/MP2T"
+				}
+				return "video/mp4"
+			}(),
+		)
+
+		w.WriteHeader(http.StatusOK)
+		io.Copy(w, r)
 
 	case p.variant == MuxerVariantLowLatency && strings.HasPrefix(fname, "part"):
 		base := strings.TrimSuffix(fname, ".mp4")
 
 		p.mutex.Lock()
-		part, ok := p.partsByName[base]
-		nextPartID := p.nextPartID
+
+		part := p.partsByName[base]
+
+		// support for EXT-X-PRELOAD-HINT
+		if part == nil && base == fmp4PartName(p.nextPartID) {
+			p.waitForPart(p.nextPartID)
+			part = p.partsByName[base]
+		}
+
 		p.mutex.Unlock()
 
-		if ok {
-			r, err := part.reader()
-			if err != nil {
-				return &MuxerFileResponse{Status: http.StatusInternalServerError}
-			}
-
-			return &MuxerFileResponse{
-				Status: http.StatusOK,
-				Header: map[string]string{
-					"Content-Type": "video/mp4",
-				},
-				Body: r,
-			}
+		if part == nil {
+			return
 		}
 
-		// EXT-X-PRELOAD-HINT support
-		nextPartName := fmp4PartName(p.nextPartID)
-		if base == nextPartName {
-			p.mutex.Lock()
-			defer p.mutex.Unlock()
+		r, err := part.reader()
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		defer r.Close()
 
-			for {
-				if p.closed {
-					break
-				}
+		w.Header().Set("Content-Type", "video/mp4")
+		w.WriteHeader(http.StatusOK)
+		io.Copy(w, r)
+	}
+}
 
-				if p.nextPartID > nextPartID {
-					break
-				}
-
-				p.cond.Wait()
-			}
-
-			if p.closed {
-				return &MuxerFileResponse{Status: http.StatusNotFound}
-			}
-
-			r, err := p.partsByName[nextPartName].reader()
-			if err != nil {
-				return &MuxerFileResponse{Status: http.StatusInternalServerError}
-			}
-
-			return &MuxerFileResponse{
-				Status: http.StatusOK,
-				Header: map[string]string{
-					"Content-Type": "video/mp4",
-				},
-				Body: r,
-			}
+func (p *muxerMediaPlaylist) waitForPart(partID uint64) {
+	for {
+		if p.closed {
+			return
 		}
 
-		return &MuxerFileResponse{Status: http.StatusNotFound}
+		if p.nextPartID > partID {
+			return
+		}
 
-	default:
-		return &MuxerFileResponse{Status: http.StatusNotFound}
+		p.cond.Wait()
 	}
 }
 
