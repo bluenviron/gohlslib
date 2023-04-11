@@ -1,8 +1,10 @@
 package gohlslib
 
 import (
-	"io"
+	"bytes"
+	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -40,6 +42,46 @@ var testAudioTrack = &Track{
 			ChannelCount: 2,
 		},
 	},
+}
+
+type fakeResponseWriter struct {
+	bytes.Buffer
+	h          http.Header
+	statusCode int
+}
+
+func (w *fakeResponseWriter) Header() http.Header {
+	return w.h
+}
+
+func (w *fakeResponseWriter) WriteHeader(statusCode int) {
+	w.statusCode = statusCode
+}
+
+func readPath(m *Muxer, path, msn, part, skip string) ([]byte, error) {
+	w := &fakeResponseWriter{
+		h: make(http.Header),
+	}
+
+	v := url.Values{}
+	v.Set("_HLS_msn", msn)
+	v.Set("_HLS_part", part)
+	v.Set("_HLS_skip", skip)
+
+	r := &http.Request{
+		URL: &url.URL{
+			Path:     path,
+			RawQuery: v.Encode(),
+		},
+	}
+
+	m.Handle(w, r)
+
+	if w.statusCode != http.StatusOK {
+		return nil, fmt.Errorf("bad status code: %v", w.statusCode)
+	}
+
+	return w.Bytes(), nil
 }
 
 func TestMuxerVideoAudio(t *testing.T) {
@@ -134,7 +176,7 @@ func TestMuxerVideoAudio(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			byts, err := io.ReadAll(m.File("index.m3u8", "", "", "").Body)
+			byts, err := readPath(m, "/index.m3u8", "", "", "")
 			require.NoError(t, err)
 
 			switch ca {
@@ -166,7 +208,7 @@ func TestMuxerVideoAudio(t *testing.T) {
 					"stream.m3u8\n", string(byts))
 			}
 
-			byts, err = io.ReadAll(m.File("stream.m3u8", "", "", "").Body)
+			byts, err = readPath(m, "stream.m3u8", "", "", "")
 			require.NoError(t, err)
 
 			switch ca {
@@ -185,9 +227,7 @@ func TestMuxerVideoAudio(t *testing.T) {
 				ma := re.FindStringSubmatch(string(byts))
 				require.NotEqual(t, 0, len(ma))
 
-				seg := m.File(ma[2], "", "", "")
-				require.Equal(t, http.StatusOK, seg.Status)
-				_, err := io.ReadAll(seg.Body)
+				_, err := readPath(m, ma[2], "", "", "")
 				require.NoError(t, err)
 
 			case "fmp4":
@@ -205,14 +245,10 @@ func TestMuxerVideoAudio(t *testing.T) {
 				ma := re.FindStringSubmatch(string(byts))
 				require.NotEqual(t, 0, len(ma))
 
-				init := m.File("init.mp4", "", "", "")
-				require.Equal(t, http.StatusOK, init.Status)
-				_, err := io.ReadAll(init.Body)
+				_, err := readPath(m, "init.mp4", "", "", "")
 				require.NoError(t, err)
 
-				seg := m.File(ma[2], "", "", "")
-				require.Equal(t, http.StatusOK, seg.Status)
-				_, err = io.ReadAll(seg.Body)
+				_, err = readPath(m, ma[2], "", "", "")
 				require.NoError(t, err)
 
 			case "lowLatency":
@@ -250,16 +286,13 @@ func TestMuxerVideoAudio(t *testing.T) {
 						"seg8.mp4\n"+
 						"#EXT-X-PRELOAD-HINT:TYPE=PART,URI=\"part4.mp4\"\n", string(byts))
 
-				part := m.File("part3.mp4", "", "", "")
-				require.Equal(t, http.StatusOK, part.Status)
-				_, err = io.ReadAll(part.Body)
+				_, err := readPath(m, "part3.mp4", "", "", "")
 				require.NoError(t, err)
 
 				recv := make(chan struct{})
 
 				go func() {
-					part = m.File("part4.mp4", "", "", "")
-					_, err := io.ReadAll(part.Body)
+					_, err := readPath(m, "part4.mp4", "", "", "")
 					require.NoError(t, err)
 					close(recv)
 				}()
@@ -323,7 +356,7 @@ func TestMuxerVideoOnly(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			byts, err := io.ReadAll(m.File("index.m3u8", "", "", "").Body)
+			byts, err := readPath(m, "index.m3u8", "", "", "")
 			require.NoError(t, err)
 
 			if ca == "mpegts" {
@@ -344,7 +377,7 @@ func TestMuxerVideoOnly(t *testing.T) {
 					"stream.m3u8\n", string(byts))
 			}
 
-			byts, err = io.ReadAll(m.File("stream.m3u8", "", "", "").Body)
+			byts, err = readPath(m, "stream.m3u8", "", "", "")
 			require.NoError(t, err)
 
 			var ma []string
@@ -378,13 +411,13 @@ func TestMuxerVideoOnly(t *testing.T) {
 			require.NotEqual(t, 0, len(ma))
 
 			if ca == "mpegts" {
-				_, err := io.ReadAll(m.File(ma[2], "", "", "").Body)
+				_, err := readPath(m, ma[2], "", "", "")
 				require.NoError(t, err)
 			} else {
-				_, err := io.ReadAll(m.File("init.mp4", "", "", "").Body)
+				_, err := readPath(m, "init.mp4", "", "", "")
 				require.NoError(t, err)
 
-				_, err = io.ReadAll(m.File(ma[2], "", "", "").Body)
+				_, err = readPath(m, ma[2], "", "", "")
 				require.NoError(t, err)
 			}
 		})
@@ -435,7 +468,7 @@ func TestMuxerAudioOnly(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			byts, err := io.ReadAll(m.File("index.m3u8", "", "", "").Body)
+			byts, err := readPath(m, "index.m3u8", "", "", "")
 			require.NoError(t, err)
 
 			if ca == "mpegts" {
@@ -454,7 +487,7 @@ func TestMuxerAudioOnly(t *testing.T) {
 					"stream.m3u8\n", string(byts))
 			}
 
-			byts, err = io.ReadAll(m.File("stream.m3u8", "", "", "").Body)
+			byts, err = readPath(m, "stream.m3u8", "", "", "")
 			require.NoError(t, err)
 
 			var ma []string
@@ -485,13 +518,13 @@ func TestMuxerAudioOnly(t *testing.T) {
 			require.NotEqual(t, 0, len(ma))
 
 			if ca == "mpegts" {
-				_, err := io.ReadAll(m.File(ma[2], "", "", "").Body)
+				_, err := readPath(m, ma[2], "", "", "")
 				require.NoError(t, err)
 			} else {
-				_, err := io.ReadAll(m.File("init.mp4", "", "", "").Body)
+				_, err := readPath(m, "init.mp4", "", "", "")
 				require.NoError(t, err)
 
-				_, err = io.ReadAll(m.File(ma[2], "", "", "").Body)
+				_, err = readPath(m, ma[2], "", "", "")
 				require.NoError(t, err)
 			}
 		})
@@ -519,8 +552,8 @@ func TestMuxerCloseBeforeFirstSegmentReader(t *testing.T) {
 
 	m.Close()
 
-	b := m.File("stream.m3u8", "", "", "").Body
-	require.Equal(t, nil, b)
+	b, _ := readPath(m, "stream.m3u8", "", "", "")
+	require.Equal(t, []byte(nil), b)
 }
 
 func TestMuxerMaxSegmentSize(t *testing.T) {
@@ -568,7 +601,7 @@ func TestMuxerDoubleRead(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	byts, err := io.ReadAll(m.File("stream.m3u8", "", "", "").Body)
+	byts, err := readPath(m, "stream.m3u8", "", "", "")
 	require.NoError(t, err)
 
 	re := regexp.MustCompile(`^#EXTM3U\n` +
@@ -582,10 +615,10 @@ func TestMuxerDoubleRead(t *testing.T) {
 	ma := re.FindStringSubmatch(string(byts))
 	require.NotEqual(t, 0, len(ma))
 
-	byts1, err := io.ReadAll(m.File(ma[2], "", "", "").Body)
+	byts1, err := readPath(m, ma[2], "", "", "")
 	require.NoError(t, err)
 
-	byts2, err := io.ReadAll(m.File(ma[2], "", "", "").Body)
+	byts2, err := readPath(m, ma[2], "", "", "")
 	require.NoError(t, err)
 	require.Equal(t, byts1, byts2)
 }

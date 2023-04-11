@@ -212,13 +212,13 @@ func (p *clientProcessorMPEGTS) initializeTrackProcs(ts *clientTimeSyncMPEGTS) {
 		switch track.Codec.(type) {
 		case *codecs.H264:
 			cb = func(pts time.Duration, payload []byte) error {
-				nalus, err := h264.AnnexBUnmarshal(payload)
+				au, err := h264.AnnexBUnmarshal(payload)
 				if err != nil {
 					p.log(LogLevelWarn, "unable to decode Annex-B: %s", err)
 					return nil
 				}
 
-				cb2(pts, nalus)
+				cb2(pts, au)
 				return nil
 			}
 
