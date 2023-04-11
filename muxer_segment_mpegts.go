@@ -1,6 +1,7 @@
 package gohlslib
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"strconv"
@@ -18,6 +19,7 @@ type muxerSegmentMPEGTS struct {
 
 	storage      storage.File
 	storagePart  storage.Part
+	bw           *bufio.Writer
 	size         uint64
 	startTime    time.Time
 	name         string
@@ -34,7 +36,7 @@ func newMuxerSegmentMPEGTS(
 	writer *mpegts.Writer,
 	factory storage.Factory,
 ) (*muxerSegmentMPEGTS, error) {
-	s := &muxerSegmentMPEGTS{
+	t := &muxerSegmentMPEGTS{
 		segmentMaxSize: segmentMaxSize,
 		hasVideoTrack:  hasVideoTrack,
 		writer:         writer,
@@ -43,16 +45,17 @@ func newMuxerSegmentMPEGTS(
 	}
 
 	var err error
-	s.storage, err = factory.NewFile(s.name + ".ts")
+	t.storage, err = factory.NewFile(t.name + ".ts")
 	if err != nil {
 		return nil, err
 	}
 
-	s.storagePart = s.storage.NewPart()
+	t.storagePart = t.storage.NewPart()
+	t.bw = bufio.NewWriter(t.storagePart.Writer())
 
-	writer.SetByteWriter(s.storagePart.Writer())
+	writer.SetByteWriter(t.bw)
 
-	return s, nil
+	return t, nil
 }
 
 func (t *muxerSegmentMPEGTS) close() {
@@ -77,6 +80,8 @@ func (t *muxerSegmentMPEGTS) reader() (io.ReadCloser, error) {
 
 func (t *muxerSegmentMPEGTS) finalize(endDTS time.Duration) {
 	t.endDTS = endDTS
+	t.bw.Flush()
+	t.bw = nil
 	t.storage.Finalize()
 }
 
