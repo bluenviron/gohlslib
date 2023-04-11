@@ -531,7 +531,7 @@ func TestMuxerAudioOnly(t *testing.T) {
 	}
 }
 
-func TestMuxerCloseBeforeFirstSegmentReader(t *testing.T) {
+func TestMuxerCloseBeforeFirstSegment(t *testing.T) {
 	m := &Muxer{
 		Variant:         MuxerVariantMPEGTS,
 		SegmentCount:    3,
@@ -691,6 +691,11 @@ func TestMuxerSaveToDisk(t *testing.T) {
 			})
 			require.NoError(t, err)
 
+			if ca != "mpegts" {
+				_, err = os.ReadFile(filepath.Join(dir, "init.mp4"))
+				require.NoError(t, err)
+			}
+
 			var ext string
 			if ca == "mpegts" {
 				ext = "ts"
@@ -707,4 +712,68 @@ func TestMuxerSaveToDisk(t *testing.T) {
 			require.Error(t, err)
 		})
 	}
+}
+
+func TestMuxerUpdateParams(t *testing.T) {
+	m := &Muxer{
+		Variant:         MuxerVariantFMP4,
+		SegmentCount:    3,
+		SegmentDuration: 1 * time.Second,
+		VideoTrack:      testVideoTrack,
+	}
+
+	err := m.Start()
+	require.NoError(t, err)
+	defer m.Close()
+
+	err = m.WriteH26x(testTime, 0, [][]byte{
+		testSPS,
+		{5}, // IDR
+		{1},
+	})
+	require.NoError(t, err)
+
+	err = m.WriteH26x(testTime, 1*time.Second, [][]byte{
+		{5}, // IDR
+		{2},
+	})
+	require.NoError(t, err)
+
+	err = m.WriteH26x(testTime, 2*time.Second, [][]byte{
+		{5}, // IDR
+		{2},
+	})
+	require.NoError(t, err)
+
+	bu, err := readPath(m, "index.m3u8", "", "", "")
+	require.NoError(t, err)
+	require.Equal(t, "#EXTM3U\n"+
+		"#EXT-X-VERSION:9\n"+
+		"#EXT-X-INDEPENDENT-SEGMENTS\n"+
+		"\n"+
+		"#EXT-X-STREAM-INF:BANDWIDTH=1208,AVERAGE-BANDWIDTH=1092,"+
+		"CODECS=\"avc1.42c028\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
+		"stream.m3u8\n", string(bu))
+
+	err = m.WriteH26x(testTime, 3*time.Second, [][]byte{
+		{ // SPS (720p)
+			0x67, 0x64, 0x00, 0x1f, 0xac, 0xd9, 0x40, 0x50,
+			0x05, 0xbb, 0x01, 0x6c, 0x80, 0x00, 0x00, 0x03,
+			0x00, 0x80, 0x00, 0x00, 0x1e, 0x07, 0x8c, 0x18,
+			0xcb,
+		},
+		{5}, // IDR
+		{2},
+	})
+	require.NoError(t, err)
+
+	bu, err = readPath(m, "index.m3u8", "", "", "")
+	require.NoError(t, err)
+	require.Equal(t, "#EXTM3U\n"+
+		"#EXT-X-VERSION:9\n"+
+		"#EXT-X-INDEPENDENT-SEGMENTS\n"+
+		"\n"+
+		"#EXT-X-STREAM-INF:BANDWIDTH=1208,AVERAGE-BANDWIDTH=1053,"+
+		"CODECS=\"avc1.64001f\",RESOLUTION=1280x720,FRAME-RATE=30.000\n"+
+		"stream.m3u8\n", string(bu))
 }
