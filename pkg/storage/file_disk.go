@@ -6,27 +6,27 @@ import (
 	"os"
 )
 
-type segmentDisk struct {
+type fileDisk struct {
 	fpath     string
 	f         *os.File
 	parts     []*partDisk
 	finalSize uint64
 }
 
-func newSegmentDisk(fpath string) (Segment, error) {
+func newFileDisk(fpath string) (File, error) {
 	f, err := os.Create(fpath)
 	if err != nil {
 		return nil, err
 	}
 
-	return &segmentDisk{
+	return &fileDisk{
 		fpath: fpath,
 		f:     f,
 	}, nil
 }
 
-// Finalize implements Segment.
-func (s *segmentDisk) Finalize() {
+// Finalize implements File.
+func (s *fileDisk) Finalize() {
 	if len(s.parts) > 0 {
 		// set size of last part
 		lastPart := s.parts[len(s.parts)-1]
@@ -36,7 +36,7 @@ func (s *segmentDisk) Finalize() {
 		s.finalSize = lastPart.offset + lastPart.size
 	}
 
-	// remove segment from memory; we will use the file from now on
+	// remove file from memory; we will use disk from now on
 	for _, p := range s.parts {
 		p.buffer = nil
 	}
@@ -45,13 +45,13 @@ func (s *segmentDisk) Finalize() {
 	s.f = nil
 }
 
-// Remove implements Segment.
-func (s *segmentDisk) Remove() {
+// Remove implements File.
+func (s *fileDisk) Remove() {
 	os.Remove(s.fpath)
 }
 
-// NewPart implements Segment.
-func (s *segmentDisk) NewPart() Part {
+// NewPart implements File.
+func (s *fileDisk) NewPart() Part {
 	// set size of last part and get offset
 	offset := uint64(0)
 	if len(s.parts) > 0 {
@@ -65,16 +65,16 @@ func (s *segmentDisk) NewPart() Part {
 	return p
 }
 
-// Reader implements Segment.
-func (s *segmentDisk) Reader() (io.ReadCloser, error) {
+// Reader implements File.
+func (s *fileDisk) Reader() (io.ReadCloser, error) {
 	if s.f != nil {
-		return nil, fmt.Errorf("segment has not been finalized yet")
+		return nil, fmt.Errorf("file has not been finalized yet")
 	}
 
 	return os.Open(s.fpath)
 }
 
-// Size implements Segment.
-func (s *segmentDisk) Size() uint64 {
+// Size implements File.
+func (s *fileDisk) Size() uint64 {
 	return s.finalSize
 }

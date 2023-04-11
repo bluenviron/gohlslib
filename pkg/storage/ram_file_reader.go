@@ -4,13 +4,13 @@ import (
 	"io"
 )
 
-type ramSegmentReader struct {
+type ramFileReader struct {
 	parts   []*partRAM
 	curPart int
 	curPos  int
 }
 
-func (r *ramSegmentReader) Read(p []byte) (int, error) {
+func (r *ramFileReader) Read(p []byte) (int, error) {
 	n := 0
 	lenp := len(p)
 

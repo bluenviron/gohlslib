@@ -7,7 +7,7 @@ func NewFactoryRAM() Factory {
 	return &factoryRAM{}
 }
 
-// NewSegment implements Factory.
-func (s *factoryRAM) NewSegment(fileName string) (Segment, error) {
-	return newSegmentRAM(), nil
+// NewFile implements Factory.
+func (s *factoryRAM) NewFile(fileName string) (File, error) {
+	return newFileRAM(), nil
 }

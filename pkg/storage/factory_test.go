@@ -28,7 +28,7 @@ func TestStorage(t *testing.T) {
 				s = NewFactoryDisk(dir)
 			}
 
-			seg, err := s.NewSegment("myseg.mp4")
+			seg, err := s.NewFile("myseg.mp4")
 			require.NoError(t, err)
 
 			part1 := seg.NewPart()
@@ -53,7 +53,7 @@ func TestStorage(t *testing.T) {
 			r1.Close()
 
 			_, err = seg.Reader()
-			require.EqualError(t, err, "segment has not been finalized yet")
+			require.EqualError(t, err, "file has not been finalized yet")
 
 			seg.Finalize()
 

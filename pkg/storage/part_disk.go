@@ -8,13 +8,13 @@ import (
 )
 
 type partDisk struct {
-	s      *segmentDisk
+	s      *fileDisk
 	buffer *writerseeker.WriterSeeker
 	offset uint64
 	size   uint64
 }
 
-func newPartDisk(s *segmentDisk, offset uint64) *partDisk {
+func newPartDisk(s *fileDisk, offset uint64) *partDisk {
 	return &partDisk{
 		s:      s,
 		buffer: &writerseeker.WriterSeeker{},
