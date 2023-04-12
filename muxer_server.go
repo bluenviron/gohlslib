@@ -420,7 +420,7 @@ func (s *muxerServer) generatePlaylistFMP4(isDeltaUpdate bool) []byte {
 
 	if s.variant == MuxerVariantLowLatency {
 		partTarget := partTargetDuration(s.segments, s.nextSegmentParts)
-		partHoldBack := (partTarget * 25) / 10
+		partHoldBack := partTarget * 3
 
 		pl.ServerControl = &playlist.MediaServerControl{
 			CanBlockReload: true,
