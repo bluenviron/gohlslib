@@ -39,5 +39,5 @@ func (t *MediaPartInf) unmarshal(v string) error {
 }
 
 func (t MediaPartInf) marshal() string {
-	return "#EXT-X-PART-INF:PART-TARGET=" + strconv.FormatFloat(t.PartTarget.Seconds(), 'f', -1, 64) + "\n"
+	return "#EXT-X-PART-INF:PART-TARGET=" + strconv.FormatFloat(t.PartTarget.Seconds(), 'f', 5, 64) + "\n"
 }
