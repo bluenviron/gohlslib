@@ -240,7 +240,7 @@ func TestClientMPEGTS(t *testing.T) {
 				}
 				sent = true
 
-				ctx.Writer.Header().Set("Content-Type", `application/x-mpegURL`)
+				ctx.Writer.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
 				io.Copy(ctx.Writer, bytes.NewReader([]byte(`#EXTM3U
 #EXT-X-VERSION:3
 #EXT-X-ALLOW-CACHE:NO
@@ -315,7 +315,7 @@ func TestClientFMP4(t *testing.T) {
 	router := gin.New()
 
 	router.GET("/stream.m3u8", func(ctx *gin.Context) {
-		ctx.Writer.Header().Set("Content-Type", `application/x-mpegURL`)
+		ctx.Writer.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
 		io.Copy(ctx.Writer, bytes.NewReader([]byte(`#EXTM3U
 #EXT-X-VERSION:7
 #EXT-X-MEDIA-SEQUENCE:20
@@ -380,7 +380,7 @@ func TestClientInvalidSequenceID(t *testing.T) {
 	firstPlaylist := true
 
 	router.GET("/stream.m3u8", func(ctx *gin.Context) {
-		ctx.Writer.Header().Set("Content-Type", `application/x-mpegURL`)
+		ctx.Writer.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
 
 		if firstPlaylist {
 			firstPlaylist = false

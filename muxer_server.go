@@ -279,7 +279,7 @@ func (s *muxerServer) handleMultistreamPlaylist(w http.ResponseWriter) {
 	}()
 
 	if byts != nil {
-		w.Header().Set("Content-Type", `application/x-mpegURL`)
+		w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
 		w.WriteHeader(http.StatusOK)
 		w.Write(byts)
 	}
@@ -339,7 +339,7 @@ func (s *muxerServer) handleMediaPlaylist(msn string, part string, skip string, 
 			}()
 
 			if byts != nil {
-				w.Header().Set("Content-Type", `application/x-mpegURL`)
+				w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
 				w.WriteHeader(http.StatusOK)
 				w.Write(byts)
 			}
@@ -370,7 +370,7 @@ func (s *muxerServer) handleMediaPlaylist(msn string, part string, skip string, 
 	}()
 
 	if byts != nil {
-		w.Header().Set("Content-Type", `application/x-mpegURL`)
+		w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
 		w.WriteHeader(http.StatusOK)
 		w.Write(byts)
 	}
