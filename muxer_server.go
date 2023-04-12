@@ -60,7 +60,8 @@ func partTargetDuration(
 		}
 	}
 
-	return ret
+	// round to milliseconds to avoid changes, that are illegal on iOS
+	return time.Millisecond * time.Duration(math.Ceil(float64(ret)/float64(time.Millisecond)))
 }
 
 type muxerServer struct {
@@ -397,7 +398,7 @@ func (s *muxerServer) generatePlaylistMPEGTS() []byte {
 	for _, s := range s.segments {
 		if seg, ok := s.(*muxerSegmentMPEGTS); ok {
 			pl.Segments = append(pl.Segments, &playlist.MediaSegment{
-				DateTime: &seg.startTime,
+				DateTime: &seg.startNTP,
 				Duration: seg.getDuration(),
 				URI:      seg.name + ".ts",
 			})
@@ -464,12 +465,12 @@ func (s *muxerServer) generatePlaylistFMP4(isDeltaUpdate bool) []byte {
 		switch seg := sog.(type) {
 		case *muxerSegmentFMP4:
 			plse := &playlist.MediaSegment{
-				Duration: seg.finalDuration,
+				Duration: seg.getDuration(),
 				URI:      seg.name + ".mp4",
 			}
 
 			if (len(s.segments) - i) <= 2 {
-				plse.DateTime = &seg.startTime
+				plse.DateTime = &seg.startNTP
 			}
 
 			if s.variant == MuxerVariantLowLatency && (len(s.segments)-i) <= 2 {

@@ -5,8 +5,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/bluenviron/mediacommon/pkg/codecs/mpeg4audio"
-
 	"github.com/bluenviron/gohlslib/pkg/fmp4"
 	"github.com/bluenviron/gohlslib/pkg/storage"
 )
@@ -16,6 +14,7 @@ func fmp4PartName(id uint64) string {
 }
 
 type muxerPart struct {
+	startDTS            time.Duration
 	videoTrack          *Track
 	audioTrack          *Track
 	audioTrackTimeScale uint32
@@ -33,6 +32,7 @@ type muxerPart struct {
 }
 
 func newMuxerPart(
+	startDTS time.Duration,
 	videoTrack *Track,
 	audioTrack *Track,
 	audioTrackTimeScale uint32,
@@ -40,6 +40,7 @@ func newMuxerPart(
 	storage storage.Part,
 ) *muxerPart {
 	p := &muxerPart{
+		startDTS:            startDTS,
 		videoTrack:          videoTrack,
 		audioTrack:          audioTrack,
 		audioTrackTimeScale: audioTrackTimeScale,
@@ -62,23 +63,11 @@ func (p *muxerPart) reader() (io.ReadCloser, error) {
 	return p.storage.Reader()
 }
 
-func (p *muxerPart) duration() time.Duration {
-	if p.videoTrack != nil {
-		ret := uint64(0)
-		for _, e := range p.videoSamples {
-			ret += uint64(e.Duration)
-		}
-		return durationMp4ToGo(ret, 90000)
-	}
-
-	// use the sum of the default duration of all samples,
-	// not the real duration,
-	// otherwise on iPhone iOS the stream freezes.
-	return time.Duration(len(p.audioSamples)) * time.Second *
-		time.Duration(mpeg4audio.SamplesPerAccessUnit) / time.Duration(p.audioTrackTimeScale)
+func (p *muxerPart) computeDuration(nextDTS time.Duration) time.Duration {
+	return nextDTS - p.startDTS
 }
 
-func (p *muxerPart) finalize() error {
+func (p *muxerPart) finalize(nextDTS time.Duration) error {
 	part := fmp4.Part{}
 
 	if p.videoSamples != nil {
@@ -103,7 +92,7 @@ func (p *muxerPart) finalize() error {
 		return err
 	}
 
-	p.finalDuration = p.duration()
+	p.finalDuration = p.computeDuration(nextDTS)
 
 	p.videoSamples = nil
 	p.audioSamples = nil

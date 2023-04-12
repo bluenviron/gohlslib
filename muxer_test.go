@@ -483,7 +483,7 @@ func TestMuxerAudioOnly(t *testing.T) {
 					"#EXT-X-VERSION:9\n"+
 					"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 					"\n"+
-					"#EXT-X-STREAM-INF:BANDWIDTH=37209,AVERAGE-BANDWIDTH=4789,CODECS=\"mp4a.40.2\"\n"+
+					"#EXT-X-STREAM-INF:BANDWIDTH=10368,AVERAGE-BANDWIDTH=5616,CODECS=\"mp4a.40.2\"\n"+
 					"stream.m3u8\n", string(byts))
 			}
 
@@ -504,14 +504,14 @@ func TestMuxerAudioOnly(t *testing.T) {
 			} else {
 				re := regexp.MustCompile(`^#EXTM3U\n` +
 					`#EXT-X-VERSION:9\n` +
-					`#EXT-X-TARGETDURATION:2\n` +
+					`#EXT-X-TARGETDURATION:1\n` +
 					`#EXT-X-MEDIA-SEQUENCE:0\n` +
 					`#EXT-X-MAP:URI="init.mp4"\n` +
 					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
-					`#EXTINF:2.32200,\n` +
+					`#EXTINF:1.00000,\n` +
 					`(seg0\.mp4)\n` +
 					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
-					`#EXTINF:0.02322,\n` +
+					`#EXTINF:1.00000,\n` +
 					`(seg1\.mp4)\n$`)
 				ma = re.FindStringSubmatch(string(byts))
 			}
