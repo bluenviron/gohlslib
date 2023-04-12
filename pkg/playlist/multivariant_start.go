@@ -39,5 +39,5 @@ func (t *MultivariantStart) unmarshal(v string) error {
 }
 
 func (t MultivariantStart) marshal() string {
-	return "#EXT-X-START:TIME-OFFSET=" + strconv.FormatFloat(t.TimeOffset.Seconds(), 'f', -1, 64) + "\n"
+	return "#EXT-X-START:TIME-OFFSET=" + strconv.FormatFloat(t.TimeOffset.Seconds(), 'f', 5, 64) + "\n"
 }

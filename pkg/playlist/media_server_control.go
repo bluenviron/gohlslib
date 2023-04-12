@@ -71,7 +71,7 @@ func (t MediaServerControl) marshal() string {
 	}
 
 	if t.CanSkipUntil != nil {
-		ret += ",CAN-SKIP-UNTIL=" + strconv.FormatFloat(t.CanSkipUntil.Seconds(), 'f', -1, 64)
+		ret += ",CAN-SKIP-UNTIL=" + strconv.FormatFloat(t.CanSkipUntil.Seconds(), 'f', 5, 64)
 	}
 
 	ret += "\n"
