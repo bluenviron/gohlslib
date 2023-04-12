@@ -21,7 +21,7 @@ type muxerSegmentMPEGTS struct {
 	storagePart  storage.Part
 	bw           *bufio.Writer
 	size         uint64
-	startTime    time.Time
+	startNTP     time.Time
 	name         string
 	startDTS     *time.Duration
 	endDTS       time.Duration
@@ -30,7 +30,7 @@ type muxerSegmentMPEGTS struct {
 
 func newMuxerSegmentMPEGTS(
 	id uint64,
-	startTime time.Time,
+	startNTP time.Time,
 	segmentMaxSize uint64,
 	hasVideoTrack bool,
 	writer *mpegts.Writer,
@@ -40,7 +40,7 @@ func newMuxerSegmentMPEGTS(
 		segmentMaxSize: segmentMaxSize,
 		hasVideoTrack:  hasVideoTrack,
 		writer:         writer,
-		startTime:      startTime,
+		startNTP:       startNTP,
 		name:           "seg" + strconv.FormatUint(id, 10),
 	}
 
@@ -78,8 +78,8 @@ func (t *muxerSegmentMPEGTS) reader() (io.ReadCloser, error) {
 	return t.storage.Reader()
 }
 
-func (t *muxerSegmentMPEGTS) finalize(endDTS time.Duration) {
-	t.endDTS = endDTS
+func (t *muxerSegmentMPEGTS) finalize(nextDTS time.Duration) {
+	t.endDTS = nextDTS
 	t.bw.Flush()
 	t.bw = nil
 	t.storage.Finalize()

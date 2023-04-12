@@ -272,9 +272,9 @@ func (m *muxerSegmenterFMP4) writeH26x(
 		}
 	}
 
-	m.adjustPartDuration(durationMp4ToGo(uint64(sample.Duration), 90000))
+	m.adjustPartDuration(m.nextVideoSample.dts - sample.dts)
 
-	err = m.currentSegment.writeH264(sample, m.adjustedPartDuration)
+	err = m.currentSegment.writeH264(sample, m.nextVideoSample.dts, m.adjustedPartDuration)
 	if err != nil {
 		return err
 	}
@@ -375,7 +375,7 @@ func (m *muxerSegmenterFMP4) writeAudio(ntp time.Time, dts time.Duration, au []b
 		}
 	}
 
-	err := m.currentSegment.writeAudio(sample, m.partDuration)
+	err := m.currentSegment.writeAudio(sample, m.nextAudioSample.dts, m.partDuration)
 	if err != nil {
 		return err
 	}
@@ -383,7 +383,7 @@ func (m *muxerSegmenterFMP4) writeAudio(ntp time.Time, dts time.Duration, au []b
 	// switch segment
 	if m.videoTrack == nil &&
 		(m.nextAudioSample.dts-m.currentSegment.startDTS) >= m.segmentDuration {
-		err := m.currentSegment.finalize(0)
+		err := m.currentSegment.finalize(m.nextAudioSample.dts)
 		if err != nil {
 			return err
 		}

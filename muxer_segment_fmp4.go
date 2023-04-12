@@ -12,7 +12,7 @@ import (
 type muxerSegmentFMP4 struct {
 	lowLatency          bool
 	id                  uint64
-	startTime           time.Time
+	startNTP            time.Time
 	startDTS            time.Duration
 	segmentMaxSize      uint64
 	videoTrack          *Track
@@ -21,18 +21,18 @@ type muxerSegmentFMP4 struct {
 	genPartID           func() uint64
 	onPartFinalized     func(*muxerPart)
 
-	name          string
-	storage       storage.File
-	size          uint64
-	parts         []*muxerPart
-	currentPart   *muxerPart
-	finalDuration time.Duration
+	name        string
+	storage     storage.File
+	size        uint64
+	parts       []*muxerPart
+	currentPart *muxerPart
+	endDTS      time.Duration
 }
 
 func newMuxerSegmentFMP4(
 	lowLatency bool,
 	id uint64,
-	startTime time.Time,
+	startNTP time.Time,
 	startDTS time.Duration,
 	segmentMaxSize uint64,
 	videoTrack *Track,
@@ -45,7 +45,7 @@ func newMuxerSegmentFMP4(
 	s := &muxerSegmentFMP4{
 		lowLatency:          lowLatency,
 		id:                  id,
-		startTime:           startTime,
+		startNTP:            startNTP,
 		startDTS:            startDTS,
 		segmentMaxSize:      segmentMaxSize,
 		videoTrack:          videoTrack,
@@ -63,6 +63,7 @@ func newMuxerSegmentFMP4(
 	}
 
 	s.currentPart = newMuxerPart(
+		startDTS,
 		s.videoTrack,
 		s.audioTrack,
 		s.audioTrackTimeScale,
@@ -82,7 +83,7 @@ func (s *muxerSegmentFMP4) getName() string {
 }
 
 func (s *muxerSegmentFMP4) getDuration() time.Duration {
-	return s.finalDuration
+	return s.endDTS - s.startDTS
 }
 
 func (s *muxerSegmentFMP4) getSize() uint64 {
@@ -93,11 +94,9 @@ func (s *muxerSegmentFMP4) reader() (io.ReadCloser, error) {
 	return s.storage.Reader()
 }
 
-func (s *muxerSegmentFMP4) finalize(
-	nextVideoSampleDTS time.Duration,
-) error {
+func (s *muxerSegmentFMP4) finalize(nextDTS time.Duration) error {
 	if s.currentPart.videoSamples != nil || s.currentPart.audioSamples != nil {
-		err := s.currentPart.finalize()
+		err := s.currentPart.finalize(nextDTS)
 		if err != nil {
 			return err
 		}
@@ -109,19 +108,16 @@ func (s *muxerSegmentFMP4) finalize(
 
 	s.storage.Finalize()
 
-	if s.videoTrack != nil {
-		s.finalDuration = nextVideoSampleDTS - s.startDTS
-	} else {
-		s.finalDuration = 0
-		for _, pa := range s.parts {
-			s.finalDuration += pa.finalDuration
-		}
-	}
+	s.endDTS = nextDTS
 
 	return nil
 }
 
-func (s *muxerSegmentFMP4) writeH264(sample *augmentedVideoSample, adjustedPartDuration time.Duration) error {
+func (s *muxerSegmentFMP4) writeH264(
+	sample *augmentedVideoSample,
+	nextDTS time.Duration,
+	adjustedPartDuration time.Duration,
+) error {
 	size := uint64(len(sample.Payload))
 	if (s.size + size) > s.segmentMaxSize {
 		return fmt.Errorf("reached maximum segment size")
@@ -132,8 +128,8 @@ func (s *muxerSegmentFMP4) writeH264(sample *augmentedVideoSample, adjustedPartD
 
 	// switch part
 	if s.lowLatency &&
-		s.currentPart.duration() >= adjustedPartDuration {
-		err := s.currentPart.finalize()
+		s.currentPart.computeDuration(nextDTS) >= adjustedPartDuration {
+		err := s.currentPart.finalize(nextDTS)
 		if err != nil {
 			return err
 		}
@@ -142,6 +138,7 @@ func (s *muxerSegmentFMP4) writeH264(sample *augmentedVideoSample, adjustedPartD
 		s.onPartFinalized(s.currentPart)
 
 		s.currentPart = newMuxerPart(
+			nextDTS,
 			s.videoTrack,
 			s.audioTrack,
 			s.audioTrackTimeScale,
@@ -153,7 +150,11 @@ func (s *muxerSegmentFMP4) writeH264(sample *augmentedVideoSample, adjustedPartD
 	return nil
 }
 
-func (s *muxerSegmentFMP4) writeAudio(sample *augmentedAudioSample, adjustedPartDuration time.Duration) error {
+func (s *muxerSegmentFMP4) writeAudio(
+	sample *augmentedAudioSample,
+	nextAudioSampleDTS time.Duration,
+	adjustedPartDuration time.Duration,
+) error {
 	size := uint64(len(sample.Payload))
 	if (s.size + size) > s.segmentMaxSize {
 		return fmt.Errorf("reached maximum segment size")
@@ -164,8 +165,8 @@ func (s *muxerSegmentFMP4) writeAudio(sample *augmentedAudioSample, adjustedPart
 
 	// switch part
 	if s.lowLatency && s.videoTrack == nil &&
-		s.currentPart.duration() >= adjustedPartDuration {
-		err := s.currentPart.finalize()
+		s.currentPart.computeDuration(nextAudioSampleDTS) >= adjustedPartDuration {
+		err := s.currentPart.finalize(nextAudioSampleDTS)
 		if err != nil {
 			return err
 		}
@@ -174,6 +175,7 @@ func (s *muxerSegmentFMP4) writeAudio(sample *augmentedAudioSample, adjustedPart
 		s.onPartFinalized(s.currentPart)
 
 		s.currentPart = newMuxerPart(
+			nextAudioSampleDTS,
 			s.videoTrack,
 			s.audioTrack,
 			s.audioTrackTimeScale,
