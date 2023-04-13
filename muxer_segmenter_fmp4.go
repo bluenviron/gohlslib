@@ -170,18 +170,18 @@ func (m *muxerSegmenterFMP4) genPartID() uint64 {
 
 // iPhone iOS fails if part durations are less than 85% of maximum part duration.
 // find a part duration that is compatible with all received sample durations
-func (m *muxerSegmenterFMP4) adjustPartDuration(du time.Duration) {
+func (m *muxerSegmenterFMP4) adjustPartDuration(sampleDuration time.Duration) {
 	if !m.lowLatency || m.firstSegmentFinalized {
 		return
 	}
 
 	// avoid a crash by skipping invalid durations
-	if du == 0 {
+	if sampleDuration == 0 {
 		return
 	}
 
-	if _, ok := m.sampleDurations[du]; !ok {
-		m.sampleDurations[du] = struct{}{}
+	if _, ok := m.sampleDurations[sampleDuration]; !ok {
+		m.sampleDurations[sampleDuration] = struct{}{}
 		m.adjustedPartDuration = findCompatiblePartDuration(
 			m.partDuration,
 			m.sampleDurations,
