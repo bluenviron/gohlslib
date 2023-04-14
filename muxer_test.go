@@ -123,8 +123,7 @@ func TestMuxerVideoAudio(t *testing.T) {
 			// access unit without IDR
 			d := 1 * time.Second
 			err = m.WriteH26x(testTime.Add(d-1*time.Second), d, [][]byte{
-				{0x06},
-				{0x07},
+				{1}, // non-IDR
 			})
 			require.NoError(t, err)
 
