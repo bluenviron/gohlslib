@@ -58,6 +58,7 @@ func (t *MediaPreloadHint) unmarshal(v string) error {
 	if !typeRecv {
 		return fmt.Errorf("TYPE is missing")
 	}
+
 	if t.URI == "" {
 		return fmt.Errorf("URI is missing")
 	}

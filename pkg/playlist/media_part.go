@@ -66,6 +66,7 @@ func (p *MediaPart) unmarshal(v string) error {
 	if p.Duration == 0 {
 		return fmt.Errorf("DURATION missing")
 	}
+
 	if p.URI == "" {
 		return fmt.Errorf("URI missing")
 	}

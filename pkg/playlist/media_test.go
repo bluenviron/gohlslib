@@ -242,3 +242,25 @@ func TestMediaMarshal(t *testing.T) {
 		})
 	}
 }
+
+func FuzzMediaUnmarshal(f *testing.F) {
+	f.Add("#EXTM3U\n" +
+		"#EXT-X-SKIP:SKIPPED-SEGMENTS=aa\n")
+
+	f.Add("#EXTM3U\n" +
+		"#EXT-X-MAP:URI=\"init.mp4\",BYTERANGE=\n")
+
+	f.Add("#EXTM3U\n" +
+		"#EXT-X-PART:DURATION=1.50000,URI=\"part3.mp4\",INDEPENDENT=YES,BYTERANGE=\n")
+
+	f.Add("#EXTM3U\n" +
+		"#EXT-X-PRELOAD-HINT:TYPE=PART,URI=\"part5.mp4\",BYTERANGE-START=43523,BYTERANGE-LENGTH=123\n")
+
+	f.Add("#EXTM3U\n" +
+		"#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=5.00000,CAN-SKIP-UNTIL=7.00000\n")
+
+	f.Fuzz(func(t *testing.T, a string) {
+		var m Media
+		m.Unmarshal([]byte(a))
+	})
+}
