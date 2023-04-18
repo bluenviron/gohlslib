@@ -65,13 +65,13 @@ https://pkg.go.dev/github.com/bluenviron/gohlslib#pkg-index
 
 ## Standards
 
+* [RFC2616, HTTP 1.1](https://datatracker.ietf.org/doc/html/rfc2616)
 * [RFC8216, HLS](https://datatracker.ietf.org/doc/html/rfc8216)
 * [HLS v2](https://datatracker.ietf.org/doc/html/draft-pantos-hls-rfc8216bis)
 * [ITU-T Rec. H.264 (08/2021)](https://www.itu.int/rec/dologin_pub.asp?lang=e&id=T-REC-H.264-202108-I!!PDF-E&type=items)
 * [ITU-T Rec. H.265 (08/2021)](https://www.itu.int/rec/dologin_pub.asp?lang=e&id=T-REC-H.265-202108-I!!PDF-E&type=items)
 * ISO 14496-3, Coding of audio-visual objects, part 3, Audio
 * [Opus in MP4/ISOBMFF](https://opus-codec.org/docs/opus_in_isobmff.html)
-* [RFC2616, HTTP 1.1](https://datatracker.ietf.org/doc/html/rfc2616)
 * [Golang project layout](https://github.com/golang-standards/project-layout)
 
 ## Links

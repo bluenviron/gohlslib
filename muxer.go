@@ -125,13 +125,17 @@ func (m *Muxer) Start() error {
 		m.storageFactory = storage.NewFactoryRAM()
 	}
 
-	m.server = newMuxerServer(
+	var err error
+	m.server, err = newMuxerServer(
 		m.Variant,
 		m.SegmentCount,
 		m.VideoTrack,
 		m.AudioTrack,
 		m.storageFactory,
 	)
+	if err != nil {
+		return err
+	}
 
 	if m.Variant == MuxerVariantMPEGTS {
 		m.segmenter = newMuxerSegmenterMPEGTS(
@@ -203,11 +207,17 @@ func (m *Muxer) WriteH26x(ntp time.Time, pts time.Duration, au [][]byte) error {
 		}
 
 		if update {
-			m.server.mutex.Lock()
-			tcodec.SPS = sps
-			tcodec.PPS = pps
-			m.server.generateInitFile()
-			m.server.mutex.Unlock()
+			err := func() error {
+				m.server.mutex.Lock()
+				defer m.server.mutex.Unlock()
+				tcodec.SPS = sps
+				tcodec.PPS = pps
+				return m.server.generateInitFile()
+			}()
+			if err != nil {
+				return fmt.Errorf("unable to generate init.mp4: %v", err)
+			}
+
 			m.forceSwitch = true
 		}
 
@@ -249,12 +259,17 @@ func (m *Muxer) WriteH26x(ntp time.Time, pts time.Duration, au [][]byte) error {
 		}
 
 		if update {
-			m.server.mutex.Lock()
-			tcodec.VPS = vps
-			tcodec.SPS = sps
-			tcodec.PPS = pps
-			m.server.generateInitFile()
-			m.server.mutex.Unlock()
+			err := func() error {
+				m.server.mutex.Lock()
+				defer m.server.mutex.Unlock()
+				tcodec.VPS = vps
+				tcodec.SPS = sps
+				tcodec.PPS = pps
+				return m.server.generateInitFile()
+			}()
+			if err != nil {
+				return fmt.Errorf("unable to generate init.mp4: %v", err)
+			}
 			m.forceSwitch = true
 		}
 	}

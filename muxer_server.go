@@ -1,6 +1,7 @@
 package gohlslib
 
 import (
+	"fmt"
 	"io"
 	"math"
 	"net/http"
@@ -64,6 +65,17 @@ func partTargetDuration(
 	return time.Millisecond * time.Duration(math.Ceil(float64(ret)/float64(time.Millisecond)))
 }
 
+func videoHasParameters(videoTrack *Track) bool {
+	switch tcodec := videoTrack.Codec.(type) {
+	case *codecs.H264:
+		return tcodec.SPS != nil && tcodec.PPS != nil
+
+	case *codecs.H265:
+		return tcodec.VPS != nil && tcodec.SPS != nil && tcodec.PPS != nil
+	}
+	return false
+}
+
 type muxerServer struct {
 	variant        MuxerVariant
 	segmentCount   int
@@ -90,7 +102,7 @@ func newMuxerServer(
 	videoTrack *Track,
 	audioTrack *Track,
 	storageFactory storage.Factory,
-) *muxerServer {
+) (*muxerServer, error) {
 	s := &muxerServer{
 		variant:        variant,
 		segmentCount:   segmentCount,
@@ -103,9 +115,14 @@ func newMuxerServer(
 
 	s.cond = sync.NewCond(&s.mutex)
 
-	s.generateInitFile()
+	if s.videoTrack == nil || videoHasParameters(s.videoTrack) {
+		err := s.generateInitFile()
+		if err != nil {
+			return nil, fmt.Errorf("unable to generate init.mp4: %v", err)
+		}
+	}
 
-	return s
+	return s, nil
 }
 
 func (s *muxerServer) close() {
@@ -220,25 +237,31 @@ func (s *muxerServer) handleMultistreamPlaylist(w http.ResponseWriter) {
 			case *codecs.H264:
 				var sps h264.SPS
 				err := sps.Unmarshal(tcodec.SPS)
-				if err == nil {
-					resolution = strconv.FormatInt(int64(sps.Width()), 10) + "x" + strconv.FormatInt(int64(sps.Height()), 10)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return nil
+				}
 
-					f := sps.FPS()
-					if f != 0 {
-						frameRate = &f
-					}
+				resolution = strconv.FormatInt(int64(sps.Width()), 10) + "x" + strconv.FormatInt(int64(sps.Height()), 10)
+
+				f := sps.FPS()
+				if f != 0 {
+					frameRate = &f
 				}
 
 			case *codecs.H265:
 				var sps h265.SPS
 				err := sps.Unmarshal(tcodec.SPS)
-				if err == nil {
-					resolution = strconv.FormatInt(int64(sps.Width()), 10) + "x" + strconv.FormatInt(int64(sps.Height()), 10)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return nil
+				}
 
-					f := sps.FPS()
-					if f != 0 {
-						frameRate = &f
-					}
+				resolution = strconv.FormatInt(int64(sps.Width()), 10) + "x" + strconv.FormatInt(int64(sps.Height()), 10)
+
+				f := sps.FPS()
+				if f != 0 {
+					frameRate = &f
 				}
 			}
 		}
@@ -526,18 +549,21 @@ func (s *muxerServer) handleInitFile(w http.ResponseWriter) {
 		return s.init
 	}()
 
-	if init != nil {
-		r, err := init.Reader()
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		defer r.Close()
-
-		w.Header().Set("Content-Type", "video/mp4")
-		w.WriteHeader(http.StatusOK)
-		io.Copy(w, r)
+	if init == nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
+
+	r, err := init.Reader()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	defer r.Close()
+
+	w.Header().Set("Content-Type", "video/mp4")
+	w.WriteHeader(http.StatusOK)
+	io.Copy(w, r)
 }
 
 func (s *muxerServer) handleSegmentOrPart(fname string, w http.ResponseWriter) {
