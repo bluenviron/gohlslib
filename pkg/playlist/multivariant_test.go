@@ -830,3 +830,32 @@ func TestMultivariantMarshal(t *testing.T) {
 		})
 	}
 }
+
+func FuzzMultivariantUnmarshal(f *testing.F) {
+	f.Add("#EXTM3U\n" +
+		"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aud1\",LANGUAGE=\"en\",NAME=\"English\",AUTOSELECT=YES,DEFAULT=YES,CHANNELS=\"2\",URI=\"a1/prog_index.m3u8\"\n")
+
+	f.Add("#EXTM3U\n" +
+		"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aud1\",LANGUAGE=\"en\",NAME=\"English\",AUTOSELECT=YES,DEFAULT=YES,CHANNELS=\"2\",URI=\"a1/prog_index.m3u8\",INSTREAM-ID=\"a\"\n")
+
+	f.Add("#EXTM3U\n" +
+		"#EXT-X-MEDIA:TYPE=CLOSED-CAPTIONS,GROUP-ID=\"cc1\",LANGUAGE=\"en\",NAME=\"English\",AUTOSELECT=YES,DEFAULT=YES,INSTREAM-ID=\"CC1\"\n")
+
+	f.Add("#EXTM3U\n" +
+		"#EXT-X-MEDIA:TYPE=CLOSED-CAPTIONS,GROUP-ID=\"cc1\",LANGUAGE=\"en\",NAME=\"English\",AUTOSELECT=YES,DEFAULT=YES,INSTREAM-ID=\"CC1\",URI=\"a\"\n")
+
+	f.Add("#EXTM3U\n" +
+		"#EXT-X-START:TIME-OFFSET=15.00000\n")
+
+	f.Add("#EXTM3U\n" +
+		"#EXT-X-START:TIME-OFFSET=15.00000\n")
+
+	f.Add("#EXTM3U\n" +
+		"#EXT-X-STREAM-INF:BANDWIDTH=2177116,AVERAGE-BANDWIDTH=2168183,CODECS=\"avc1.640020,mp4a.40.2\",RESOLUTION=960x540,FRAME-RATE=60.000,AUDIO=\"aud1\",SUBTITLES=\"sub1\",CLOSED-CAPTIONS=\"cc1\"\n" +
+		"v5/prog_index.m3u8\n")
+
+	f.Fuzz(func(t *testing.T, a string) {
+		var m Multivariant
+		m.Unmarshal([]byte(a))
+	})
+}

@@ -106,6 +106,7 @@ func (t *MultivariantRendition) unmarshal(v string) error {
 	if t.Type == "" {
 		return fmt.Errorf("missing type")
 	}
+
 	if t.GroupID == "" {
 		return fmt.Errorf("GROUP-ID missing")
 	}
@@ -114,6 +115,7 @@ func (t *MultivariantRendition) unmarshal(v string) error {
 		if t.URI == "" {
 			return fmt.Errorf("missing URI")
 		}
+
 		if t.InstreamID != "" {
 			return fmt.Errorf("INSTREAM-ID is forbidden with type %s", t.Type)
 		}
@@ -121,6 +123,7 @@ func (t *MultivariantRendition) unmarshal(v string) error {
 		if t.URI != "" {
 			return fmt.Errorf("URI is forbidden for type CLOSED-CAPTIONS")
 		}
+
 		if t.InstreamID == "" {
 			return fmt.Errorf("missing INSTREAM-ID")
 		}

@@ -12,13 +12,8 @@ import (
 )
 
 func encodeProfileSpace(v uint8) string {
-	switch v {
-	case 1:
-		return "A"
-	case 2:
-		return "B"
-	case 3:
-		return "C"
+	if v >= 1 && v <= 3 {
+		return string('A' + (v - 1))
 	}
 	return ""
 }

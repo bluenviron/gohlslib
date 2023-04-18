@@ -1,0 +1,2 @@
+go test fuzz v1
+string("#EXTM3U\n#EXT-X-SERVER-CONTROL:PART-HOLD-BACK=\n")
