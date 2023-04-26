@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"io"
 
-	"github.com/orcaman/writerseeker"
+	"github.com/aler9/writerseeker"
 )
 
 type partRAM struct {

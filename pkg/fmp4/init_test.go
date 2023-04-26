@@ -3,8 +3,8 @@ package fmp4
 import (
 	"testing"
 
+	"github.com/aler9/writerseeker"
 	"github.com/bluenviron/mediacommon/pkg/codecs/mpeg4audio"
-	"github.com/orcaman/writerseeker"
 	"github.com/stretchr/testify/require"
 
 	"github.com/bluenviron/gohlslib/pkg/codecs"

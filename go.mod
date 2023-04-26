@@ -4,10 +4,10 @@ go 1.18
 
 require (
 	github.com/abema/go-mp4 v0.10.1
+	github.com/aler9/writerseeker v0.0.0-20220601075008-6f0e685b9c82
 	github.com/asticode/go-astits v1.11.0
 	github.com/bluenviron/mediacommon v0.4.1
 	github.com/gin-gonic/gin v1.9.0
-	github.com/orcaman/writerseeker v0.0.0-20200621085525-1d3f536ff85e
 	github.com/stretchr/testify v1.8.2
 )
 
@@ -40,5 +40,3 @@ require (
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/orcaman/writerseeker => github.com/aler9/writerseeker v0.0.0-20220601075008-6f0e685b9c82

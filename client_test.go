@@ -13,9 +13,9 @@ import (
 
 	"github.com/asticode/go-astits"
 
+	"github.com/aler9/writerseeker"
 	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
 	"github.com/gin-gonic/gin"
-	"github.com/orcaman/writerseeker"
 	"github.com/stretchr/testify/require"
 
 	"github.com/bluenviron/gohlslib/pkg/codecs"
