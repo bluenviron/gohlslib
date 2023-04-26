@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	gomp4 "github.com/abema/go-mp4"
-	"github.com/orcaman/writerseeker"
+	"github.com/aler9/writerseeker"
 	"github.com/stretchr/testify/require"
 )
 
