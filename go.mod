@@ -7,7 +7,7 @@ require (
 	github.com/asticode/go-astits v1.11.0
 	github.com/bluenviron/mediacommon v0.4.1
 	github.com/gin-gonic/gin v1.9.0
-	github.com/orcaman/writerseeker v0.0.0
+	github.com/orcaman/writerseeker v0.0.0-20200621085525-1d3f536ff85e
 	github.com/stretchr/testify v1.8.2
 )
 
