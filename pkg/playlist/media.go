@@ -107,7 +107,7 @@ func (m *Media) Unmarshal(buf []byte) error {
 		case strings.HasPrefix(line, "#EXT-X-VERSION:"):
 			line = line[len("#EXT-X-VERSION:"):]
 
-			tmp, err := strconv.ParseInt(line, 10, 64)
+			tmp, err := strconv.ParseInt(line, 10, 32)
 			if err != nil {
 				return err
 			}
@@ -138,7 +138,7 @@ func (m *Media) Unmarshal(buf []byte) error {
 		case strings.HasPrefix(line, "#EXT-X-TARGETDURATION:"):
 			line = line[len("#EXT-X-TARGETDURATION:"):]
 
-			tmp, err := strconv.ParseInt(line, 10, 64)
+			tmp, err := strconv.ParseInt(line, 10, 32)
 			if err != nil {
 				return err
 			}
@@ -165,7 +165,7 @@ func (m *Media) Unmarshal(buf []byte) error {
 		case strings.HasPrefix(line, "#EXT-X-MEDIA-SEQUENCE:"):
 			line = line[len("#EXT-X-MEDIA-SEQUENCE:"):]
 
-			tmp, err := strconv.ParseInt(line, 10, 64)
+			tmp, err := strconv.ParseInt(line, 10, 32)
 			if err != nil {
 				return err
 			}
@@ -175,7 +175,7 @@ func (m *Media) Unmarshal(buf []byte) error {
 		case strings.HasPrefix(line, "#EXT-X-DISCONTINUITY-SEQUENCE:"):
 			line = line[len("#EXT-X-DISCONTINUITY-SEQUENCE:"):]
 
-			tmp, err := strconv.ParseInt(line, 10, 64)
+			tmp, err := strconv.ParseInt(line, 10, 32)
 			if err != nil {
 				return err
 			}
@@ -227,7 +227,7 @@ func (m *Media) Unmarshal(buf []byte) error {
 		case strings.HasPrefix(line, "#EXT-X-BITRATE:"):
 			line = line[len("#EXT-X-BITRATE:"):]
 
-			tmp, err := strconv.ParseInt(line, 10, 64)
+			tmp, err := strconv.ParseInt(line, 10, 32)
 			if err != nil {
 				return err
 			}

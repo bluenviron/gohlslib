@@ -21,7 +21,7 @@ Client features:
 |Read Low-latency streams|TODO|
 |Read H264 tracks|OK|
 |Read H265 tracks|OK|
-|Read MPEG4 Audio (AAC) tracks|OK|
+|Read MPEG-4 audio (AAC) tracks|OK|
 |Read Opus tracks|OK|
 |Read a given variant|TODO (currently a single variant is read)|
 
@@ -34,7 +34,7 @@ Muxer features:
 |Generate Low-latency streams|OK|
 |Write H264 tracks|OK|
 |Write H265 tracks|OK|
-|Write MPEG4 Audio (AAC) tracks|OK|
+|Write MPEG-4 audio (AAC) tracks|OK|
 |Write Opus tracks|OK|
 |Save generated segments on disk|OK|
 |Generate multi-variant streams|TODO|
@@ -65,12 +65,10 @@ https://pkg.go.dev/github.com/bluenviron/gohlslib#pkg-index
 
 ## Standards
 
+* [Codec standards](https://github.com/bluenviron/mediacommon#standards)
 * [RFC2616, HTTP 1.1](https://datatracker.ietf.org/doc/html/rfc2616)
 * [RFC8216, HLS](https://datatracker.ietf.org/doc/html/rfc8216)
 * [HLS v2](https://datatracker.ietf.org/doc/html/draft-pantos-hls-rfc8216bis)
-* [ITU-T Rec. H.264 (08/2021)](https://www.itu.int/rec/dologin_pub.asp?lang=e&id=T-REC-H.264-202108-I!!PDF-E&type=items)
-* [ITU-T Rec. H.265 (08/2021)](https://www.itu.int/rec/dologin_pub.asp?lang=e&id=T-REC-H.265-202108-I!!PDF-E&type=items)
-* ISO 14496-3, Coding of audio-visual objects, part 3, Audio
 * [Opus in MP4/ISOBMFF](https://opus-codec.org/docs/opus_in_isobmff.html)
 * [Golang project layout](https://github.com/golang-standards/project-layout)
 
