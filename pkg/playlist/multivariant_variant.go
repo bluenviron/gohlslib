@@ -55,14 +55,14 @@ func (v *MultivariantVariant) unmarshal(va string) error {
 	for key, val := range attrs {
 		switch key {
 		case "BANDWIDTH":
-			tmp, err := strconv.ParseInt(val, 10, 32)
+			tmp, err := strconv.ParseUint(val, 10, 31)
 			if err != nil {
 				return err
 			}
 			v.Bandwidth = int(tmp)
 
 		case "AVERAGE-BANDWIDTH":
-			tmp, err := strconv.ParseInt(val, 10, 32)
+			tmp, err := strconv.ParseUint(val, 10, 31)
 			if err != nil {
 				return err
 			}
