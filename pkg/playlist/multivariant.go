@@ -56,7 +56,7 @@ func (m *Multivariant) Unmarshal(buf []byte) error {
 		case strings.HasPrefix(line, "#EXT-X-VERSION:"):
 			line = line[len("#EXT-X-VERSION:"):]
 
-			tmp, err := strconv.ParseInt(line, 10, 64)
+			tmp, err := strconv.ParseInt(line, 10, 32)
 			if err != nil {
 				return err
 			}
