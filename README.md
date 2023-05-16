@@ -65,15 +65,15 @@ https://pkg.go.dev/github.com/bluenviron/gohlslib#pkg-index
 
 ## Standards
 
-* [Codec standards](https://github.com/bluenviron/mediacommon#standards)
 * [RFC2616, HTTP 1.1](https://datatracker.ietf.org/doc/html/rfc2616)
 * [RFC8216, HLS](https://datatracker.ietf.org/doc/html/rfc8216)
 * [HLS v2](https://datatracker.ietf.org/doc/html/draft-pantos-hls-rfc8216bis)
 * [Opus in MP4/ISOBMFF](https://opus-codec.org/docs/opus_in_isobmff.html)
+* [Codec standards](https://github.com/bluenviron/mediacommon#standards)
 * [Golang project layout](https://github.com/golang-standards/project-layout)
 
 ## Links
 
 Related projects
 
-* [MediaMTX](https://github.com/aler9/mediamtx)
+* [MediaMTX](https://github.com/bluenviron/mediamtx)
