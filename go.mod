@@ -8,7 +8,7 @@ require (
 	github.com/asticode/go-astits v1.11.0
 	github.com/bluenviron/mediacommon v0.5.0
 	github.com/gin-gonic/gin v1.9.0
-	github.com/stretchr/testify v1.8.2
+	github.com/stretchr/testify v1.8.3
 )
 
 require (
