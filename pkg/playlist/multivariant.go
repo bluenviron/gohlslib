@@ -85,7 +85,7 @@ func (m *Multivariant) Unmarshal(buf []byte) error {
 			if err != nil {
 				return err
 			}
-			line2 = line2[:len(line2)-1]
+			line2 = primitives.RemoveReturn(line2)
 			line += "\n" + line2
 
 			var v MultivariantVariant
