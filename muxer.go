@@ -149,7 +149,6 @@ func (m *Muxer) Start() error {
 	} else {
 		m.segmenter = newMuxerSegmenterFMP4(
 			m.Variant == MuxerVariantLowLatency,
-			m.SegmentCount,
 			m.SegmentDuration,
 			m.PartDuration,
 			m.SegmentMaxSize,

@@ -8,6 +8,6 @@ func NewFactoryRAM() Factory {
 }
 
 // NewFile implements Factory.
-func (s *factoryRAM) NewFile(fileName string) (File, error) {
+func (s *factoryRAM) NewFile(_ string) (File, error) {
 	return newFileRAM(), nil
 }
