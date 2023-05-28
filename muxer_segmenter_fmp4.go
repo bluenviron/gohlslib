@@ -114,7 +114,6 @@ type muxerSegmenterFMP4 struct {
 
 func newMuxerSegmenterFMP4(
 	lowLatency bool,
-	segmentCount int,
 	segmentDuration time.Duration,
 	partDuration time.Duration,
 	segmentMaxSize uint64,
