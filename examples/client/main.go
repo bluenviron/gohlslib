@@ -37,5 +37,5 @@ func main() {
 	defer c.Close()
 
 	// wait for a fatal error
-	<-c.Wait()
+	panic(<-c.Wait())
 }
