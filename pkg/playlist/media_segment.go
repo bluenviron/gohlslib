@@ -51,7 +51,7 @@ func (s MediaSegment) marshal() string {
 	ret := ""
 
 	if s.DateTime != nil {
-		ret += "#EXT-X-PROGRAM-DATE-TIME:" + s.DateTime.Format("2006-01-02T15:04:05.999Z07:00") + "\n"
+		ret += "#EXT-X-PROGRAM-DATE-TIME:" + s.DateTime.Format(timeRFC3339Millis) + "\n"
 	}
 
 	if s.Gap {

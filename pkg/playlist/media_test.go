@@ -233,6 +233,42 @@ func TestMediaUnmarshal(t *testing.T) {
 	}
 }
 
+func TestMediaUnmarshalDateTime(t *testing.T) {
+	for _, ca := range []struct {
+		name     string
+		enc      string
+		dateTime time.Time
+	}{
+		{
+			"iso8601",
+			"#EXTM3U\n" +
+				"#EXT-X-VERSION:9\n" +
+				"#EXT-X-TARGETDURATION:8\n" +
+				"#EXT-X-PROGRAM-DATE-TIME:2023-06-16T21:08:02.686-0400\n" +
+				"#EXTINF:2.00000,\n" +
+				"seg.mp4\n",
+			time.Date(2023, 6, 17, 1, 8, 2, 686000000, time.UTC),
+		},
+		{
+			"rfc3336",
+			"#EXTM3U\n" +
+				"#EXT-X-VERSION:9\n" +
+				"#EXT-X-TARGETDURATION:8\n" +
+				"#EXT-X-PROGRAM-DATE-TIME:2014-08-25T00:00:00-04:00\n" +
+				"#EXTINF:2.00000,\n" +
+				"seg.mp4\n",
+			time.Date(2014, 8, 25, 4, 0, 0, 0, time.UTC),
+		},
+	} {
+		t.Run(ca.name, func(t *testing.T) {
+			var m Media
+			err := m.Unmarshal([]byte(ca.enc))
+			require.NoError(t, err)
+			require.Equal(t, ca.dateTime, m.Segments[0].DateTime.UTC())
+		})
+	}
+}
+
 func TestMediaMarshal(t *testing.T) {
 	for _, ca := range casesMedia {
 		t.Run(ca.name, func(t *testing.T) {

@@ -12,6 +12,25 @@ import (
 	"github.com/bluenviron/gohlslib/pkg/playlist/primitives"
 )
 
+const (
+	timeISO8601Millis = "2006-01-02T15:04:05.999Z0700"
+	timeRFC3339Millis = "2006-01-02T15:04:05.999Z07:00"
+)
+
+// HLS uses ISO8601, which supports time zones in multiple formats (-0700, -07:00).
+// Golang uses RFC3336, which is a subset of ISO8601 and supports a single format only (-07:00).
+// Support both ISO8601 and RFC3336.
+func parseTime(v string) (time.Time, error) {
+	ret, err := time.Parse(timeRFC3339Millis, v)
+	if err != nil {
+		ret, err = time.Parse(timeISO8601Millis, v)
+		if err != nil {
+			return time.Time{}, err
+		}
+	}
+	return ret, nil
+}
+
 // MediaStart is a EXT-X-START tag.
 type MediaStart = MultivariantStart
 
@@ -214,7 +233,7 @@ func (m *Media) Unmarshal(buf []byte) error {
 		case strings.HasPrefix(line, "#EXT-X-PROGRAM-DATE-TIME:"):
 			line = line[len("#EXT-X-PROGRAM-DATE-TIME:"):]
 
-			tmp, err := time.Parse("2006-01-02T15:04:05.999Z07:00", line)
+			tmp, err := parseTime(line)
 			if err != nil {
 				return err
 			}
