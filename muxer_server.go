@@ -198,16 +198,16 @@ func queryVal(q url.Values, key string) string {
 
 func (s *muxerServer) handle(w http.ResponseWriter, r *http.Request) {
 	name := filepath.Base(r.URL.Path)
-	q := r.URL.Query()
-	msn := queryVal(q, "_HLS_msn")
-	part := queryVal(q, "_HLS_part")
-	skip := queryVal(q, "_HLS_skip")
 
 	switch {
 	case name == "index.m3u8":
 		s.handleMultistreamPlaylist(w)
 
 	case name == "stream.m3u8":
+		q := r.URL.Query()
+		msn := queryVal(q, "_HLS_msn")
+		part := queryVal(q, "_HLS_part")
+		skip := queryVal(q, "_HLS_skip")
 		s.handleMediaPlaylist(msn, part, skip, w)
 
 	case s.variant != MuxerVariantMPEGTS && name == "init.mp4":
