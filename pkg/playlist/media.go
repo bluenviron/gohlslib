@@ -1,10 +1,7 @@
 package playlist
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
-	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -103,9 +100,9 @@ func (m Media) isPlaylist() {}
 
 // Unmarshal decodes the playlist.
 func (m *Media) Unmarshal(buf []byte) error {
-	r := bufio.NewReader(bytes.NewReader(buf))
+	s := string(buf)
 
-	err := primitives.HeaderUnmarshal(r)
+	s, err := primitives.HeaderUnmarshal(s)
 	if err != nil {
 		return err
 	}
@@ -113,14 +110,11 @@ func (m *Media) Unmarshal(buf []byte) error {
 	curSegment := &MediaSegment{}
 
 	for {
-		line, err := r.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return err
+		var line string
+		line, s = primitives.ReadLine(s)
+		if line == "" && s == "" {
+			break
 		}
-		line = primitives.RemoveReturn(line)
 
 		switch {
 		case strings.HasPrefix(line, "#EXT-X-VERSION:"):

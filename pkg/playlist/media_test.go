@@ -246,6 +246,20 @@ func TestMediaUnmarshalDecimalTargetDuration(t *testing.T) {
 	require.Equal(t, m.TargetDuration, 2)
 }
 
+func TestMediaUnmarshalMissingTrailingNewline(t *testing.T) {
+	enc := "#EXTM3U\n" +
+		"#EXT-X-VERSION:9\n" +
+		"#EXT-X-TARGETDURATION:2.0000\n" +
+		"#EXTINF:2.00000,\n" +
+		"seg.mp4\n" +
+		"#EXT-X-ENDLIST"
+
+	var m Media
+	err := m.Unmarshal([]byte(enc))
+	require.NoError(t, err)
+	require.Equal(t, true, m.Endlist)
+}
+
 func TestMediaUnmarshalDateTime(t *testing.T) {
 	for _, ca := range []struct {
 		name     string
