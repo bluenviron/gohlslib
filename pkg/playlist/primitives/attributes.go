@@ -21,6 +21,7 @@ func AttributesUnmarshal(v string) (map[string]string, error) {
 		}
 		var key string
 		key, v = v[:i], v[i+1:]
+		key = strings.TrimLeft(key, " ")
 
 		// read value
 		var val string
