@@ -16,10 +16,16 @@ import (
 const (
 	clientMPEGTSEntryQueueSize        = 100
 	clientFMP4MaxPartTracksPerSegment = 200
-	clientLiveStartingInvPosition     = 3
-	clientLiveMaxInvPosition          = 5
+	clientLiveInitialDistance         = 3
+	clientLiveMaxDistanceFromEnd      = 5
 	clientMaxDTSRTCDiff               = 10 * time.Second
 )
+
+type onDataH26xFunc func(pts time.Duration, dts time.Duration, au [][]byte)
+
+type onDataMPEG4AudioFunc func(pts time.Duration, dts time.Duration, aus [][]byte)
+
+type onDataOpusFunc func(pts time.Duration, dts time.Duration, packets [][]byte)
 
 func clientAbsoluteURL(base *url.URL, relative string) (*url.URL, error) {
 	u, err := url.Parse(relative)
@@ -50,7 +56,7 @@ type Client struct {
 	ctx         context.Context
 	ctxCancel   func()
 	onTracks    func([]*Track) error
-	onData      map[*Track]func(time.Duration, interface{})
+	onData      map[*Track]interface{}
 	playlistURL *url.URL
 
 	// out
@@ -74,7 +80,7 @@ func (c *Client) Start() error {
 
 	c.ctx, c.ctxCancel = context.WithCancel(context.Background())
 
-	c.onData = make(map[*Track]func(time.Duration, interface{}))
+	c.onData = make(map[*Track]interface{})
 	c.outErr = make(chan error, 1)
 
 	go c.run()
@@ -97,9 +103,19 @@ func (c *Client) OnTracks(cb func([]*Track) error) {
 	c.onTracks = cb
 }
 
-// OnData sets a callback that is called when data arrives.
-func (c *Client) OnData(forma *Track, cb func(time.Duration, interface{})) {
-	c.onData[forma] = cb
+// OnDataH26x sets a callback that is called when data from an H26x track is received.
+func (c *Client) OnDataH26x(forma *Track, onData onDataH26xFunc) {
+	c.onData[forma] = onData
+}
+
+// OnDataMPEG4Audio sets a callback that is called when data from a MPEG-4 Audio track is received.
+func (c *Client) OnDataMPEG4Audio(forma *Track, onData onDataMPEG4AudioFunc) {
+	c.onData[forma] = onData
+}
+
+// OnDataOpus sets a callback that is called when data from an Opus track is received.
+func (c *Client) OnDataOpus(forma *Track, onData onDataOpusFunc) {
+	c.onData[forma] = onData
 }
 
 func (c *Client) run() {

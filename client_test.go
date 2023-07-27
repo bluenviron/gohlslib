@@ -282,20 +282,21 @@ func TestClientMPEGTS(t *testing.T) {
 				},
 			}
 
-			onH264 := func(pts time.Duration, unit interface{}) {
+			onH264 := func(pts time.Duration, dts time.Duration, au [][]byte) {
 				require.Equal(t, 2*time.Second, pts)
+				require.Equal(t, time.Duration(0), dts)
 				require.Equal(t, [][]byte{
 					{7, 1, 2, 3},
 					{8},
 					{5},
-				}, unit)
+				}, au)
 				close(packetRecv)
 			}
 
 			c.OnTracks(func(tracks []*Track) error {
 				require.Equal(t, 1, len(tracks))
 				require.Equal(t, &codecs.H264{}, tracks[0].Codec)
-				c.OnData(tracks[0], onH264)
+				c.OnDataH26x(tracks[0], onH264)
 				return nil
 			})
 
@@ -344,13 +345,14 @@ segment.mp4
 
 	packetRecv := make(chan struct{})
 
-	onH264 := func(pts time.Duration, unit interface{}) {
+	onH264 := func(pts time.Duration, dts time.Duration, au [][]byte) {
 		require.Equal(t, 2*time.Second, pts)
+		require.Equal(t, time.Duration(0), dts)
 		require.Equal(t, [][]byte{
 			{7, 1, 2, 3},
 			{8},
 			{5},
-		}, unit)
+		}, au)
 		close(packetRecv)
 	}
 
@@ -362,7 +364,7 @@ segment.mp4
 		require.Equal(t, 1, len(tracks))
 		_, ok := tracks[0].Codec.(*codecs.H264)
 		require.Equal(t, true, ok)
-		c.OnData(tracks[0], onH264)
+		c.OnDataH26x(tracks[0], onH264)
 		return nil
 	})
 
@@ -436,7 +438,7 @@ segment1.ts
 	require.NoError(t, err)
 
 	err = <-c.Wait()
-	require.EqualError(t, err, "following segment not found or not ready yet")
+	require.EqualError(t, err, "next segment not found or not ready yet")
 
 	c.Close()
 }

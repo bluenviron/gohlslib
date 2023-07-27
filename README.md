@@ -51,7 +51,7 @@ General features:
 * [Examples](#examples)
 * [API Documentation](#api-documentation)
 * [Standards](#standards)
-* [Links](#links)
+* [Related projects](#related-projects)
 
 ## Examples
 
@@ -72,8 +72,8 @@ https://pkg.go.dev/github.com/bluenviron/gohlslib#pkg-index
 * [Codec standards](https://github.com/bluenviron/mediacommon#standards)
 * [Golang project layout](https://github.com/golang-standards/project-layout)
 
-## Links
-
-Related projects
+## Related projects
 
 * [MediaMTX](https://github.com/bluenviron/mediamtx)
+* [gortsplib](https://github.com/bluenviron/gortsplib)
+* [mediacommon](https://github.com/bluenviron/mediacommon)

@@ -201,13 +201,13 @@ func (i *Init) Unmarshal(byts []byte) error {
 				return nil
 			}()
 			if encodedConf == nil {
-				return nil, fmt.Errorf("unable to find MPEG4-audio configuration")
+				return nil, fmt.Errorf("unable to find MPEG-4 Audio configuration")
 			}
 
 			var c mpeg4audio.Config
 			err = c.Unmarshal(encodedConf)
 			if err != nil {
-				return nil, fmt.Errorf("invalid MPEG4-audio configuration: %s", err)
+				return nil, fmt.Errorf("invalid MPEG-4 Audio configuration: %s", err)
 			}
 
 			curTrack.Codec = &codecs.MPEG4Audio{

@@ -6,6 +6,8 @@ import (
 
 	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
 	"github.com/bluenviron/mediacommon/pkg/codecs/h265"
+	"github.com/bluenviron/mediacommon/pkg/codecs/mpeg4audio"
+	"github.com/bluenviron/mediacommon/pkg/codecs/opus"
 
 	"github.com/bluenviron/gohlslib/pkg/codecs"
 	"github.com/bluenviron/gohlslib/pkg/fmp4"
@@ -313,6 +315,39 @@ func (m *muxerSegmenterFMP4) writeH26x(
 			// reset adjusted part duration
 			m.sampleDurations = make(map[time.Duration]struct{})
 		}
+	}
+
+	return nil
+}
+
+func (m *muxerSegmenterFMP4) writeMPEG4Audio(ntp time.Time, pts time.Duration, aus [][]byte) error {
+	sampleRate := time.Duration(m.audioTrack.Codec.(*codecs.MPEG4Audio).Config.SampleRate)
+
+	for i, au := range aus {
+		auNTP := ntp.Add(time.Duration(i) * mpeg4audio.SamplesPerAccessUnit *
+			time.Second / sampleRate)
+		auPTS := pts + time.Duration(i)*mpeg4audio.SamplesPerAccessUnit*
+			time.Second/sampleRate
+
+		err := m.writeAudio(auNTP, auPTS, au)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (m *muxerSegmenterFMP4) writeOpus(ntp time.Time, pts time.Duration, packets [][]byte) error {
+	for _, packet := range packets {
+		err := m.writeAudio(ntp, pts, packet)
+		if err != nil {
+			return err
+		}
+
+		duration := opus.PacketDuration(packet)
+		ntp = ntp.Add(duration)
+		pts += duration
 	}
 
 	return nil
