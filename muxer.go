@@ -114,7 +114,7 @@ func (m *Muxer) Start() error {
 		if m.AudioTrack != nil {
 			if _, ok := m.AudioTrack.Codec.(*codecs.MPEG4Audio); !ok {
 				return fmt.Errorf(
-					"the MPEG-TS variant of HLS only supports MPEG4-audio. Use the fMP4 or Low-Latency variants instead")
+					"the MPEG-TS variant of HLS only supports MPEG-4 Audio. Use the fMP4 or Low-Latency variants instead")
 			}
 		}
 	}
@@ -281,9 +281,14 @@ func (m *Muxer) WriteH26x(ntp time.Time, pts time.Duration, au [][]byte) error {
 	return m.segmenter.writeH26x(ntp, pts, au, randomAccessPresent, forceSwitch)
 }
 
-// WriteAudio writes an audio access unit.
-func (m *Muxer) WriteAudio(ntp time.Time, pts time.Duration, au []byte) error {
-	return m.segmenter.writeAudio(ntp, pts, au)
+// WriteMPEG4Audio writes aMPEG-4 Audio access units.
+func (m *Muxer) WriteMPEG4Audio(ntp time.Time, pts time.Duration, aus [][]byte) error {
+	return m.segmenter.writeMPEG4Audio(ntp, pts, aus)
+}
+
+// WriteOpus writes Opus packets.
+func (m *Muxer) WriteOpus(ntp time.Time, pts time.Duration, packets [][]byte) error {
+	return m.segmenter.writeOpus(ntp, pts, packets)
 }
 
 // Handle handles a HTTP request.

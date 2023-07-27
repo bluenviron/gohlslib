@@ -34,7 +34,7 @@ func newClientTimeSyncFMP4(timeScale uint32, baseTime uint64) *clientTimeSyncFMP
 
 func (ts *clientTimeSyncFMP4) convertAndSync(ctx context.Context, timeScale uint32,
 	rawDTS uint64, ptsOffset int32,
-) (time.Duration, error) {
+) (time.Duration, time.Duration, error) {
 	pts := durationMp4ToGo(rawDTS+uint64(ptsOffset), timeScale)
 	dts := durationMp4ToGo(rawDTS, timeScale)
 
@@ -45,15 +45,15 @@ func (ts *clientTimeSyncFMP4) convertAndSync(ctx context.Context, timeScale uint
 	if dts > elapsed {
 		diff := dts - elapsed
 		if diff > clientMaxDTSRTCDiff {
-			return 0, fmt.Errorf("difference between DTS and RTC is too big")
+			return 0, 0, fmt.Errorf("difference between DTS and RTC is too big")
 		}
 
 		select {
 		case <-time.After(diff):
 		case <-ctx.Done():
-			return 0, fmt.Errorf("terminated")
+			return 0, 0, fmt.Errorf("terminated")
 		}
 	}
 
-	return pts, nil
+	return pts, dts, nil
 }

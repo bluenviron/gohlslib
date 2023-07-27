@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"time"
 
 	"github.com/bluenviron/gohlslib/pkg/playlist"
 )
@@ -40,7 +39,7 @@ type clientDownloaderStream struct {
 	onStreamTracks       func(context.Context, []*Track) bool
 	onSetLeadingTimeSync func(clientTimeSync)
 	onGetLeadingTimeSync func(context.Context) (clientTimeSync, bool)
-	onData               map[*Track]func(time.Duration, interface{})
+	onData               map[*Track]interface{}
 
 	curSegmentID *int
 }
@@ -55,7 +54,7 @@ func newClientDownloaderStream(
 	onStreamTracks func(context.Context, []*Track) bool,
 	onSetLeadingTimeSync func(clientTimeSync),
 	onGetLeadingTimeSync func(context.Context) (clientTimeSync, bool),
-	onData map[*Track]func(time.Duration, interface{}),
+	onData map[*Track]interface{},
 ) *clientDownloaderStream {
 	return &clientDownloaderStream{
 		isLeading:            isLeading,
@@ -216,8 +215,8 @@ func (d *clientDownloaderStream) fillSegmentQueue(
 	var segPos int
 
 	if d.curSegmentID == nil {
-		if !pl.Endlist { // live stream: start from clientLiveStartingInvPosition
-			seg, segPos = findSegmentWithInvPosition(pl.Segments, clientLiveStartingInvPosition)
+		if !pl.Endlist { // live stream: start from clientLiveInitialDistance
+			seg, segPos = findSegmentWithInvPosition(pl.Segments, clientLiveInitialDistance)
 			if seg == nil {
 				return fmt.Errorf("there aren't enough segments to fill the buffer")
 			}
@@ -231,12 +230,12 @@ func (d *clientDownloaderStream) fillSegmentQueue(
 		var invPos int
 		seg, segPos, invPos = findSegmentWithID(pl.MediaSequence, pl.Segments, *d.curSegmentID+1)
 		if seg == nil {
-			return fmt.Errorf("following segment not found or not ready yet")
+			return fmt.Errorf("next segment not found or not ready yet")
 		}
 
-		d.log(LogLevelDebug, "segment inverse position: %d", invPos)
+		d.log(LogLevelDebug, "distance of next segment from end of playlist: %d", invPos)
 
-		if !pl.Endlist && invPos > clientLiveMaxInvPosition {
+		if !pl.Endlist && invPos > clientLiveMaxDistanceFromEnd {
 			return fmt.Errorf("playback is too late")
 		}
 	}

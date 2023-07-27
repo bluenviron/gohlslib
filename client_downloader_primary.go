@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/bluenviron/gohlslib/pkg/playlist"
 )
@@ -104,7 +103,7 @@ type clientDownloaderPrimary struct {
 	httpClient         *http.Client
 	log                LogFunc
 	onTracks           func([]*Track) error
-	onData             map[*Track]func(time.Duration, interface{})
+	onData             map[*Track]interface{}
 	rp                 *clientRoutinePool
 
 	leadingTimeSync clientTimeSync
@@ -123,7 +122,7 @@ func newClientDownloaderPrimary(
 	log LogFunc,
 	rp *clientRoutinePool,
 	onTracks func([]*Track) error,
-	onData map[*Track]func(time.Duration, interface{}),
+	onData map[*Track]interface{},
 ) *clientDownloaderPrimary {
 	return &clientDownloaderPrimary{
 		primaryPlaylistURL:   primaryPlaylistURL,
