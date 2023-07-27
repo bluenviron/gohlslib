@@ -157,6 +157,11 @@ func (m *Media) Unmarshal(buf []byte) error {
 		case strings.HasPrefix(line, "#EXT-X-TARGETDURATION:"):
 			line = line[len("#EXT-X-TARGETDURATION:"):]
 
+			i := strings.IndexByte(line, '.')
+			if i >= 0 {
+				line = line[:i]
+			}
+
 			tmp, err := strconv.ParseUint(line, 10, 31)
 			if err != nil {
 				return err
