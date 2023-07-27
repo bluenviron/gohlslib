@@ -821,6 +821,44 @@ func TestMultivariantUnmarshal(t *testing.T) {
 	}
 }
 
+func TestMultivariantUnmarshalSpaces(t *testing.T) {
+	input := `#EXTM3U
+#EXT-X-STREAM-INF:PROGRAM-ID=1, BANDWIDTH=200000
+gear1/prog_index.m3u8
+#EXT-X-STREAM-INF:PROGRAM-ID=1, BANDWIDTH=311111
+gear2/prog_index.m3u8
+#EXT-X-STREAM-INF:PROGRAM-ID=1, BANDWIDTH=484444
+gear3/prog_index.m3u8
+#EXT-X-STREAM-INF:PROGRAM-ID=1, BANDWIDTH=737777
+gear4/prog_index.m3u8
+`
+	dec := Multivariant{
+		Variants: []*MultivariantVariant{
+			{
+				Bandwidth: 200000,
+				URI:       "gear1/prog_index.m3u8",
+			},
+			{
+				Bandwidth: 311111,
+				URI:       "gear2/prog_index.m3u8",
+			},
+			{
+				Bandwidth: 484444,
+				URI:       "gear3/prog_index.m3u8",
+			},
+			{
+				Bandwidth: 737777,
+				URI:       "gear4/prog_index.m3u8",
+			},
+		},
+	}
+
+	var m Multivariant
+	err := m.Unmarshal([]byte(input))
+	require.NoError(t, err)
+	require.Equal(t, dec, m)
+}
+
 func TestMultivariantMarshal(t *testing.T) {
 	for _, ca := range casesMultivariant {
 		t.Run(ca.name, func(t *testing.T) {
