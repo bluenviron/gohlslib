@@ -1,5 +1,5 @@
-github.com/abema/go-mp4 v0.10.1 h1:wOhZgNxjduc8r4FJdwPa5x/gdBSSX+8MTnfNj/xkJaE=
-github.com/abema/go-mp4 v0.10.1/go.mod h1:vPl9t5ZK7K0x68jh12/+ECWBCXoWuIDtNgPtU2f04ws=
+github.com/abema/go-mp4 v0.11.0 h1:XJfpSmEdUBMvWnDKIiNznLGZPpeDxJ/qDdN6Ust1ADk=
+github.com/abema/go-mp4 v0.11.0/go.mod h1:vPl9t5ZK7K0x68jh12/+ECWBCXoWuIDtNgPtU2f04ws=
 github.com/aler9/writerseeker v0.0.0-20220601075008-6f0e685b9c82 h1:9WgSzBLo3a9ToSVV7sRTBYZ1GGOZUpq4+5H3SN0UZq4=
 github.com/aler9/writerseeker v0.0.0-20220601075008-6f0e685b9c82/go.mod h1:qsMrZCbeBf/mCLOeF16KDkPu4gktn/pOWyaq1aYQE7U=
 github.com/asticode/go-astikit v0.30.0 h1:DkBkRQRIxYcknlaU7W7ksNfn4gMFsB0tqMJflxkRsZA=
