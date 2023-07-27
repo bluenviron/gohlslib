@@ -1,10 +1,7 @@
 package playlist
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
-	"io"
 	"strconv"
 	"strings"
 
@@ -35,22 +32,19 @@ func (m Multivariant) isPlaylist() {}
 
 // Unmarshal decodes the playlist.
 func (m *Multivariant) Unmarshal(buf []byte) error {
-	r := bufio.NewReader(bytes.NewReader(buf))
+	s := string(buf)
 
-	err := primitives.HeaderUnmarshal(r)
+	s, err := primitives.HeaderUnmarshal(s)
 	if err != nil {
 		return err
 	}
 
 	for {
-		line, err := r.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return err
+		var line string
+		line, s = primitives.ReadLine(s)
+		if line == "" && s == "" {
+			break
 		}
-		line = primitives.RemoveReturn(line)
 
 		switch {
 		case strings.HasPrefix(line, "#EXT-X-VERSION:"):
@@ -81,11 +75,8 @@ func (m *Multivariant) Unmarshal(buf []byte) error {
 		case strings.HasPrefix(line, "#EXT-X-STREAM-INF:"):
 			line = line[len("#EXT-X-STREAM-INF:"):]
 
-			line2, err := r.ReadString('\n')
-			if err != nil {
-				return err
-			}
-			line2 = primitives.RemoveReturn(line2)
+			var line2 string
+			line2, s = primitives.ReadLine(s)
 			line += "\n" + line2
 
 			var v MultivariantVariant
