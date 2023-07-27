@@ -23,7 +23,6 @@ Client features:
 |Read H265 tracks|OK|
 |Read MPEG-4 audio (AAC) tracks|OK|
 |Read Opus tracks|OK|
-|Read a given variant|TODO (currently a single variant is read)|
 
 Muxer features:
 
