@@ -3,7 +3,7 @@ module github.com/bluenviron/gohlslib
 go 1.18
 
 require (
-	github.com/abema/go-mp4 v0.10.1
+	github.com/abema/go-mp4 v0.11.0
 	github.com/aler9/writerseeker v0.0.0-20220601075008-6f0e685b9c82
 	github.com/asticode/go-astits v1.11.0
 	github.com/bluenviron/mediacommon v0.6.0
