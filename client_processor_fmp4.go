@@ -200,9 +200,9 @@ func (p *clientProcessorFMP4) initializeTrackProcs(ctx context.Context, track *f
 
 		switch track.Codec.(type) {
 		case *codecs.H264, *codecs.H265:
-			var onDataCasted onDataH26xFunc = func(pts time.Duration, dts time.Duration, au [][]byte) {}
+			var onDataCasted ClientOnDataH26xFunc = func(pts time.Duration, dts time.Duration, au [][]byte) {}
 			if onData != nil {
-				onDataCasted = onData.(onDataH26xFunc)
+				onDataCasted = onData.(ClientOnDataH26xFunc)
 			}
 
 			postProcess = func(pts time.Duration, dts time.Duration, payload []byte) error {
@@ -216,9 +216,9 @@ func (p *clientProcessorFMP4) initializeTrackProcs(ctx context.Context, track *f
 			}
 
 		case *codecs.MPEG4Audio:
-			var onDataCasted onDataMPEG4AudioFunc = func(pts time.Duration, dts time.Duration, aus [][]byte) {}
+			var onDataCasted ClientOnDataMPEG4AudioFunc = func(pts time.Duration, dts time.Duration, aus [][]byte) {}
 			if onData != nil {
-				onDataCasted = onData.(onDataMPEG4AudioFunc)
+				onDataCasted = onData.(ClientOnDataMPEG4AudioFunc)
 			}
 
 			postProcess = func(pts time.Duration, dts time.Duration, payload []byte) error {
@@ -227,9 +227,9 @@ func (p *clientProcessorFMP4) initializeTrackProcs(ctx context.Context, track *f
 			}
 
 		case *codecs.Opus:
-			var onDataCasted onDataOpusFunc = func(pts time.Duration, dts time.Duration, packets [][]byte) {}
+			var onDataCasted ClientOnDataOpusFunc = func(pts time.Duration, dts time.Duration, packets [][]byte) {}
 			if onData != nil {
-				onDataCasted = onData.(onDataOpusFunc)
+				onDataCasted = onData.(ClientOnDataOpusFunc)
 			}
 
 			postProcess = func(pts time.Duration, dts time.Duration, payload []byte) error {

@@ -102,7 +102,7 @@ type clientDownloaderPrimary struct {
 	primaryPlaylistURL *url.URL
 	httpClient         *http.Client
 	log                LogFunc
-	onTracks           func([]*Track) error
+	onTracks           ClientOnTracksFunc
 	onData             map[*Track]interface{}
 	rp                 *clientRoutinePool
 
@@ -121,7 +121,7 @@ func newClientDownloaderPrimary(
 	httpClient *http.Client,
 	log LogFunc,
 	rp *clientRoutinePool,
-	onTracks func([]*Track) error,
+	onTracks ClientOnTracksFunc,
 	onData map[*Track]interface{},
 ) *clientDownloaderPrimary {
 	return &clientDownloaderPrimary{
