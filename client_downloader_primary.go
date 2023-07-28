@@ -99,12 +99,15 @@ func pickAudioPlaylist(alternatives []*playlist.MultivariantRendition, groupID s
 type clientTimeSync interface{}
 
 type clientDownloaderPrimary struct {
-	primaryPlaylistURL *url.URL
-	httpClient         *http.Client
-	log                LogFunc
-	onTracks           ClientOnTracksFunc
-	onData             map[*Track]interface{}
-	rp                 *clientRoutinePool
+	primaryPlaylistURL        *url.URL
+	httpClient                *http.Client
+	onDownloadPrimaryPlaylist ClientOnDownloadPrimaryPlaylistFunc
+	onDownloadStreamPlaylist  ClientOnDownloadStreamPlaylistFunc
+	onDownloadSegment         ClientOnDownloadSegmentFunc
+	onDecodeError             ClientOnDecodeErrorFunc
+	onTracks                  ClientOnTracksFunc
+	onData                    map[*Track]interface{}
+	rp                        *clientRoutinePool
 
 	leadingTimeSync clientTimeSync
 
@@ -119,26 +122,32 @@ type clientDownloaderPrimary struct {
 func newClientDownloaderPrimary(
 	primaryPlaylistURL *url.URL,
 	httpClient *http.Client,
-	log LogFunc,
+	onDownloadPrimaryPlaylist ClientOnDownloadPrimaryPlaylistFunc,
+	onDownloadStreamPlaylist ClientOnDownloadStreamPlaylistFunc,
+	onDownloadSegment ClientOnDownloadSegmentFunc,
+	onDecodeError ClientOnDecodeErrorFunc,
 	rp *clientRoutinePool,
 	onTracks ClientOnTracksFunc,
 	onData map[*Track]interface{},
 ) *clientDownloaderPrimary {
 	return &clientDownloaderPrimary{
-		primaryPlaylistURL:   primaryPlaylistURL,
-		httpClient:           httpClient,
-		log:                  log,
-		onTracks:             onTracks,
-		onData:               onData,
-		rp:                   rp,
-		streamTracks:         make(chan []*Track),
-		startStreaming:       make(chan struct{}),
-		leadingTimeSyncReady: make(chan struct{}),
+		primaryPlaylistURL:        primaryPlaylistURL,
+		httpClient:                httpClient,
+		onDownloadPrimaryPlaylist: onDownloadPrimaryPlaylist,
+		onDownloadStreamPlaylist:  onDownloadStreamPlaylist,
+		onDownloadSegment:         onDownloadSegment,
+		onDecodeError:             onDecodeError,
+		onTracks:                  onTracks,
+		onData:                    onData,
+		rp:                        rp,
+		streamTracks:              make(chan []*Track),
+		startStreaming:            make(chan struct{}),
+		leadingTimeSyncReady:      make(chan struct{}),
 	}
 }
 
 func (d *clientDownloaderPrimary) run(ctx context.Context) error {
-	d.log(LogLevelDebug, "downloading primary playlist %s", d.primaryPlaylistURL)
+	d.onDownloadPrimaryPlaylist(d.primaryPlaylistURL.String())
 
 	pl, err := clientDownloadPlaylist(ctx, d.httpClient, d.primaryPlaylistURL)
 	if err != nil {
@@ -149,13 +158,14 @@ func (d *clientDownloaderPrimary) run(ctx context.Context) error {
 
 	switch plt := pl.(type) {
 	case *playlist.Media:
-		d.log(LogLevelDebug, "primary playlist is a stream playlist")
 		ds := newClientDownloaderStream(
 			true,
 			d.httpClient,
+			d.onDownloadStreamPlaylist,
+			d.onDownloadSegment,
+			d.onDecodeError,
 			d.primaryPlaylistURL,
 			plt,
-			d.log,
 			d.rp,
 			d.onStreamTracks,
 			d.onSetLeadingTimeSync,
@@ -179,9 +189,11 @@ func (d *clientDownloaderPrimary) run(ctx context.Context) error {
 		ds := newClientDownloaderStream(
 			true,
 			d.httpClient,
+			d.onDownloadStreamPlaylist,
+			d.onDownloadSegment,
+			d.onDecodeError,
 			u,
 			nil,
-			d.log,
 			d.rp,
 			d.onStreamTracks,
 			d.onSetLeadingTimeSync,
@@ -205,9 +217,11 @@ func (d *clientDownloaderPrimary) run(ctx context.Context) error {
 			ds := newClientDownloaderStream(
 				false,
 				d.httpClient,
+				d.onDownloadStreamPlaylist,
+				d.onDownloadSegment,
+				d.onDecodeError,
 				u,
 				nil,
-				d.log,
 				d.rp,
 				d.onStreamTracks,
 				d.onSetLeadingTimeSync,

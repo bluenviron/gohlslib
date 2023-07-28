@@ -30,16 +30,18 @@ func findSegmentWithID(seqNo int, segments []*playlist.MediaSegment, id int) (*p
 }
 
 type clientDownloaderStream struct {
-	isLeading            bool
-	httpClient           *http.Client
-	playlistURL          *url.URL
-	initialPlaylist      *playlist.Media
-	log                  LogFunc
-	rp                   *clientRoutinePool
-	onStreamTracks       func(context.Context, []*Track) bool
-	onSetLeadingTimeSync func(clientTimeSync)
-	onGetLeadingTimeSync func(context.Context) (clientTimeSync, bool)
-	onData               map[*Track]interface{}
+	isLeading                bool
+	httpClient               *http.Client
+	onDownloadStreamPlaylist ClientOnDownloadStreamPlaylistFunc
+	onDownloadSegment        ClientOnDownloadSegmentFunc
+	onDecodeError            ClientOnDecodeErrorFunc
+	playlistURL              *url.URL
+	initialPlaylist          *playlist.Media
+	rp                       *clientRoutinePool
+	onStreamTracks           func(context.Context, []*Track) bool
+	onSetLeadingTimeSync     func(clientTimeSync)
+	onGetLeadingTimeSync     func(context.Context) (clientTimeSync, bool)
+	onData                   map[*Track]interface{}
 
 	curSegmentID *int
 }
@@ -47,9 +49,11 @@ type clientDownloaderStream struct {
 func newClientDownloaderStream(
 	isLeading bool,
 	httpClient *http.Client,
+	onDownloadStreamPlaylist ClientOnDownloadStreamPlaylistFunc,
+	onDownloadSegment ClientOnDownloadSegmentFunc,
+	onDecodeError ClientOnDecodeErrorFunc,
 	playlistURL *url.URL,
 	initialPlaylist *playlist.Media,
-	log LogFunc,
 	rp *clientRoutinePool,
 	onStreamTracks func(context.Context, []*Track) bool,
 	onSetLeadingTimeSync func(clientTimeSync),
@@ -57,16 +61,18 @@ func newClientDownloaderStream(
 	onData map[*Track]interface{},
 ) *clientDownloaderStream {
 	return &clientDownloaderStream{
-		isLeading:            isLeading,
-		httpClient:           httpClient,
-		playlistURL:          playlistURL,
-		initialPlaylist:      initialPlaylist,
-		log:                  log,
-		rp:                   rp,
-		onStreamTracks:       onStreamTracks,
-		onSetLeadingTimeSync: onSetLeadingTimeSync,
-		onGetLeadingTimeSync: onGetLeadingTimeSync,
-		onData:               onData,
+		isLeading:                isLeading,
+		httpClient:               httpClient,
+		onDownloadStreamPlaylist: onDownloadStreamPlaylist,
+		onDownloadSegment:        onDownloadSegment,
+		onDecodeError:            onDecodeError,
+		playlistURL:              playlistURL,
+		initialPlaylist:          initialPlaylist,
+		rp:                       rp,
+		onStreamTracks:           onStreamTracks,
+		onSetLeadingTimeSync:     onSetLeadingTimeSync,
+		onGetLeadingTimeSync:     onGetLeadingTimeSync,
+		onData:                   onData,
 	}
 }
 
@@ -98,7 +104,6 @@ func (d *clientDownloaderStream) run(ctx context.Context) error {
 			d.isLeading,
 			byts,
 			segmentQueue,
-			d.log,
 			d.rp,
 			d.onStreamTracks,
 			d.onSetLeadingTimeSync,
@@ -112,9 +117,9 @@ func (d *clientDownloaderStream) run(ctx context.Context) error {
 		d.rp.add(proc)
 	} else {
 		proc := newClientProcessorMPEGTS(
+			d.onDecodeError,
 			d.isLeading,
 			segmentQueue,
-			d.log,
 			d.rp,
 			d.onStreamTracks,
 			d.onSetLeadingTimeSync,
@@ -148,7 +153,7 @@ func (d *clientDownloaderStream) run(ctx context.Context) error {
 }
 
 func (d *clientDownloaderStream) downloadPlaylist(ctx context.Context) (*playlist.Media, error) {
-	d.log(LogLevelDebug, "downloading stream playlist %s", d.playlistURL.String())
+	d.onDownloadStreamPlaylist(d.playlistURL.String())
 
 	pl, err := clientDownloadPlaylist(ctx, d.httpClient, d.playlistURL)
 	if err != nil {
@@ -174,7 +179,8 @@ func (d *clientDownloaderStream) downloadSegment(
 		return nil, err
 	}
 
-	d.log(LogLevelDebug, "downloading segment %s", u)
+	d.onDownloadSegment(u.String())
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, err
@@ -232,8 +238,6 @@ func (d *clientDownloaderStream) fillSegmentQueue(
 		if seg == nil {
 			return fmt.Errorf("next segment not found or not ready yet")
 		}
-
-		d.log(LogLevelDebug, "distance of next segment from end of playlist: %d", invPos)
 
 		if !pl.Endlist && invPos > clientLiveMaxDistanceFromEnd {
 			return fmt.Errorf("playback is too late")

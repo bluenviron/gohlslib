@@ -95,8 +95,8 @@ func (t *muxerSegmentMPEGTS) finalize(nextDTS time.Duration) {
 }
 
 func (t *muxerSegmentMPEGTS) writeH264(
-	dts time.Duration,
 	pts time.Duration,
+	dts time.Duration,
 	idrPresent bool,
 	au [][]byte,
 ) error {
@@ -112,7 +112,7 @@ func (t *muxerSegmentMPEGTS) writeH264(
 	// prepend an AUD. This is required by video.js and iOS
 	au = append([][]byte{{byte(h264.NALUTypeAccessUnitDelimiter), 240}}, au...)
 
-	err := t.writer.WriteH26x(t.writerVideoTrack, durationGoToMPEGTS(dts), durationGoToMPEGTS(pts), idrPresent, au)
+	err := t.writer.WriteH26x(t.writerVideoTrack, durationGoToMPEGTS(pts), durationGoToMPEGTS(dts), idrPresent, au)
 	if err != nil {
 		return err
 	}

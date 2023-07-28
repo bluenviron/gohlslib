@@ -21,6 +21,18 @@ const (
 	clientMaxDTSRTCDiff               = 10 * time.Second
 )
 
+// ClientOnDownloadPrimaryPlaylistFunc is the prototype of Client.OnDownloadPrimaryPlaylist.
+type ClientOnDownloadPrimaryPlaylistFunc func(url string)
+
+// ClientOnDownloadStreamPlaylistFunc is the prototype of Client.OnDownloadStreamPlaylist.
+type ClientOnDownloadStreamPlaylistFunc func(url string)
+
+// ClientOnDownloadSegmentFunc is the prototype of Client.OnDownloadSegment.
+type ClientOnDownloadSegmentFunc func(url string)
+
+// ClientOnDecodeErrorFunc is the prototype of Client.OnDecodeError.
+type ClientOnDecodeErrorFunc func(err error)
+
 // ClientOnTracksFunc is the prototype of the function passed to OnTracks().
 type ClientOnTracksFunc func([]*Track) error
 
@@ -44,16 +56,25 @@ func clientAbsoluteURL(base *url.URL, relative string) (*url.URL, error) {
 // Client is a HLS client.
 type Client struct {
 	//
-	// Parameters (all optional except URI)
+	// parameters (all optional except URI)
 	//
 	// URI of the playlist.
 	URI string
 	// HTTP client.
 	// It defaults to http.DefaultClient.
 	HTTPClient *http.Client
-	// function that receives log messages.
-	// It defaults to log.Printf.
-	Log LogFunc
+
+	//
+	// callbacks (all optional)
+	//
+	// called before downloading a primary playlist.
+	OnDownloadPrimaryPlaylist ClientOnDownloadPrimaryPlaylistFunc
+	// called before downloading a stream playlist.
+	OnDownloadStreamPlaylist ClientOnDownloadStreamPlaylistFunc
+	// called before downloading a segment.
+	OnDownloadSegment ClientOnDownloadSegmentFunc
+	// called when a non-fatal decode error occurs.
+	OnDecodeError ClientOnDecodeErrorFunc
 
 	//
 	// private
@@ -74,8 +95,17 @@ func (c *Client) Start() error {
 	if c.HTTPClient == nil {
 		c.HTTPClient = http.DefaultClient
 	}
-	if c.Log == nil {
-		c.Log = defaultLog
+	if c.OnDownloadPrimaryPlaylist == nil {
+		c.OnDownloadPrimaryPlaylist = func(_ string) {}
+	}
+	if c.OnDownloadStreamPlaylist == nil {
+		c.OnDownloadStreamPlaylist = func(_ string) {}
+	}
+	if c.OnDownloadSegment == nil {
+		c.OnDownloadSegment = func(_ string) {}
+	}
+	if c.OnDecodeError == nil {
+		c.OnDecodeError = func(_ error) {}
 	}
 
 	var err error
@@ -134,7 +164,10 @@ func (c *Client) runInner() error {
 	dl := newClientDownloaderPrimary(
 		c.playlistURL,
 		c.HTTPClient,
-		c.Log,
+		c.OnDownloadPrimaryPlaylist,
+		c.OnDownloadStreamPlaylist,
+		c.OnDownloadSegment,
+		c.OnDecodeError,
 		rp,
 		c.onTracks,
 		c.onData,
