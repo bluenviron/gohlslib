@@ -182,9 +182,9 @@ func (p *clientProcessorMPEGTS) processSegment(ctx context.Context, byts []byte)
 
 			switch track.Codec.(type) {
 			case *codecs.H264:
-				var onDataCasted onDataH26xFunc = func(pts time.Duration, dts time.Duration, au [][]byte) {}
+				var onDataCasted ClientOnDataH26xFunc = func(pts time.Duration, dts time.Duration, au [][]byte) {}
 				if onData != nil {
-					onDataCasted = onData.(onDataH26xFunc)
+					onDataCasted = onData.(ClientOnDataH26xFunc)
 				}
 
 				p.reader.OnDataH26x(mpegtsTrack, func(pts int64, dts int64, au [][]byte) error {
@@ -196,9 +196,9 @@ func (p *clientProcessorMPEGTS) processSegment(ctx context.Context, byts []byte)
 				})
 
 			case *codecs.MPEG4Audio:
-				var onDataCasted onDataMPEG4AudioFunc = func(pts time.Duration, dts time.Duration, aus [][]byte) {}
+				var onDataCasted ClientOnDataMPEG4AudioFunc = func(pts time.Duration, dts time.Duration, aus [][]byte) {}
 				if onData != nil {
-					onDataCasted = onData.(onDataMPEG4AudioFunc)
+					onDataCasted = onData.(ClientOnDataMPEG4AudioFunc)
 				}
 
 				p.reader.OnDataMPEG4Audio(mpegtsTrack, func(pts int64, dts int64, aus [][]byte) error {

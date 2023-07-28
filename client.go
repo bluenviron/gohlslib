@@ -21,11 +21,17 @@ const (
 	clientMaxDTSRTCDiff               = 10 * time.Second
 )
 
-type onDataH26xFunc func(pts time.Duration, dts time.Duration, au [][]byte)
+// ClientOnTracksFunc is the prototype of the function passed to OnTracks().
+type ClientOnTracksFunc func([]*Track) error
 
-type onDataMPEG4AudioFunc func(pts time.Duration, dts time.Duration, aus [][]byte)
+// ClientOnDataH26xFunc is the prototype of the function passed to OnDataH26x().
+type ClientOnDataH26xFunc func(pts time.Duration, dts time.Duration, au [][]byte)
 
-type onDataOpusFunc func(pts time.Duration, dts time.Duration, packets [][]byte)
+// ClientOnDataMPEG4AudioFunc is the prototype of the function passed to OnDataMPEG4Audio().
+type ClientOnDataMPEG4AudioFunc func(pts time.Duration, dts time.Duration, aus [][]byte)
+
+// ClientOnDataOpusFunc is the prototype of the function passed to OnDataOpus().
+type ClientOnDataOpusFunc func(pts time.Duration, dts time.Duration, packets [][]byte)
 
 func clientAbsoluteURL(base *url.URL, relative string) (*url.URL, error) {
 	u, err := url.Parse(relative)
@@ -55,7 +61,7 @@ type Client struct {
 
 	ctx         context.Context
 	ctxCancel   func()
-	onTracks    func([]*Track) error
+	onTracks    ClientOnTracksFunc
 	onData      map[*Track]interface{}
 	playlistURL *url.URL
 
@@ -99,23 +105,23 @@ func (c *Client) Wait() chan error {
 }
 
 // OnTracks sets a callback that is called when tracks are read.
-func (c *Client) OnTracks(cb func([]*Track) error) {
+func (c *Client) OnTracks(cb ClientOnTracksFunc) {
 	c.onTracks = cb
 }
 
 // OnDataH26x sets a callback that is called when data from an H26x track is received.
-func (c *Client) OnDataH26x(forma *Track, onData onDataH26xFunc) {
-	c.onData[forma] = onData
+func (c *Client) OnDataH26x(forma *Track, cb ClientOnDataH26xFunc) {
+	c.onData[forma] = cb
 }
 
 // OnDataMPEG4Audio sets a callback that is called when data from a MPEG-4 Audio track is received.
-func (c *Client) OnDataMPEG4Audio(forma *Track, onData onDataMPEG4AudioFunc) {
-	c.onData[forma] = onData
+func (c *Client) OnDataMPEG4Audio(forma *Track, cb ClientOnDataMPEG4AudioFunc) {
+	c.onData[forma] = cb
 }
 
 // OnDataOpus sets a callback that is called when data from an Opus track is received.
-func (c *Client) OnDataOpus(forma *Track, onData onDataOpusFunc) {
-	c.onData[forma] = onData
+func (c *Client) OnDataOpus(forma *Track, cb ClientOnDataOpusFunc) {
+	c.onData[forma] = cb
 }
 
 func (c *Client) run() {
