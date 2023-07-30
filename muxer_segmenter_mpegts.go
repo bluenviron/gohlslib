@@ -186,8 +186,8 @@ func (m *muxerSegmenterMPEGTS) writeH26x(
 	}
 
 	err := m.currentSegment.writeH264(
-		dts,
 		pts,
+		dts,
 		randomAccessPresent,
 		au)
 	if err != nil {
