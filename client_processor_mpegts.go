@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 	"time"
 
 	"github.com/asticode/go-astits"
@@ -57,9 +56,9 @@ func (r *switchableReader) Read(p []byte) (int, error) {
 }
 
 type clientProcessorMPEGTS struct {
+	onDecodeError        ClientOnDecodeErrorFunc
 	isLeading            bool
 	segmentQueue         *clientSegmentQueue
-	log                  LogFunc
 	rp                   *clientRoutinePool
 	onStreamTracks       func(context.Context, []*Track) bool
 	onSetLeadingTimeSync func(clientTimeSync)
@@ -74,9 +73,9 @@ type clientProcessorMPEGTS struct {
 }
 
 func newClientProcessorMPEGTS(
+	onDecodeError ClientOnDecodeErrorFunc,
 	isLeading bool,
 	segmentQueue *clientSegmentQueue,
-	log LogFunc,
 	rp *clientRoutinePool,
 	onStreamTracks func(context.Context, []*Track) bool,
 	onSetLeadingTimeSync func(clientTimeSync),
@@ -84,9 +83,9 @@ func newClientProcessorMPEGTS(
 	onData map[*Track]interface{},
 ) *clientProcessorMPEGTS {
 	return &clientProcessorMPEGTS{
+		onDecodeError:        onDecodeError,
 		isLeading:            isLeading,
 		segmentQueue:         segmentQueue,
-		log:                  log,
 		rp:                   rp,
 		onStreamTracks:       onStreamTracks,
 		onSetLeadingTimeSync: onSetLeadingTimeSync,
@@ -118,6 +117,10 @@ func (p *clientProcessorMPEGTS) processSegment(ctx context.Context, byts []byte)
 		if err != nil {
 			return err
 		}
+
+		p.reader.OnDecodeError(func(err error) {
+			p.onDecodeError(err)
+		})
 
 		for _, track := range p.reader.Tracks() {
 			switch track.Codec.(type) {
@@ -219,9 +222,6 @@ func (p *clientProcessorMPEGTS) processSegment(ctx context.Context, byts []byte)
 		if err != nil {
 			if err == astits.ErrNoMorePackets {
 				return nil
-			}
-			if strings.HasPrefix(err.Error(), "astits: parsing PES data failed") {
-				continue
 			}
 			return err
 		}
