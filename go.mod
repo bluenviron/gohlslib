@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/abema/go-mp4 v0.11.0
 	github.com/aler9/writerseeker v0.0.0-20220601075008-6f0e685b9c82
-	github.com/asticode/go-astits v1.11.1-0.20230727094110-0df190a2dd87
+	github.com/asticode/go-astits v1.12.0
 	github.com/bluenviron/mediacommon v0.7.1-0.20230730144331-10b74a4f6eda
 	github.com/gin-gonic/gin v1.9.1
 	github.com/stretchr/testify v1.8.4
