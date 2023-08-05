@@ -76,6 +76,28 @@ func videoHasParameters(videoTrack *Track) bool {
 	return false
 }
 
+func parseMSNPart(msn string, part string) (uint64, uint64, error) {
+	var msnint uint64
+	if msn != "" {
+		var err error
+		msnint, err = strconv.ParseUint(msn, 10, 64)
+		if err != nil {
+			return 0, 0, err
+		}
+	}
+
+	var partint uint64
+	if part != "" {
+		var err error
+		partint, err = strconv.ParseUint(part, 10, 64)
+		if err != nil {
+			return 0, 0, err
+		}
+	}
+
+	return (msnint), (partint), nil
+}
+
 type muxerServer struct {
 	variant        MuxerVariant
 	segmentCount   int
@@ -303,6 +325,10 @@ func (s *muxerServer) handleMultistreamPlaylist(w http.ResponseWriter) {
 	}()
 
 	if byts != nil {
+		// allow caching but use a small period in order to
+		// allow a stream to change tracks or bitrate
+		w.Header().Set("Cache-Control", "max-age=30")
+
 		w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
 		w.WriteHeader(http.StatusOK)
 		w.Write(byts)
@@ -315,24 +341,10 @@ func (s *muxerServer) handleMediaPlaylist(msn string, part string, skip string, 
 	if s.variant == MuxerVariantLowLatency {
 		isDeltaUpdate = skip == "YES" || skip == "v2"
 
-		var msnint uint64
-		if msn != "" {
-			var err error
-			msnint, err = strconv.ParseUint(msn, 10, 64)
-			if err != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
-		}
-
-		var partint uint64
-		if part != "" {
-			var err error
-			partint, err = strconv.ParseUint(part, 10, 64)
-			if err != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
+		msnint, partint, err := parseMSNPart(msn, part)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
 		}
 
 		if msn != "" {
@@ -363,6 +375,7 @@ func (s *muxerServer) handleMediaPlaylist(msn string, part string, skip string, 
 			}()
 
 			if byts != nil {
+				w.Header().Set("Cache-Control", "no-cache")
 				w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
 				w.WriteHeader(http.StatusOK)
 				w.Write(byts)
@@ -394,6 +407,7 @@ func (s *muxerServer) handleMediaPlaylist(msn string, part string, skip string, 
 	}()
 
 	if byts != nil {
+		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
 		w.WriteHeader(http.StatusOK)
 		w.Write(byts)
@@ -561,6 +575,10 @@ func (s *muxerServer) handleInitFile(w http.ResponseWriter) {
 	}
 	defer r.Close()
 
+	// allow caching but use a small period in order to
+	// allow a stream to change tracks
+	w.Header().Set("Cache-Control", "max-age=30")
+
 	w.Header().Set("Content-Type", "video/mp4")
 	w.WriteHeader(http.StatusOK)
 	io.Copy(w, r)
@@ -585,6 +603,8 @@ func (s *muxerServer) handleSegmentOrPart(fname string, w http.ResponseWriter) {
 			return
 		}
 		defer r.Close()
+
+		w.Header().Set("Cache-Control", "max-age=3600")
 
 		w.Header().Set(
 			"Content-Type",
@@ -629,6 +649,8 @@ func (s *muxerServer) handleSegmentOrPart(fname string, w http.ResponseWriter) {
 			return
 		}
 		defer r.Close()
+
+		w.Header().Set("Cache-Control", "max-age=3600")
 
 		w.Header().Set("Content-Type", "video/mp4")
 		w.WriteHeader(http.StatusOK)

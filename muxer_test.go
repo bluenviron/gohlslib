@@ -44,22 +44,22 @@ var testAudioTrack = &Track{
 	},
 }
 
-type fakeResponseWriter struct {
+type dummyResponseWriter struct {
 	bytes.Buffer
 	h          http.Header
 	statusCode int
 }
 
-func (w *fakeResponseWriter) Header() http.Header {
+func (w *dummyResponseWriter) Header() http.Header {
 	return w.h
 }
 
-func (w *fakeResponseWriter) WriteHeader(statusCode int) {
+func (w *dummyResponseWriter) WriteHeader(statusCode int) {
 	w.statusCode = statusCode
 }
 
-func readPath(m *Muxer, path, msn, part, skip string) ([]byte, error) {
-	w := &fakeResponseWriter{
+func doRequest(m *Muxer, path, msn, part, skip string) ([]byte, http.Header, error) {
+	w := &dummyResponseWriter{
 		h: make(http.Header),
 	}
 
@@ -78,10 +78,10 @@ func readPath(m *Muxer, path, msn, part, skip string) ([]byte, error) {
 	m.Handle(w, r)
 
 	if w.statusCode != http.StatusOK {
-		return nil, fmt.Errorf("bad status code: %v", w.statusCode)
+		return nil, nil, fmt.Errorf("bad status code: %v", w.statusCode)
 	}
 
-	return w.Bytes(), nil
+	return w.Bytes(), w.h, nil
 }
 
 func TestMuxerVideoAudio(t *testing.T) {
@@ -175,8 +175,10 @@ func TestMuxerVideoAudio(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			byts, err := readPath(m, "/index.m3u8", "", "", "")
+			byts, h, err := doRequest(m, "/index.m3u8", "", "", "")
 			require.NoError(t, err)
+			require.Equal(t, "application/vnd.apple.mpegurl", h.Get("Content-Type"))
+			require.Equal(t, "max-age=30", h.Get("Cache-Control"))
 
 			switch ca {
 			case "mpegts":
@@ -207,8 +209,10 @@ func TestMuxerVideoAudio(t *testing.T) {
 					"stream.m3u8\n", string(byts))
 			}
 
-			byts, err = readPath(m, "stream.m3u8", "", "", "")
+			byts, h, err = doRequest(m, "stream.m3u8", "", "", "")
 			require.NoError(t, err)
+			require.Equal(t, "application/vnd.apple.mpegurl", h.Get("Content-Type"))
+			require.Equal(t, "no-cache", h.Get("Cache-Control"))
 
 			switch ca {
 			case "mpegts":
@@ -226,8 +230,10 @@ func TestMuxerVideoAudio(t *testing.T) {
 				ma := re.FindStringSubmatch(string(byts))
 				require.NotEqual(t, 0, len(ma))
 
-				_, err := readPath(m, ma[2], "", "", "")
+				_, h, err := doRequest(m, ma[2], "", "", "")
 				require.NoError(t, err)
+				require.Equal(t, "video/MP2T", h.Get("Content-Type"))
+				require.Equal(t, "max-age=3600", h.Get("Cache-Control"))
 
 			case "fmp4":
 				re := regexp.MustCompile(`^#EXTM3U\n` +
@@ -244,11 +250,15 @@ func TestMuxerVideoAudio(t *testing.T) {
 				ma := re.FindStringSubmatch(string(byts))
 				require.NotEqual(t, 0, len(ma))
 
-				_, err := readPath(m, "init.mp4", "", "", "")
+				_, h, err := doRequest(m, "init.mp4", "", "", "")
 				require.NoError(t, err)
+				require.Equal(t, "video/mp4", h.Get("Content-Type"))
+				require.Equal(t, "max-age=30", h.Get("Cache-Control"))
 
-				_, err = readPath(m, ma[2], "", "", "")
+				_, h, err = doRequest(m, ma[2], "", "", "")
 				require.NoError(t, err)
+				require.Equal(t, "video/mp4", h.Get("Content-Type"))
+				require.Equal(t, "max-age=3600", h.Get("Cache-Control"))
 
 			case "lowLatency":
 				require.Equal(t,
@@ -285,13 +295,15 @@ func TestMuxerVideoAudio(t *testing.T) {
 						"seg8.mp4\n"+
 						"#EXT-X-PRELOAD-HINT:TYPE=PART,URI=\"part4.mp4\"\n", string(byts))
 
-				_, err := readPath(m, "part3.mp4", "", "", "")
+				_, h, err := doRequest(m, "part3.mp4", "", "", "")
 				require.NoError(t, err)
+				require.Equal(t, "video/mp4", h.Get("Content-Type"))
+				require.Equal(t, "max-age=3600", h.Get("Cache-Control"))
 
 				recv := make(chan struct{})
 
 				go func() {
-					_, err := readPath(m, "part4.mp4", "", "", "")
+					_, _, err := doRequest(m, "part4.mp4", "", "", "")
 					require.NoError(t, err)
 					close(recv)
 				}()
@@ -355,7 +367,7 @@ func TestMuxerVideoOnly(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			byts, err := readPath(m, "index.m3u8", "", "", "")
+			byts, _, err := doRequest(m, "index.m3u8", "", "", "")
 			require.NoError(t, err)
 
 			if ca == "mpegts" {
@@ -376,7 +388,7 @@ func TestMuxerVideoOnly(t *testing.T) {
 					"stream.m3u8\n", string(byts))
 			}
 
-			byts, err = readPath(m, "stream.m3u8", "", "", "")
+			byts, _, err = doRequest(m, "stream.m3u8", "", "", "")
 			require.NoError(t, err)
 
 			var ma []string
@@ -410,13 +422,13 @@ func TestMuxerVideoOnly(t *testing.T) {
 			require.NotEqual(t, 0, len(ma))
 
 			if ca == "mpegts" {
-				_, err := readPath(m, ma[2], "", "", "")
+				_, _, err := doRequest(m, ma[2], "", "", "")
 				require.NoError(t, err)
 			} else {
-				_, err := readPath(m, "init.mp4", "", "", "")
+				_, _, err := doRequest(m, "init.mp4", "", "", "")
 				require.NoError(t, err)
 
-				_, err = readPath(m, ma[2], "", "", "")
+				_, _, err = doRequest(m, ma[2], "", "", "")
 				require.NoError(t, err)
 			}
 		})
@@ -467,7 +479,7 @@ func TestMuxerAudioOnly(t *testing.T) {
 			}})
 			require.NoError(t, err)
 
-			byts, err := readPath(m, "index.m3u8", "", "", "")
+			byts, _, err := doRequest(m, "index.m3u8", "", "", "")
 			require.NoError(t, err)
 
 			if ca == "mpegts" {
@@ -486,7 +498,7 @@ func TestMuxerAudioOnly(t *testing.T) {
 					"stream.m3u8\n", string(byts))
 			}
 
-			byts, err = readPath(m, "stream.m3u8", "", "", "")
+			byts, _, err = doRequest(m, "stream.m3u8", "", "", "")
 			require.NoError(t, err)
 
 			var ma []string
@@ -517,13 +529,13 @@ func TestMuxerAudioOnly(t *testing.T) {
 			require.NotEqual(t, 0, len(ma))
 
 			if ca == "mpegts" {
-				_, err := readPath(m, ma[2], "", "", "")
+				_, _, err := doRequest(m, ma[2], "", "", "")
 				require.NoError(t, err)
 			} else {
-				_, err := readPath(m, "init.mp4", "", "", "")
+				_, _, err := doRequest(m, "init.mp4", "", "", "")
 				require.NoError(t, err)
 
-				_, err = readPath(m, ma[2], "", "", "")
+				_, _, err = doRequest(m, ma[2], "", "", "")
 				require.NoError(t, err)
 			}
 		})
@@ -551,7 +563,7 @@ func TestMuxerCloseBeforeFirstSegment(t *testing.T) {
 
 	m.Close()
 
-	b, _ := readPath(m, "stream.m3u8", "", "", "")
+	b, _, _ := doRequest(m, "stream.m3u8", "", "", "")
 	require.Equal(t, []byte(nil), b)
 }
 
@@ -600,7 +612,7 @@ func TestMuxerDoubleRead(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	byts, err := readPath(m, "stream.m3u8", "", "", "")
+	byts, _, err := doRequest(m, "stream.m3u8", "", "", "")
 	require.NoError(t, err)
 
 	re := regexp.MustCompile(`^#EXTM3U\n` +
@@ -614,10 +626,10 @@ func TestMuxerDoubleRead(t *testing.T) {
 	ma := re.FindStringSubmatch(string(byts))
 	require.NotEqual(t, 0, len(ma))
 
-	byts1, err := readPath(m, ma[2], "", "", "")
+	byts1, _, err := doRequest(m, ma[2], "", "", "")
 	require.NoError(t, err)
 
-	byts2, err := readPath(m, ma[2], "", "", "")
+	byts2, _, err := doRequest(m, ma[2], "", "", "")
 	require.NoError(t, err)
 	require.Equal(t, byts1, byts2)
 }
@@ -744,7 +756,7 @@ func TestMuxerUpdateParams(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	bu, err := readPath(m, "index.m3u8", "", "", "")
+	bu, _, err := doRequest(m, "index.m3u8", "", "", "")
 	require.NoError(t, err)
 	require.Equal(t, "#EXTM3U\n"+
 		"#EXT-X-VERSION:9\n"+
@@ -766,7 +778,7 @@ func TestMuxerUpdateParams(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	bu, err = readPath(m, "index.m3u8", "", "", "")
+	bu, _, err = doRequest(m, "index.m3u8", "", "", "")
 	require.NoError(t, err)
 	require.Equal(t, "#EXTM3U\n"+
 		"#EXT-X-VERSION:9\n"+
