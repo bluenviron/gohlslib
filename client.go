@@ -40,10 +40,10 @@ type ClientOnTracksFunc func([]*Track) error
 type ClientOnDataH26xFunc func(pts time.Duration, dts time.Duration, au [][]byte)
 
 // ClientOnDataMPEG4AudioFunc is the prototype of the function passed to OnDataMPEG4Audio().
-type ClientOnDataMPEG4AudioFunc func(pts time.Duration, dts time.Duration, aus [][]byte)
+type ClientOnDataMPEG4AudioFunc func(pts time.Duration, aus [][]byte)
 
 // ClientOnDataOpusFunc is the prototype of the function passed to OnDataOpus().
-type ClientOnDataOpusFunc func(pts time.Duration, dts time.Duration, packets [][]byte)
+type ClientOnDataOpusFunc func(pts time.Duration, packets [][]byte)
 
 func clientAbsoluteURL(base *url.URL, relative string) (*url.URL, error) {
 	u, err := url.Parse(relative)

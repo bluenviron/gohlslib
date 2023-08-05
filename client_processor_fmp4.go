@@ -213,24 +213,24 @@ func (p *clientProcessorFMP4) initializeTrackProcs(ctx context.Context, track *f
 			}
 
 		case *codecs.MPEG4Audio:
-			var onDataCasted ClientOnDataMPEG4AudioFunc = func(pts time.Duration, dts time.Duration, aus [][]byte) {}
+			var onDataCasted ClientOnDataMPEG4AudioFunc = func(pts time.Duration, aus [][]byte) {}
 			if onData != nil {
 				onDataCasted = onData.(ClientOnDataMPEG4AudioFunc)
 			}
 
 			postProcess = func(pts time.Duration, dts time.Duration, payload []byte) error {
-				onDataCasted(pts, dts, [][]byte{payload})
+				onDataCasted(pts, [][]byte{payload})
 				return nil
 			}
 
 		case *codecs.Opus:
-			var onDataCasted ClientOnDataOpusFunc = func(pts time.Duration, dts time.Duration, packets [][]byte) {}
+			var onDataCasted ClientOnDataOpusFunc = func(pts time.Duration, packets [][]byte) {}
 			if onData != nil {
 				onDataCasted = onData.(ClientOnDataOpusFunc)
 			}
 
 			postProcess = func(pts time.Duration, dts time.Duration, payload []byte) error {
-				onDataCasted(pts, dts, [][]byte{payload})
+				onDataCasted(pts, [][]byte{payload})
 				return nil
 			}
 		}
