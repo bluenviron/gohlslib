@@ -6,7 +6,7 @@ require (
 	github.com/abema/go-mp4 v0.11.0
 	github.com/aler9/writerseeker v0.0.0-20220601075008-6f0e685b9c82
 	github.com/asticode/go-astits v1.12.0
-	github.com/bluenviron/mediacommon v0.7.1-0.20230805112107-7818184886e4
+	github.com/bluenviron/mediacommon v0.7.1-0.20230805114828-bee33f3b286d
 	github.com/gin-gonic/gin v1.9.1
 	github.com/stretchr/testify v1.8.4
 )
