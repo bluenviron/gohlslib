@@ -20,13 +20,11 @@ func trackHLSToMPEGTS(t *Track) *mpegts.Track {
 	switch tcodec := t.Codec.(type) {
 	case *codecs.H264:
 		return &mpegts.Track{
-			PID:   256,
 			Codec: &mpegts.CodecH264{},
 		}
 
 	case *codecs.MPEG4Audio:
 		return &mpegts.Track{
-			PID: 257,
 			Codec: &mpegts.CodecMPEG4Audio{
 				Config: tcodec.Config,
 			},
