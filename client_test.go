@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/bluenviron/gohlslib/pkg/codecs"
-	"github.com/bluenviron/gohlslib/pkg/fmp4"
+	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
 )
 
 var serverCert = []byte(`-----BEGIN CERTIFICATE-----
@@ -127,7 +127,7 @@ func mp4Init(t *testing.T, w io.Writer) {
 			{
 				ID:        1,
 				TimeScale: 90000,
-				Codec: &codecs.H264{
+				Codec: &fmp4.CodecH264{
 					SPS: []byte{
 						0x67, 0x42, 0xc0, 0x28, 0xd9, 0x00, 0x78, 0x02,
 						0x27, 0xe5, 0x84, 0x00, 0x00, 0x03, 0x00, 0x04,
@@ -158,8 +158,7 @@ func mp4Segment(t *testing.T, w io.Writer) {
 	p := &fmp4.Part{
 		Tracks: []*fmp4.PartTrack{
 			{
-				ID:      1,
-				IsVideo: true,
+				ID: 1,
 				Samples: []*fmp4.PartSample{{
 					Duration:  90000 / 30,
 					PTSOffset: 90000 * 2,

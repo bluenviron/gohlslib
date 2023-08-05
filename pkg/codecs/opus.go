@@ -2,7 +2,7 @@ package codecs
 
 // Opus is a Opus codec.
 type Opus struct {
-	Channels int
+	ChannelCount int
 }
 
 func (*Opus) isCodec() {}

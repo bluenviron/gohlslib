@@ -29,24 +29,6 @@ func mpegtsPickLeadingTrack(mpegtsTracks []*mpegts.Track) *mpegts.Track {
 	return mpegtsTracks[0]
 }
 
-func trackMPEGTSToHLS(mt *mpegts.Track) *Track {
-	switch tcodec := mt.Codec.(type) {
-	case *mpegts.CodecH264:
-		return &Track{
-			Codec: &codecs.H264{},
-		}
-
-	case *mpegts.CodecMPEG4Audio:
-		return &Track{
-			Codec: &codecs.MPEG4Audio{
-				Config: tcodec.Config,
-			},
-		}
-	}
-
-	return nil
-}
-
 type switchableReader struct {
 	r io.Reader
 }
@@ -134,7 +116,9 @@ func (p *clientProcessorMPEGTS) processSegment(ctx context.Context, byts []byte)
 		p.tracks = make([]*Track, len(p.reader.Tracks()))
 
 		for i, mpegtsTrack := range p.reader.Tracks() {
-			p.tracks[i] = trackMPEGTSToHLS(mpegtsTrack)
+			p.tracks[i] = &Track{
+				Codec: codecs.FromMPEGTS(mpegtsTrack.Codec),
+			}
 		}
 
 		ok := p.onStreamTracks(ctx, p.tracks)
