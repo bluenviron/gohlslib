@@ -113,7 +113,7 @@ func (s *muxerSegmentFMP4) finalize(nextDTS time.Duration) error {
 	return nil
 }
 
-func (s *muxerSegmentFMP4) writeH264(
+func (s *muxerSegmentFMP4) writeVideo(
 	sample *augmentedVideoSample,
 	nextDTS time.Duration,
 	adjustedPartDuration time.Duration,
@@ -124,7 +124,7 @@ func (s *muxerSegmentFMP4) writeH264(
 	}
 	s.size += size
 
-	s.currentPart.writeH264(sample)
+	s.currentPart.writeVideo(sample)
 
 	// switch part
 	if s.lowLatency &&

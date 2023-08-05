@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/bluenviron/gohlslib/pkg/fmp4"
 	"github.com/bluenviron/gohlslib/pkg/storage"
+	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
 )
 
 func fmp4PartName(id uint64) string {
@@ -75,7 +75,6 @@ func (p *muxerPart) finalize(nextDTS time.Duration) error {
 			ID:       1,
 			BaseTime: durationGoToMp4(p.videoStartDTS, 90000),
 			Samples:  p.videoSamples,
-			IsVideo:  true,
 		})
 	}
 
@@ -100,7 +99,7 @@ func (p *muxerPart) finalize(nextDTS time.Duration) error {
 	return nil
 }
 
-func (p *muxerPart) writeH264(sample *augmentedVideoSample) {
+func (p *muxerPart) writeVideo(sample *augmentedVideoSample) {
 	if !p.videoStartDTSFilled {
 		p.videoStartDTSFilled = true
 		p.videoStartDTS = sample.dts

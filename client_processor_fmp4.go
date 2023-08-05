@@ -5,17 +5,16 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
+	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
 
 	"github.com/bluenviron/gohlslib/pkg/codecs"
-	"github.com/bluenviron/gohlslib/pkg/fmp4"
 )
 
 func fmp4PickLeadingTrack(init *fmp4.Init) int {
 	// pick first video track
 	for _, track := range init.Tracks {
 		switch track.Codec.(type) {
-		case *codecs.H264, *codecs.H265:
+		case *fmp4.CodecAV1, *fmp4.CodecH264, *fmp4.CodecH265:
 			return track.ID
 		}
 	}
@@ -72,7 +71,7 @@ func newClientProcessorFMP4(
 	p.tracks = make([]*Track, len(p.init.Tracks))
 	for i, track := range p.init.Tracks {
 		p.tracks[i] = &Track{
-			Codec: track.Codec,
+			Codec: codecs.FromFMP4(track.Codec),
 		}
 	}
 
@@ -193,33 +192,38 @@ func (p *clientProcessorFMP4) initializeTrackProcs(ctx context.Context, track *f
 	for i, track := range p.tracks {
 		onData := p.onData[track]
 
-		var postProcess func(pts time.Duration, dts time.Duration, payload []byte) error
+		var postProcess func(pts time.Duration, dts time.Duration, sample *fmp4.PartSample) error
 
 		switch track.Codec.(type) {
-		case *codecs.H264, *codecs.H265:
+		case *codecs.AV1:
+			var onDataCasted ClientOnDataAV1Func = func(pts time.Duration, obus [][]byte) {}
+			if onData != nil {
+				onDataCasted = onData.(ClientOnDataAV1Func)
+			}
+
+			postProcess = func(pts time.Duration, dts time.Duration, sample *fmp4.PartSample) error {
+				obus, err := sample.GetAV1()
+				if err != nil {
+					return err
+				}
+
+				onDataCasted(pts, obus)
+				return nil
+			}
+
+		case *codecs.H265, *codecs.H264:
 			var onDataCasted ClientOnDataH26xFunc = func(pts time.Duration, dts time.Duration, au [][]byte) {}
 			if onData != nil {
 				onDataCasted = onData.(ClientOnDataH26xFunc)
 			}
 
-			postProcess = func(pts time.Duration, dts time.Duration, payload []byte) error {
-				au, err := h264.AVCCUnmarshal(payload)
+			postProcess = func(pts time.Duration, dts time.Duration, sample *fmp4.PartSample) error {
+				au, err := sample.GetH26x()
 				if err != nil {
 					return err
 				}
 
 				onDataCasted(pts, dts, au)
-				return nil
-			}
-
-		case *codecs.MPEG4Audio:
-			var onDataCasted ClientOnDataMPEG4AudioFunc = func(pts time.Duration, aus [][]byte) {}
-			if onData != nil {
-				onDataCasted = onData.(ClientOnDataMPEG4AudioFunc)
-			}
-
-			postProcess = func(pts time.Duration, dts time.Duration, payload []byte) error {
-				onDataCasted(pts, [][]byte{payload})
 				return nil
 			}
 
@@ -229,8 +233,19 @@ func (p *clientProcessorFMP4) initializeTrackProcs(ctx context.Context, track *f
 				onDataCasted = onData.(ClientOnDataOpusFunc)
 			}
 
-			postProcess = func(pts time.Duration, dts time.Duration, payload []byte) error {
-				onDataCasted(pts, [][]byte{payload})
+			postProcess = func(pts time.Duration, dts time.Duration, sample *fmp4.PartSample) error {
+				onDataCasted(pts, [][]byte{sample.GetAudio()})
+				return nil
+			}
+
+		case *codecs.MPEG4Audio:
+			var onDataCasted ClientOnDataMPEG4AudioFunc = func(pts time.Duration, aus [][]byte) {}
+			if onData != nil {
+				onDataCasted = onData.(ClientOnDataMPEG4AudioFunc)
+			}
+
+			postProcess = func(pts time.Duration, dts time.Duration, sample *fmp4.PartSample) error {
+				onDataCasted(pts, [][]byte{sample.GetAudio()})
 				return nil
 			}
 		}
@@ -253,7 +268,7 @@ func (p *clientProcessorFMP4) initializeTrackProcs(ctx context.Context, track *f
 					continue
 				}
 
-				err = postProcess(pts, dts, sample.Payload)
+				err = postProcess(pts, dts, sample)
 				if err != nil {
 					return err
 				}

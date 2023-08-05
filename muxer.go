@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/bluenviron/mediacommon/pkg/codecs/av1"
 	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
 	"github.com/bluenviron/mediacommon/pkg/codecs/h265"
 
@@ -169,66 +170,61 @@ func (m *Muxer) Close() {
 	m.segmenter.close()
 }
 
+// WriteAV1 writes an AV1 OBU sequence.
+func (m *Muxer) WriteAV1(ntp time.Time, pts time.Duration, obus [][]byte) error {
+	codec := m.VideoTrack.Codec.(*codecs.AV1)
+	update := false
+	sequenceHeader := codec.SequenceHeader
+	sequenceHeaderPresent := false
+
+	for _, obu := range obus {
+		var h av1.OBUHeader
+		err := h.Unmarshal(obu)
+		if err != nil {
+			return err
+		}
+
+		if h.Type == av1.OBUTypeSequenceHeader {
+			if !bytes.Equal(sequenceHeader, obu) {
+				update = true
+				sequenceHeader = obu
+			}
+			sequenceHeaderPresent = true
+		}
+	}
+
+	if update {
+		err := func() error {
+			m.server.mutex.Lock()
+			defer m.server.mutex.Unlock()
+			codec.SequenceHeader = sequenceHeader
+			return m.server.generateInitFile()
+		}()
+		if err != nil {
+			return fmt.Errorf("unable to generate init.mp4: %v", err)
+		}
+		m.forceSwitch = true
+	}
+
+	forceSwitch := false
+	if sequenceHeaderPresent && m.forceSwitch {
+		m.forceSwitch = false
+		forceSwitch = true
+	}
+
+	return m.segmenter.writeAV1(ntp, pts, obus, sequenceHeaderPresent, forceSwitch)
+}
+
 // WriteH26x writes an H264 or an H265 access unit.
 func (m *Muxer) WriteH26x(ntp time.Time, pts time.Duration, au [][]byte) error {
 	randomAccessPresent := false
-	forceSwitch := false
 
-	switch tcodec := m.VideoTrack.Codec.(type) {
-	case *codecs.H264:
-		nonIDRPresent := false
-		sps := tcodec.SPS
-		pps := tcodec.PPS
-		update := false
-
-		for _, nalu := range au {
-			typ := h264.NALUType(nalu[0] & 0x1F)
-
-			switch typ {
-			case h264.NALUTypeIDR:
-				randomAccessPresent = true
-
-			case h264.NALUTypeNonIDR:
-				nonIDRPresent = true
-
-			case h264.NALUTypeSPS:
-				if !bytes.Equal(sps, nalu) {
-					update = true
-					sps = nalu
-				}
-
-			case h264.NALUTypePPS:
-				if !bytes.Equal(pps, nalu) {
-					update = true
-					pps = nalu
-				}
-			}
-		}
-
-		if update {
-			err := func() error {
-				m.server.mutex.Lock()
-				defer m.server.mutex.Unlock()
-				tcodec.SPS = sps
-				tcodec.PPS = pps
-				return m.server.generateInitFile()
-			}()
-			if err != nil {
-				return fmt.Errorf("unable to generate init.mp4: %v", err)
-			}
-
-			m.forceSwitch = true
-		}
-
-		if !randomAccessPresent && !nonIDRPresent {
-			return nil
-		}
-
+	switch codec := m.VideoTrack.Codec.(type) {
 	case *codecs.H265:
-		vps := tcodec.VPS
-		sps := tcodec.SPS
-		pps := tcodec.PPS
 		update := false
+		vps := codec.VPS
+		sps := codec.SPS
+		pps := codec.PPS
 
 		for _, nalu := range au {
 			typ := h265.NALUType((nalu[0] >> 1) & 0b111111)
@@ -261,9 +257,9 @@ func (m *Muxer) WriteH26x(ntp time.Time, pts time.Duration, au [][]byte) error {
 			err := func() error {
 				m.server.mutex.Lock()
 				defer m.server.mutex.Unlock()
-				tcodec.VPS = vps
-				tcodec.SPS = sps
-				tcodec.PPS = pps
+				codec.VPS = vps
+				codec.SPS = sps
+				codec.PPS = pps
 				return m.server.generateInitFile()
 			}()
 			if err != nil {
@@ -271,8 +267,57 @@ func (m *Muxer) WriteH26x(ntp time.Time, pts time.Duration, au [][]byte) error {
 			}
 			m.forceSwitch = true
 		}
+
+	case *codecs.H264:
+		update := false
+		nonIDRPresent := false
+		sps := codec.SPS
+		pps := codec.PPS
+
+		for _, nalu := range au {
+			typ := h264.NALUType(nalu[0] & 0x1F)
+
+			switch typ {
+			case h264.NALUTypeIDR:
+				randomAccessPresent = true
+
+			case h264.NALUTypeNonIDR:
+				nonIDRPresent = true
+
+			case h264.NALUTypeSPS:
+				if !bytes.Equal(sps, nalu) {
+					update = true
+					sps = nalu
+				}
+
+			case h264.NALUTypePPS:
+				if !bytes.Equal(pps, nalu) {
+					update = true
+					pps = nalu
+				}
+			}
+		}
+
+		if update {
+			err := func() error {
+				m.server.mutex.Lock()
+				defer m.server.mutex.Unlock()
+				codec.SPS = sps
+				codec.PPS = pps
+				return m.server.generateInitFile()
+			}()
+			if err != nil {
+				return fmt.Errorf("unable to generate init.mp4: %v", err)
+			}
+			m.forceSwitch = true
+		}
+
+		if !randomAccessPresent && !nonIDRPresent {
+			return nil
+		}
 	}
 
+	forceSwitch := false
 	if randomAccessPresent && m.forceSwitch {
 		m.forceSwitch = false
 		forceSwitch = true

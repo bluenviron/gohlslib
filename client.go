@@ -36,6 +36,9 @@ type ClientOnDecodeErrorFunc func(err error)
 // ClientOnTracksFunc is the prototype of the function passed to OnTracks().
 type ClientOnTracksFunc func([]*Track) error
 
+// ClientOnDataAV1Func is the prototype of the function passed to OnDataAV1().
+type ClientOnDataAV1Func func(pts time.Duration, obus [][]byte)
+
 // ClientOnDataH26xFunc is the prototype of the function passed to OnDataH26x().
 type ClientOnDataH26xFunc func(pts time.Duration, dts time.Duration, au [][]byte)
 
@@ -137,6 +140,11 @@ func (c *Client) Wait() chan error {
 // OnTracks sets a callback that is called when tracks are read.
 func (c *Client) OnTracks(cb ClientOnTracksFunc) {
 	c.onTracks = cb
+}
+
+// OnDataAV1 sets a callback that is called when data from an AV1 track is received.
+func (c *Client) OnDataAV1(forma *Track, cb ClientOnDataAV1Func) {
+	c.onData[forma] = cb
 }
 
 // OnDataH26x sets a callback that is called when data from an H26x track is received.

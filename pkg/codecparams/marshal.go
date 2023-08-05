@@ -7,18 +7,48 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/bluenviron/gohlslib/pkg/codecs"
+	"github.com/bluenviron/mediacommon/pkg/codecs/av1"
 	"github.com/bluenviron/mediacommon/pkg/codecs/h265"
+
+	"github.com/bluenviron/gohlslib/pkg/codecs"
 )
 
-func encodeProfileSpace(v uint8) string {
+func leadingZeros(v int, size int) string {
+	out := strconv.FormatInt(int64(v), 10)
+	if len(out) >= size {
+		return out
+	}
+
+	out2 := ""
+	for i := 0; i < (size - len(out)); i++ {
+		out2 += "0"
+	}
+
+	return out2 + out
+}
+
+func av1EncodeTier(v bool) string {
+	if v {
+		return "H"
+	}
+	return "M"
+}
+
+func av1EncodeBool(v bool) string {
+	if v {
+		return "1"
+	}
+	return "0"
+}
+
+func h265EncodeProfileSpace(v uint8) string {
 	if v >= 1 && v <= 3 {
 		return string('A' + (v - 1))
 	}
 	return ""
 }
 
-func encodeCompatibilityFlag(v [32]bool) string {
+func h265EncodeCompatibilityFlag(v [32]bool) string {
 	var o uint32
 	for i, b := range v {
 		if b {
@@ -28,14 +58,14 @@ func encodeCompatibilityFlag(v [32]bool) string {
 	return fmt.Sprintf("%x", o)
 }
 
-func encodeGeneralTierFlag(v uint8) string {
+func h265EncodeGeneralTierFlag(v uint8) string {
 	if v > 0 {
 		return "H"
 	}
 	return "L"
 }
 
-func encodeGeneralConstraintIndicatorFlags(v *h265.SPS_ProfileTierLevel) string {
+func h265EncodeGeneralConstraintIndicatorFlags(v *h265.SPS_ProfileTierLevel) string {
 	var ret []string
 
 	var o1 uint8
@@ -95,31 +125,57 @@ func encodeGeneralConstraintIndicatorFlags(v *h265.SPS_ProfileTierLevel) string 
 
 // Marshal generates codec parameters of given tracks.
 func Marshal(codec codecs.Codec) string {
-	switch tcodec := codec.(type) {
-	case *codecs.H264:
-		if len(tcodec.SPS) >= 4 {
-			return "avc1." + hex.EncodeToString(tcodec.SPS[1:4])
+	switch codec := codec.(type) {
+	case *codecs.AV1:
+		var sh av1.SequenceHeader
+		err := sh.Unmarshal(codec.SequenceHeader)
+		if err == nil {
+			v := "av01." +
+				strconv.FormatInt(int64(sh.SeqProfile), 10) + "." +
+				leadingZeros(int(sh.SeqLevelIdx[0]), 2) +
+				av1EncodeTier(sh.SeqTier[0]) + "." +
+				leadingZeros(sh.ColorConfig.BitDepth, 2) + "." +
+				av1EncodeBool(sh.ColorConfig.MonoChrome) + "." +
+				av1EncodeBool(sh.ColorConfig.SubsamplingX) +
+				av1EncodeBool(sh.ColorConfig.SubsamplingY) +
+				strconv.FormatInt(int64(sh.ColorConfig.ChromaSamplePosition), 10) + "."
+
+			if sh.ColorConfig.ColorDescriptionPresentFlag {
+				v += leadingZeros(int(sh.ColorConfig.ColorPrimaries), 2) + "." +
+					leadingZeros(int(sh.ColorConfig.TransferCharacteristics), 2) + "." +
+					leadingZeros(int(sh.ColorConfig.MatrixCoefficients), 2) + "." +
+					av1EncodeBool(sh.ColorConfig.ColorRange)
+			} else {
+				v += "01.01.01.0"
+			}
+
+			return v
 		}
 
 	case *codecs.H265:
 		var sps h265.SPS
-		err := sps.Unmarshal(tcodec.SPS)
+		err := sps.Unmarshal(codec.SPS)
 		if err == nil {
 			return "hvc1." +
-				encodeProfileSpace(sps.ProfileTierLevel.GeneralProfileSpace) +
+				h265EncodeProfileSpace(sps.ProfileTierLevel.GeneralProfileSpace) +
 				strconv.FormatInt(int64(sps.ProfileTierLevel.GeneralProfileIdc), 10) + "." +
-				encodeCompatibilityFlag(sps.ProfileTierLevel.GeneralProfileCompatibilityFlag) + "." +
-				encodeGeneralTierFlag(sps.ProfileTierLevel.GeneralTierFlag) +
+				h265EncodeCompatibilityFlag(sps.ProfileTierLevel.GeneralProfileCompatibilityFlag) + "." +
+				h265EncodeGeneralTierFlag(sps.ProfileTierLevel.GeneralTierFlag) +
 				strconv.FormatInt(int64(sps.ProfileTierLevel.GeneralLevelIdc), 10) + "." +
-				encodeGeneralConstraintIndicatorFlags(&sps.ProfileTierLevel)
+				h265EncodeGeneralConstraintIndicatorFlags(&sps.ProfileTierLevel)
 		}
 
-	case *codecs.MPEG4Audio:
-		// https://developer.mozilla.org/en-US/docs/Web/Media/Formats/codecs_parameter
-		return "mp4a.40." + strconv.FormatInt(int64(tcodec.Config.Type), 10)
+	case *codecs.H264:
+		if len(codec.SPS) >= 4 {
+			return "avc1." + hex.EncodeToString(codec.SPS[1:4])
+		}
 
 	case *codecs.Opus:
 		return "opus"
+
+	case *codecs.MPEG4Audio:
+		// https://developer.mozilla.org/en-US/docs/Web/Media/Formats/codecs_parameter
+		return "mp4a.40." + strconv.FormatInt(int64(codec.Config.Type), 10)
 	}
 
 	return ""

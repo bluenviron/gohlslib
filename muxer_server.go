@@ -12,14 +12,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bluenviron/mediacommon/pkg/codecs/av1"
 	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
 	"github.com/bluenviron/mediacommon/pkg/codecs/h265"
 
 	"github.com/bluenviron/gohlslib/pkg/codecparams"
 	"github.com/bluenviron/gohlslib/pkg/codecs"
-	"github.com/bluenviron/gohlslib/pkg/fmp4"
 	"github.com/bluenviron/gohlslib/pkg/playlist"
 	"github.com/bluenviron/gohlslib/pkg/storage"
+	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
 )
 
 func targetDuration(segments []muxerSegment) int {
@@ -66,12 +67,15 @@ func partTargetDuration(
 }
 
 func videoHasParameters(videoTrack *Track) bool {
-	switch tcodec := videoTrack.Codec.(type) {
+	switch codec := videoTrack.Codec.(type) {
+	case *codecs.AV1:
+		return codec.SequenceHeader != nil
+
 	case *codecs.H264:
-		return tcodec.SPS != nil && tcodec.PPS != nil
+		return codec.SPS != nil && codec.PPS != nil
 
 	case *codecs.H265:
-		return tcodec.VPS != nil && tcodec.SPS != nil && tcodec.PPS != nil
+		return codec.VPS != nil && codec.SPS != nil && codec.PPS != nil
 	}
 	return false
 }
@@ -255,10 +259,22 @@ func (s *muxerServer) handleMultistreamPlaylist(w http.ResponseWriter) {
 		var frameRate *float64
 
 		if s.videoTrack != nil {
-			switch tcodec := s.videoTrack.Codec.(type) {
-			case *codecs.H264:
-				var sps h264.SPS
-				err := sps.Unmarshal(tcodec.SPS)
+			switch codec := s.videoTrack.Codec.(type) {
+			case *codecs.AV1:
+				var sh av1.SequenceHeader
+				err := sh.Unmarshal(codec.SequenceHeader)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return nil
+				}
+
+				resolution = strconv.FormatInt(int64(sh.Width()), 10) + "x" + strconv.FormatInt(int64(sh.Height()), 10)
+
+				// TODO: FPS
+
+			case *codecs.H265:
+				var sps h265.SPS
+				err := sps.Unmarshal(codec.SPS)
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
 					return nil
@@ -271,9 +287,9 @@ func (s *muxerServer) handleMultistreamPlaylist(w http.ResponseWriter) {
 					frameRate = &f
 				}
 
-			case *codecs.H265:
-				var sps h265.SPS
-				err := sps.Unmarshal(tcodec.SPS)
+			case *codecs.H264:
+				var sps h264.SPS
+				err := sps.Unmarshal(codec.SPS)
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
 					return nil
@@ -756,7 +772,7 @@ func (s *muxerServer) generateInitFile() error {
 		init.Tracks = append(init.Tracks, &fmp4.InitTrack{
 			ID:        trackID,
 			TimeScale: 90000,
-			Codec:     s.videoTrack.Codec,
+			Codec:     codecs.ToFMP4(s.videoTrack.Codec),
 		})
 		trackID++
 	}
@@ -765,7 +781,7 @@ func (s *muxerServer) generateInitFile() error {
 		init.Tracks = append(init.Tracks, &fmp4.InitTrack{
 			ID:        trackID,
 			TimeScale: fmp4TimeScale(s.audioTrack.Codec),
-			Codec:     s.audioTrack.Codec,
+			Codec:     codecs.ToFMP4(s.audioTrack.Codec),
 		})
 	}
 

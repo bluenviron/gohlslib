@@ -195,7 +195,7 @@ func TestMuxerVideoAudio(t *testing.T) {
 					"#EXT-X-VERSION:9\n"+
 					"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 					"\n"+
-					"#EXT-X-STREAM-INF:BANDWIDTH=936,AVERAGE-BANDWIDTH=584,"+
+					"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=558,"+
 					"CODECS=\"avc1.42c028,mp4a.40.2\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
 					"stream.m3u8\n", string(byts))
 
@@ -204,7 +204,7 @@ func TestMuxerVideoAudio(t *testing.T) {
 					"#EXT-X-VERSION:9\n"+
 					"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 					"\n"+
-					"#EXT-X-STREAM-INF:BANDWIDTH=936,AVERAGE-BANDWIDTH=737,"+
+					"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=705,"+
 					"CODECS=\"avc1.42c028,mp4a.40.2\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
 					"stream.m3u8\n", string(byts))
 			}
@@ -383,7 +383,7 @@ func TestMuxerVideoOnly(t *testing.T) {
 					"#EXT-X-VERSION:9\n"+
 					"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 					"\n"+
-					"#EXT-X-STREAM-INF:BANDWIDTH=936,AVERAGE-BANDWIDTH=428,"+
+					"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=403,"+
 					"CODECS=\"avc1.42c028\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
 					"stream.m3u8\n", string(byts))
 			}
@@ -762,7 +762,7 @@ func TestMuxerUpdateParams(t *testing.T) {
 		"#EXT-X-VERSION:9\n"+
 		"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 		"\n"+
-		"#EXT-X-STREAM-INF:BANDWIDTH=1208,AVERAGE-BANDWIDTH=1092,"+
+		"#EXT-X-STREAM-INF:BANDWIDTH=1144,AVERAGE-BANDWIDTH=1028,"+
 		"CODECS=\"avc1.42c028\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
 		"stream.m3u8\n", string(bu))
 
@@ -784,7 +784,7 @@ func TestMuxerUpdateParams(t *testing.T) {
 		"#EXT-X-VERSION:9\n"+
 		"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 		"\n"+
-		"#EXT-X-STREAM-INF:BANDWIDTH=1208,AVERAGE-BANDWIDTH=1053,"+
+		"#EXT-X-STREAM-INF:BANDWIDTH=1144,AVERAGE-BANDWIDTH=989,"+
 		"CODECS=\"avc1.64001f\",RESOLUTION=1280x720,FRAME-RATE=30.000\n"+
 		"stream.m3u8\n", string(bu))
 }

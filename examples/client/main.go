@@ -25,6 +25,11 @@ func main() {
 
 			// setup a hook that is called when data is received
 			switch track.Codec.(type) {
+			case *codecs.AV1:
+				c.OnDataAV1(track, func(pts time.Duration, obus [][]byte) {
+					log.Printf("received data from track %T, pts = %v", ttrack, pts)
+				})
+
 			case *codecs.H264, *codecs.H265:
 				c.OnDataH26x(track, func(pts time.Duration, dts time.Duration, au [][]byte) {
 					log.Printf("received data from track %T, pts = %v", ttrack, pts)

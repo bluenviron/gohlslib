@@ -16,24 +16,6 @@ const (
 	mpegtsSegmentMinAUCount = 100
 )
 
-func trackHLSToMPEGTS(t *Track) *mpegts.Track {
-	switch tcodec := t.Codec.(type) {
-	case *codecs.H264:
-		return &mpegts.Track{
-			Codec: &mpegts.CodecH264{},
-		}
-
-	case *codecs.MPEG4Audio:
-		return &mpegts.Track{
-			Codec: &mpegts.CodecMPEG4Audio{
-				Config: tcodec.Config,
-			},
-		}
-	}
-
-	return nil
-}
-
 type switchableWriter struct {
 	w io.Writer
 }
@@ -80,12 +62,16 @@ func newMuxerSegmenterMPEGTS(
 	var tracks []*mpegts.Track
 
 	if videoTrack != nil {
-		m.writerVideoTrack = trackHLSToMPEGTS(videoTrack)
+		m.writerVideoTrack = &mpegts.Track{
+			Codec: codecs.ToMPEGTS(videoTrack.Codec),
+		}
 		tracks = append(tracks, m.writerVideoTrack)
 	}
 
 	if audioTrack != nil {
-		m.writerAudioTrack = trackHLSToMPEGTS(audioTrack)
+		m.writerAudioTrack = &mpegts.Track{
+			Codec: codecs.ToMPEGTS(audioTrack.Codec),
+		}
 		tracks = append(tracks, m.writerAudioTrack)
 	}
 
@@ -107,6 +93,16 @@ func (m *muxerSegmenterMPEGTS) genSegmentID() uint64 {
 	id := m.nextSegmentID
 	m.nextSegmentID++
 	return id
+}
+
+func (m *muxerSegmenterMPEGTS) writeAV1(
+	_ time.Time,
+	_ time.Duration,
+	_ [][]byte,
+	_ bool,
+	_ bool,
+) error {
+	return fmt.Errorf("unimplemented")
 }
 
 func (m *muxerSegmenterMPEGTS) writeH26x(
@@ -195,12 +191,12 @@ func (m *muxerSegmenterMPEGTS) writeH26x(
 	return nil
 }
 
-func (m *muxerSegmenterMPEGTS) writeMPEG4Audio(ntp time.Time, pts time.Duration, aus [][]byte) error {
-	return m.writeAudio(ntp, pts, aus)
-}
-
 func (m *muxerSegmenterMPEGTS) writeOpus(_ time.Time, _ time.Duration, _ [][]byte) error {
 	return fmt.Errorf("unimplemented")
+}
+
+func (m *muxerSegmenterMPEGTS) writeMPEG4Audio(ntp time.Time, pts time.Duration, aus [][]byte) error {
+	return m.writeAudio(ntp, pts, aus)
 }
 
 func (m *muxerSegmenterMPEGTS) writeAudio(ntp time.Time, pts time.Duration, aus [][]byte) error {
