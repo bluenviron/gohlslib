@@ -31,12 +31,12 @@ func main() {
 				})
 
 			case *codecs.MPEG4Audio:
-				c.OnDataMPEG4Audio(track, func(pts time.Duration, dts time.Duration, aus [][]byte) {
+				c.OnDataMPEG4Audio(track, func(pts time.Duration, aus [][]byte) {
 					log.Printf("received data from track %T, pts = %v", ttrack, pts)
 				})
 
 			case *codecs.Opus:
-				c.OnDataOpus(track, func(pts time.Duration, dts time.Duration, packets [][]byte) {
+				c.OnDataOpus(track, func(pts time.Duration, packets [][]byte) {
 					log.Printf("received data from track %T, pts = %v", ttrack, pts)
 				})
 			}

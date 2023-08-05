@@ -199,16 +199,16 @@ func (p *clientProcessorMPEGTS) processSegment(ctx context.Context, byts []byte)
 				})
 
 			case *codecs.MPEG4Audio:
-				var onDataCasted ClientOnDataMPEG4AudioFunc = func(pts time.Duration, dts time.Duration, aus [][]byte) {}
+				var onDataCasted ClientOnDataMPEG4AudioFunc = func(pts time.Duration, aus [][]byte) {}
 				if onData != nil {
 					onDataCasted = onData.(ClientOnDataMPEG4AudioFunc)
 				}
 
-				p.reader.OnDataMPEG4Audio(mpegtsTrack, func(pts int64, dts int64, aus [][]byte) error {
+				p.reader.OnDataMPEG4Audio(mpegtsTrack, func(pts int64, aus [][]byte) error {
 					return prePreProcess(
-						pts, dts,
+						pts, pts,
 						func(pts time.Duration, dts time.Duration) {
-							onDataCasted(pts, dts, aus)
+							onDataCasted(pts, aus)
 						})
 				})
 			}
