@@ -2,6 +2,8 @@ package gohlslib
 
 import (
 	"bytes"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"time"
@@ -13,6 +15,18 @@ import (
 	"github.com/bluenviron/gohlslib/pkg/codecs"
 	"github.com/bluenviron/gohlslib/pkg/storage"
 )
+
+// a prefix is needed to prevent usage of cached segments
+// from previous muxing sessions.
+func generatePrefix() (string, error) {
+	var buf [6]byte
+	_, err := rand.Read(buf[:])
+	if err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(buf[:]), nil
+}
 
 // MuxerVariant is a muxer variant.
 type MuxerVariant int
@@ -68,6 +82,7 @@ type Muxer struct {
 	// private
 	//
 
+	prefix         string
 	storageFactory storage.Factory
 	server         *muxerServer
 	segmenter      muxerSegmenter
@@ -120,18 +135,24 @@ func (m *Muxer) Start() error {
 		}
 	}
 
+	var err error
+	m.prefix, err = generatePrefix()
+	if err != nil {
+		return err
+	}
+
 	if m.Directory != "" {
 		m.storageFactory = storage.NewFactoryDisk(m.Directory)
 	} else {
 		m.storageFactory = storage.NewFactoryRAM()
 	}
 
-	var err error
 	m.server, err = newMuxerServer(
 		m.Variant,
 		m.SegmentCount,
 		m.VideoTrack,
 		m.AudioTrack,
+		m.prefix,
 		m.storageFactory,
 	)
 	if err != nil {
@@ -144,8 +165,9 @@ func (m *Muxer) Start() error {
 			m.SegmentMaxSize,
 			m.VideoTrack,
 			m.AudioTrack,
+			m.prefix,
 			m.storageFactory,
-			m.server.onSegmentFinalized,
+			m.server.publishSegment,
 		)
 	} else {
 		m.segmenter = newMuxerSegmenterFMP4(
@@ -155,9 +177,10 @@ func (m *Muxer) Start() error {
 			m.SegmentMaxSize,
 			m.VideoTrack,
 			m.AudioTrack,
+			m.prefix,
 			m.storageFactory,
-			m.server.onSegmentFinalized,
-			m.server.onPartFinalized,
+			m.server.publishSegment,
+			m.server.publishPart,
 		)
 	}
 

@@ -29,6 +29,7 @@ type muxerSegmenterMPEGTS struct {
 	segmentMaxSize  uint64
 	videoTrack      *Track
 	audioTrack      *Track
+	prefix          string
 	factory         storage.Factory
 	onSegmentReady  func(muxerSegment)
 
@@ -47,6 +48,7 @@ func newMuxerSegmenterMPEGTS(
 	segmentMaxSize uint64,
 	videoTrack *Track,
 	audioTrack *Track,
+	prefix string,
 	factory storage.Factory,
 	onSegmentReady func(muxerSegment),
 ) *muxerSegmenterMPEGTS {
@@ -55,6 +57,7 @@ func newMuxerSegmenterMPEGTS(
 		segmentMaxSize:  segmentMaxSize,
 		videoTrack:      videoTrack,
 		audioTrack:      audioTrack,
+		prefix:          prefix,
 		factory:         factory,
 		onSegmentReady:  onSegmentReady,
 	}
@@ -141,6 +144,7 @@ func (m *muxerSegmenterMPEGTS) writeH26x(
 			m.writerAudioTrack,
 			m.switchableWriter,
 			m.writer,
+			m.prefix,
 			m.factory)
 		if err != nil {
 			return err
@@ -171,6 +175,7 @@ func (m *muxerSegmenterMPEGTS) writeH26x(
 				m.writerAudioTrack,
 				m.switchableWriter,
 				m.writer,
+				m.prefix,
 				m.factory,
 			)
 			if err != nil {
@@ -211,6 +216,7 @@ func (m *muxerSegmenterMPEGTS) writeMPEG4Audio(ntp time.Time, pts time.Duration,
 				m.writerAudioTrack,
 				m.switchableWriter,
 				m.writer,
+				m.prefix,
 				m.factory,
 			)
 			if err != nil {
@@ -234,6 +240,7 @@ func (m *muxerSegmenterMPEGTS) writeMPEG4Audio(ntp time.Time, pts time.Duration,
 					m.writerAudioTrack,
 					m.switchableWriter,
 					m.writer,
+					m.prefix,
 					m.factory,
 				)
 				if err != nil {

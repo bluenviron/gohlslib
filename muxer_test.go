@@ -223,12 +223,12 @@ func TestMuxerVideoAudio(t *testing.T) {
 					`#EXT-X-MEDIA-SEQUENCE:0\n` +
 					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
 					`#EXTINF:4.00000,\n` +
-					`(seg0\.ts)\n` +
+					`(.*?_seg0\.ts)\n` +
 					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
 					`#EXTINF:1.00000,\n` +
-					`(seg1\.ts)\n$`)
+					`(.*?_seg1\.ts)\n$`)
+				require.Regexp(t, re, string(byts))
 				ma := re.FindStringSubmatch(string(byts))
-				require.NotEqual(t, 0, len(ma))
 
 				_, h, err := doRequest(m, ma[2], "", "", "")
 				require.NoError(t, err)
@@ -240,62 +240,64 @@ func TestMuxerVideoAudio(t *testing.T) {
 					`#EXT-X-VERSION:9\n` +
 					`#EXT-X-TARGETDURATION:4\n` +
 					`#EXT-X-MEDIA-SEQUENCE:0\n` +
-					`#EXT-X-MAP:URI="init.mp4"\n` +
+					`#EXT-X-MAP:URI="(.*?_init.mp4)"\n` +
 					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
 					`#EXTINF:4.00000,\n` +
-					`(seg0\.mp4)\n` +
+					`(.*?_seg0\.mp4)\n` +
 					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
 					`#EXTINF:1.00000,\n` +
-					`(seg1\.mp4)\n$`)
+					`(.*?_seg1\.mp4)\n$`)
+				require.Regexp(t, re, string(byts))
 				ma := re.FindStringSubmatch(string(byts))
-				require.NotEqual(t, 0, len(ma))
 
-				_, h, err := doRequest(m, "init.mp4", "", "", "")
+				_, h, err := doRequest(m, ma[1], "", "", "")
 				require.NoError(t, err)
 				require.Equal(t, "video/mp4", h.Get("Content-Type"))
 				require.Equal(t, "max-age=30", h.Get("Cache-Control"))
 
-				_, h, err = doRequest(m, ma[2], "", "", "")
+				_, h, err = doRequest(m, ma[3], "", "", "")
 				require.NoError(t, err)
 				require.Equal(t, "video/mp4", h.Get("Content-Type"))
 				require.Equal(t, "max-age=3600", h.Get("Cache-Control"))
 
 			case "lowLatency":
-				require.Equal(t,
-					"#EXTM3U\n"+
-						"#EXT-X-VERSION:9\n"+
-						"#EXT-X-TARGETDURATION:4\n"+
-						"#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=5.00000,CAN-SKIP-UNTIL=24.00000\n"+
-						"#EXT-X-PART-INF:PART-TARGET=2.00000\n"+
-						"#EXT-X-MEDIA-SEQUENCE:2\n"+
-						"#EXT-X-MAP:URI=\"init.mp4\"\n"+
-						"#EXT-X-GAP\n"+
-						"#EXTINF:4.00000,\n"+
-						"gap.mp4\n"+
-						"#EXT-X-GAP\n"+
-						"#EXTINF:4.00000,\n"+
-						"gap.mp4\n"+
-						"#EXT-X-GAP\n"+
-						"#EXTINF:4.00000,\n"+
-						"gap.mp4\n"+
-						"#EXT-X-GAP\n"+
-						"#EXTINF:4.00000,\n"+
-						"gap.mp4\n"+
-						"#EXT-X-GAP\n"+
-						"#EXTINF:4.00000,\n"+
-						"gap.mp4\n"+
-						"#EXT-X-PROGRAM-DATE-TIME:2010-01-01T01:01:02Z\n"+
-						"#EXT-X-PART:DURATION=2.00000,URI=\"part0.mp4\",INDEPENDENT=YES\n"+
-						"#EXT-X-PART:DURATION=2.00000,URI=\"part1.mp4\"\n"+
-						"#EXTINF:4.00000,\n"+
-						"seg7.mp4\n"+
-						"#EXT-X-PROGRAM-DATE-TIME:2010-01-01T01:01:06Z\n"+
-						"#EXT-X-PART:DURATION=1.00000,URI=\"part3.mp4\",INDEPENDENT=YES\n"+
-						"#EXTINF:1.00000,\n"+
-						"seg8.mp4\n"+
-						"#EXT-X-PRELOAD-HINT:TYPE=PART,URI=\"part4.mp4\"\n", string(byts))
+				re := regexp.MustCompile(
+					`^#EXTM3U\n` +
+						`#EXT-X-VERSION:9\n` +
+						`#EXT-X-TARGETDURATION:4\n` +
+						`#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=5.00000,CAN-SKIP-UNTIL=24.00000\n` +
+						`#EXT-X-PART-INF:PART-TARGET=2.00000\n` +
+						`#EXT-X-MEDIA-SEQUENCE:2\n` +
+						`#EXT-X-MAP:URI="(.*?_init\.mp4)"\n` +
+						`#EXT-X-GAP\n` +
+						`#EXTINF:4.00000,\n` +
+						`gap.mp4\n` +
+						`#EXT-X-GAP\n` +
+						`#EXTINF:4.00000,\n` +
+						`gap.mp4\n` +
+						`#EXT-X-GAP\n` +
+						`#EXTINF:4.00000,\n` +
+						`gap.mp4\n` +
+						`#EXT-X-GAP\n` +
+						`#EXTINF:4.00000,\n` +
+						`gap.mp4\n` +
+						`#EXT-X-GAP\n` +
+						`#EXTINF:4.00000,\n` +
+						`gap.mp4\n` +
+						`#EXT-X-PROGRAM-DATE-TIME:2010-01-01T01:01:02Z\n` +
+						`#EXT-X-PART:DURATION=2.00000,URI="(.*?_part0\.mp4)",INDEPENDENT=YES\n` +
+						`#EXT-X-PART:DURATION=2.00000,URI="(.*?_part1\.mp4)"\n` +
+						`#EXTINF:4.00000,\n` +
+						`(.*?_seg7\.mp4)\n` +
+						`#EXT-X-PROGRAM-DATE-TIME:2010-01-01T01:01:06Z\n` +
+						`#EXT-X-PART:DURATION=1.00000,URI="(.*?_part3\.mp4)",INDEPENDENT=YES\n` +
+						`#EXTINF:1.00000,\n` +
+						`(.*?_seg8\.mp4)\n` +
+						`#EXT-X-PRELOAD-HINT:TYPE=PART,URI="(.*?_part4\.mp4)"\n$`)
+				require.Regexp(t, re, string(byts))
+				ma := re.FindStringSubmatch(string(byts))
 
-				_, h, err := doRequest(m, "part3.mp4", "", "", "")
+				_, h, err := doRequest(m, ma[4], "", "", "")
 				require.NoError(t, err)
 				require.Equal(t, "video/mp4", h.Get("Content-Type"))
 				require.Equal(t, "max-age=3600", h.Get("Cache-Control"))
@@ -303,7 +305,7 @@ func TestMuxerVideoAudio(t *testing.T) {
 				recv := make(chan struct{})
 
 				go func() {
-					_, _, err := doRequest(m, "part4.mp4", "", "", "")
+					_, _, err := doRequest(m, ma[5], "", "", "")
 					require.NoError(t, err)
 					close(recv)
 				}()
@@ -391,44 +393,43 @@ func TestMuxerVideoOnly(t *testing.T) {
 			byts, _, err = doRequest(m, "stream.m3u8", "", "", "")
 			require.NoError(t, err)
 
-			var ma []string
+			var re *regexp.Regexp
 			if ca == "mpegts" {
-				re := regexp.MustCompile(`^#EXTM3U\n` +
+				re = regexp.MustCompile(`^#EXTM3U\n` +
 					`#EXT-X-VERSION:3\n` +
 					`#EXT-X-ALLOW-CACHE:NO\n` +
 					`#EXT-X-TARGETDURATION:4\n` +
 					`#EXT-X-MEDIA-SEQUENCE:0\n` +
 					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
 					`#EXTINF:4.00000,\n` +
-					`(seg0\.ts)\n` +
+					`(.*?_seg0\.ts)\n` +
 					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
 					`#EXTINF:1.00000,\n` +
-					`(seg1\.ts)\n$`)
-				ma = re.FindStringSubmatch(string(byts))
+					`(.*?_seg1\.ts)\n$`)
 			} else {
-				re := regexp.MustCompile(`^#EXTM3U\n` +
+				re = regexp.MustCompile(`^#EXTM3U\n` +
 					`#EXT-X-VERSION:9\n` +
 					`#EXT-X-TARGETDURATION:4\n` +
 					`#EXT-X-MEDIA-SEQUENCE:0\n` +
-					`#EXT-X-MAP:URI="init.mp4"\n` +
+					`#EXT-X-MAP:URI="(.*?_init.mp4)"\n` +
 					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
 					`#EXTINF:4.00000,\n` +
-					`(seg0\.mp4)\n` +
+					`(.*?_seg0\.mp4)\n` +
 					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
 					`#EXTINF:1.00000,\n` +
-					`(seg1\.mp4)\n$`)
-				ma = re.FindStringSubmatch(string(byts))
+					`(.*?_seg1\.mp4)\n$`)
 			}
-			require.NotEqual(t, 0, len(ma))
+			require.Regexp(t, re, string(byts))
+			ma := re.FindStringSubmatch(string(byts))
 
 			if ca == "mpegts" {
 				_, _, err := doRequest(m, ma[2], "", "", "")
 				require.NoError(t, err)
 			} else {
-				_, _, err := doRequest(m, "init.mp4", "", "", "")
+				_, _, err := doRequest(m, ma[1], "", "", "")
 				require.NoError(t, err)
 
-				_, _, err = doRequest(m, ma[2], "", "", "")
+				_, _, err = doRequest(m, ma[3], "", "", "")
 				require.NoError(t, err)
 			}
 		})
@@ -501,41 +502,40 @@ func TestMuxerAudioOnly(t *testing.T) {
 			byts, _, err = doRequest(m, "stream.m3u8", "", "", "")
 			require.NoError(t, err)
 
-			var ma []string
+			var re *regexp.Regexp
 			if ca == "mpegts" {
-				re := regexp.MustCompile(`^#EXTM3U\n` +
+				re = regexp.MustCompile(`^#EXTM3U\n` +
 					`#EXT-X-VERSION:3\n` +
 					`#EXT-X-ALLOW-CACHE:NO\n` +
 					`#EXT-X-TARGETDURATION:1\n` +
 					`#EXT-X-MEDIA-SEQUENCE:0\n` +
 					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
 					`#EXTINF:1.00000,\n` +
-					`(seg0\.ts)\n$`)
-				ma = re.FindStringSubmatch(string(byts))
+					`(.*?_seg0\.ts)\n$`)
 			} else {
-				re := regexp.MustCompile(`^#EXTM3U\n` +
+				re = regexp.MustCompile(`^#EXTM3U\n` +
 					`#EXT-X-VERSION:9\n` +
 					`#EXT-X-TARGETDURATION:1\n` +
 					`#EXT-X-MEDIA-SEQUENCE:0\n` +
-					`#EXT-X-MAP:URI="init.mp4"\n` +
+					`#EXT-X-MAP:URI="(.*?_init.mp4)"\n` +
 					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
 					`#EXTINF:1.00000,\n` +
-					`(seg0\.mp4)\n` +
+					`(.*?_seg0\.mp4)\n` +
 					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
 					`#EXTINF:1.00000,\n` +
-					`(seg1\.mp4)\n$`)
-				ma = re.FindStringSubmatch(string(byts))
+					`(.*?_seg1\.mp4)\n$`)
 			}
-			require.NotEqual(t, 0, len(ma))
+			require.Regexp(t, re, string(byts))
+			ma := re.FindStringSubmatch(string(byts))
 
 			if ca == "mpegts" {
 				_, _, err := doRequest(m, ma[2], "", "", "")
 				require.NoError(t, err)
 			} else {
-				_, _, err := doRequest(m, "init.mp4", "", "", "")
+				_, _, err := doRequest(m, ma[1], "", "", "")
 				require.NoError(t, err)
 
-				_, _, err = doRequest(m, ma[2], "", "", "")
+				_, _, err = doRequest(m, ma[3], "", "", "")
 				require.NoError(t, err)
 			}
 		})
@@ -622,9 +622,9 @@ func TestMuxerDoubleRead(t *testing.T) {
 		`#EXT-X-MEDIA-SEQUENCE:0\n` +
 		`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
 		`#EXTINF:2.00000,\n` +
-		`(seg0\.ts)\n$`)
+		`(.*?_seg0\.ts)\n$`)
+	require.Regexp(t, re, string(byts))
 	ma := re.FindStringSubmatch(string(byts))
-	require.NotEqual(t, 0, len(ma))
 
 	byts1, _, err := doRequest(m, ma[2], "", "", "")
 	require.NoError(t, err)
@@ -702,25 +702,64 @@ func TestMuxerSaveToDisk(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			if ca != "mpegts" {
-				_, err = os.ReadFile(filepath.Join(dir, "init.mp4"))
-				require.NoError(t, err)
-			}
-
-			var ext string
-			if ca == "mpegts" {
-				ext = "ts"
-			} else {
-				ext = "mp4"
-			}
-
-			_, err = os.ReadFile(filepath.Join(dir, "seg0."+ext))
+			err = m.WriteH26x(testTime, 3*time.Second, [][]byte{
+				{5}, // IDR
+				{2},
+			})
 			require.NoError(t, err)
 
-			m.Close()
+			byts, _, err := doRequest(m, "stream.m3u8", "", "", "")
+			require.NoError(t, err)
 
-			_, err = os.ReadFile(filepath.Join(dir, "seg0."+ext))
-			require.Error(t, err)
+			var re *regexp.Regexp
+			if ca == "mpegts" {
+				re = regexp.MustCompile(`^#EXTM3U\n` +
+					`#EXT-X-VERSION:3\n` +
+					`#EXT-X-ALLOW-CACHE:NO\n` +
+					`#EXT-X-TARGETDURATION:2\n` +
+					`#EXT-X-MEDIA-SEQUENCE:0\n` +
+					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
+					`#EXTINF:2.00000,\n` +
+					`(.*?_seg0\.ts)\n` +
+					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
+					`#EXTINF:1.00000,\n` +
+					`(.*?_seg1\.ts)\n$`)
+			} else {
+				re = regexp.MustCompile(`^#EXTM3U\n` +
+					`#EXT-X-VERSION:9\n` +
+					`#EXT-X-TARGETDURATION:2\n` +
+					`#EXT-X-MEDIA-SEQUENCE:0\n` +
+					`#EXT-X-MAP:URI="(.*?_init.mp4)"\n` +
+					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
+					`#EXTINF:2.00000,\n` +
+					`(.*?_seg0\.mp4)\n` +
+					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
+					`#EXTINF:1.00000,\n` +
+					`(.*?_seg1\.mp4)\n$`)
+			}
+			require.Regexp(t, re, string(byts))
+			ma := re.FindStringSubmatch(string(byts))
+
+			if ca == "mpegts" {
+				_, err = os.ReadFile(filepath.Join(dir, ma[2]))
+				require.NoError(t, err)
+
+				m.Close()
+
+				_, err = os.ReadFile(filepath.Join(dir, ma[2]))
+				require.Error(t, err)
+			} else {
+				_, err = os.ReadFile(filepath.Join(dir, ma[1]))
+				require.NoError(t, err)
+
+				_, err = os.ReadFile(filepath.Join(dir, ma[3]))
+				require.NoError(t, err)
+
+				m.Close()
+
+				_, err = os.ReadFile(filepath.Join(dir, ma[3]))
+				require.Error(t, err)
+			}
 		})
 	}
 }

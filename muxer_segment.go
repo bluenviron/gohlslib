@@ -3,8 +3,16 @@ package gohlslib
 import (
 	"fmt"
 	"io"
+	"strconv"
 	"time"
 )
+
+func segmentName(prefix string, id uint64, mp4 bool) string {
+	if mp4 {
+		return prefix + "_seg" + strconv.FormatUint(id, 10) + ".mp4"
+	}
+	return prefix + "_seg" + strconv.FormatUint(id, 10) + ".ts"
+}
 
 type muxerSegment interface {
 	close()
