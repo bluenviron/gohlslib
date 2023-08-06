@@ -196,10 +196,6 @@ func (m *muxerSegmenterMPEGTS) writeOpus(_ time.Time, _ time.Duration, _ [][]byt
 }
 
 func (m *muxerSegmenterMPEGTS) writeMPEG4Audio(ntp time.Time, pts time.Duration, aus [][]byte) error {
-	return m.writeAudio(ntp, pts, aus)
-}
-
-func (m *muxerSegmenterMPEGTS) writeAudio(ntp time.Time, pts time.Duration, aus [][]byte) error {
 	if m.videoTrack == nil {
 		if m.currentSegment == nil {
 			m.startDTS = pts

@@ -8,10 +8,10 @@ import (
 	"github.com/bluenviron/mediacommon/pkg/codecs/h265"
 	"github.com/bluenviron/mediacommon/pkg/codecs/mpeg4audio"
 	"github.com/bluenviron/mediacommon/pkg/codecs/opus"
+	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
 
 	"github.com/bluenviron/gohlslib/pkg/codecs"
 	"github.com/bluenviron/gohlslib/pkg/storage"
-	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
 )
 
 func fmp4TimeScale(c codecs.Codec) uint32 {

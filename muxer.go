@@ -326,14 +326,14 @@ func (m *Muxer) WriteH26x(ntp time.Time, pts time.Duration, au [][]byte) error {
 	return m.segmenter.writeH26x(ntp, pts, au, randomAccessPresent, forceSwitch)
 }
 
-// WriteMPEG4Audio writes aMPEG-4 Audio access units.
-func (m *Muxer) WriteMPEG4Audio(ntp time.Time, pts time.Duration, aus [][]byte) error {
-	return m.segmenter.writeMPEG4Audio(ntp, pts, aus)
-}
-
 // WriteOpus writes Opus packets.
 func (m *Muxer) WriteOpus(ntp time.Time, pts time.Duration, packets [][]byte) error {
 	return m.segmenter.writeOpus(ntp, pts, packets)
+}
+
+// WriteMPEG4Audio writes MPEG-4 Audio access units.
+func (m *Muxer) WriteMPEG4Audio(ntp time.Time, pts time.Duration, aus [][]byte) error {
+	return m.segmenter.writeMPEG4Audio(ntp, pts, aus)
 }
 
 // Handle handles a HTTP request.
