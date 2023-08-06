@@ -71,6 +71,9 @@ func videoHasParameters(videoTrack *Track) bool {
 	case *codecs.AV1:
 		return codec.SequenceHeader != nil
 
+	case *codecs.VP9:
+		return codec.Width != 0
+
 	case *codecs.H264:
 		return codec.SPS != nil && codec.PPS != nil
 
@@ -329,11 +332,6 @@ func (s *muxerServer) handleMediaPlaylist(msn string, part string, skip string, 
 					s.cond.Wait()
 				}
 
-				if s.closed {
-					w.WriteHeader(http.StatusInternalServerError)
-					return nil
-				}
-
 				return s.generateMediaPlaylist(isDeltaUpdate)
 			}()
 
@@ -359,11 +357,6 @@ func (s *muxerServer) handleMediaPlaylist(msn string, part string, skip string, 
 
 		for !s.closed && !s.hasContent() {
 			s.cond.Wait()
-		}
-
-		if s.closed {
-			w.WriteHeader(http.StatusInternalServerError)
-			return nil
 		}
 
 		return s.generateMediaPlaylist(isDeltaUpdate)
@@ -392,6 +385,11 @@ func (s *muxerServer) generateMultivariantPlaylist() ([]byte, error) {
 			}
 
 			resolution = strconv.FormatInt(int64(sh.Width()), 10) + "x" + strconv.FormatInt(int64(sh.Height()), 10)
+
+			// TODO: FPS
+
+		case *codecs.VP9:
+			resolution = strconv.FormatInt(int64(codec.Width), 10) + "x" + strconv.FormatInt(int64(codec.Height), 10)
 
 			// TODO: FPS
 

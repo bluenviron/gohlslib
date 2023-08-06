@@ -13,8 +13,7 @@ import (
 func fmp4PickLeadingTrack(init *fmp4.Init) int {
 	// pick first video track
 	for _, track := range init.Tracks {
-		switch track.Codec.(type) {
-		case *fmp4.CodecAV1, *fmp4.CodecH264, *fmp4.CodecH265:
+		if track.Codec.IsVideo() {
 			return track.ID
 		}
 	}
@@ -211,6 +210,17 @@ func (p *clientProcessorFMP4) initializeTrackProcs(ctx context.Context, track *f
 				return nil
 			}
 
+		case *codecs.VP9:
+			var onDataCasted ClientOnDataVP9Func = func(pts time.Duration, frame []byte) {}
+			if onData != nil {
+				onDataCasted = onData.(ClientOnDataVP9Func)
+			}
+
+			postProcess = func(pts time.Duration, dts time.Duration, sample *fmp4.PartSample) error {
+				onDataCasted(pts, sample.Payload)
+				return nil
+			}
+
 		case *codecs.H265, *codecs.H264:
 			var onDataCasted ClientOnDataH26xFunc = func(pts time.Duration, dts time.Duration, au [][]byte) {}
 			if onData != nil {
@@ -234,7 +244,7 @@ func (p *clientProcessorFMP4) initializeTrackProcs(ctx context.Context, track *f
 			}
 
 			postProcess = func(pts time.Duration, dts time.Duration, sample *fmp4.PartSample) error {
-				onDataCasted(pts, [][]byte{sample.GetAudio()})
+				onDataCasted(pts, [][]byte{sample.Payload})
 				return nil
 			}
 
@@ -245,7 +255,7 @@ func (p *clientProcessorFMP4) initializeTrackProcs(ctx context.Context, track *f
 			}
 
 			postProcess = func(pts time.Duration, dts time.Duration, sample *fmp4.PartSample) error {
-				onDataCasted(pts, [][]byte{sample.GetAudio()})
+				onDataCasted(pts, [][]byte{sample.Payload})
 				return nil
 			}
 		}

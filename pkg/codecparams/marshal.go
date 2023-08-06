@@ -152,6 +152,12 @@ func Marshal(codec codecs.Codec) string {
 			return v
 		}
 
+	case *codecs.VP9:
+		return "vp09." +
+			leadingZeros(int(codec.Profile), 2) + "." +
+			"10." + // level
+			leadingZeros(int(codec.BitDepth), 2)
+
 	case *codecs.H265:
 		var sps h265.SPS
 		err := sps.Unmarshal(codec.SPS)

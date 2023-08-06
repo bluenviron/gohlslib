@@ -108,6 +108,16 @@ func (m *muxerSegmenterMPEGTS) writeAV1(
 	return fmt.Errorf("unimplemented")
 }
 
+func (m *muxerSegmenterMPEGTS) writeVP9(
+	_ time.Time,
+	_ time.Duration,
+	_ []byte,
+	_ bool,
+	_ bool,
+) error {
+	return fmt.Errorf("unimplemented")
+}
+
 func (m *muxerSegmenterMPEGTS) writeH26x(
 	ntp time.Time,
 	pts time.Duration,

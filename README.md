@@ -20,6 +20,7 @@ Client features:
 |Read fMP4 streams|OK|
 |Read Low-latency streams|TODO|
 |Read AV1 tracks|OK|
+|Read VP9 tracks|OK|
 |Read H265 tracks|OK|
 |Read H264 tracks|OK|
 |Read Opus tracks|OK|
@@ -33,6 +34,7 @@ Muxer features:
 |Generate fMP4 streams|OK|
 |Generate Low-latency streams|OK|
 |Write AV1 tracks|OK|
+|Write VP9 tracks|OK|
 |Write H265 tracks|OK|
 |Write H264 tracks|OK|
 |Write Opus tracks|OK|

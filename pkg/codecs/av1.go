@@ -5,4 +5,5 @@ type AV1 struct {
 	SequenceHeader []byte
 }
 
-func (*AV1) isCodec() {}
+func (AV1) isCodec() {
+}

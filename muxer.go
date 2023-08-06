@@ -11,6 +11,7 @@ import (
 	"github.com/bluenviron/mediacommon/pkg/codecs/av1"
 	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
 	"github.com/bluenviron/mediacommon/pkg/codecs/h265"
+	"github.com/bluenviron/mediacommon/pkg/codecs/vp9"
 
 	"github.com/bluenviron/gohlslib/pkg/codecs"
 	"github.com/bluenviron/gohlslib/pkg/storage"
@@ -198,7 +199,7 @@ func (m *Muxer) WriteAV1(ntp time.Time, pts time.Duration, obus [][]byte) error 
 	codec := m.VideoTrack.Codec.(*codecs.AV1)
 	update := false
 	sequenceHeader := codec.SequenceHeader
-	sequenceHeaderPresent := false
+	randomAccess := false
 
 	for _, obu := range obus {
 		var h av1.OBUHeader
@@ -212,7 +213,7 @@ func (m *Muxer) WriteAV1(ntp time.Time, pts time.Duration, obus [][]byte) error 
 				update = true
 				sequenceHeader = obu
 			}
-			sequenceHeaderPresent = true
+			randomAccess = true
 		}
 	}
 
@@ -230,17 +231,91 @@ func (m *Muxer) WriteAV1(ntp time.Time, pts time.Duration, obus [][]byte) error 
 	}
 
 	forceSwitch := false
-	if sequenceHeaderPresent && m.forceSwitch {
+	if randomAccess && m.forceSwitch {
 		m.forceSwitch = false
 		forceSwitch = true
 	}
 
-	return m.segmenter.writeAV1(ntp, pts, obus, sequenceHeaderPresent, forceSwitch)
+	return m.segmenter.writeAV1(ntp, pts, obus, randomAccess, forceSwitch)
+}
+
+// WriteVP9 writes a VP9 frame.
+func (m *Muxer) WriteVP9(ntp time.Time, pts time.Duration, frame []byte) error {
+	var h vp9.Header
+	err := h.Unmarshal(frame)
+	if err != nil {
+		return err
+	}
+
+	codec := m.VideoTrack.Codec.(*codecs.VP9)
+	randomAccess := false
+	update := false
+	width := codec.Width
+	height := codec.Height
+	profile := codec.Profile
+	bitDepth := codec.BitDepth
+	chromaSubsampling := codec.ChromaSubsampling
+	colorRange := codec.ColorRange
+
+	if h.FrameType == vp9.FrameTypeKeyFrame {
+		randomAccess = true
+
+		if v := h.Width(); v != width {
+			update = true
+			width = v
+		}
+		if v := h.Height(); v != height {
+			update = true
+			height = v
+		}
+		if h.Profile != profile {
+			update = true
+			profile = h.Profile
+		}
+		if h.ColorConfig.BitDepth != bitDepth {
+			update = true
+			bitDepth = h.ColorConfig.BitDepth
+		}
+		if v := h.ChromaSubsampling(); v != chromaSubsampling {
+			update = true
+			chromaSubsampling = v
+		}
+		if h.ColorConfig.ColorRange != colorRange {
+			update = true
+			colorRange = h.ColorConfig.ColorRange
+		}
+	}
+
+	if update {
+		err := func() error {
+			m.server.mutex.Lock()
+			defer m.server.mutex.Unlock()
+			codec.Width = width
+			codec.Height = height
+			codec.Profile = profile
+			codec.BitDepth = bitDepth
+			codec.ChromaSubsampling = chromaSubsampling
+			codec.ColorRange = colorRange
+			return m.server.generateInitFile()
+		}()
+		if err != nil {
+			return fmt.Errorf("unable to generate init.mp4: %v", err)
+		}
+		m.forceSwitch = true
+	}
+
+	forceSwitch := false
+	if randomAccess && m.forceSwitch {
+		m.forceSwitch = false
+		forceSwitch = true
+	}
+
+	return m.segmenter.writeVP9(ntp, pts, frame, randomAccess, forceSwitch)
 }
 
 // WriteH26x writes an H264 or an H265 access unit.
 func (m *Muxer) WriteH26x(ntp time.Time, pts time.Duration, au [][]byte) error {
-	randomAccessPresent := false
+	randomAccess := false
 
 	switch codec := m.VideoTrack.Codec.(type) {
 	case *codecs.H265:
@@ -254,7 +329,7 @@ func (m *Muxer) WriteH26x(ntp time.Time, pts time.Duration, au [][]byte) error {
 
 			switch typ {
 			case h265.NALUType_IDR_W_RADL, h265.NALUType_IDR_N_LP, h265.NALUType_CRA_NUT:
-				randomAccessPresent = true
+				randomAccess = true
 
 			case h265.NALUType_VPS_NUT:
 				if !bytes.Equal(vps, nalu) {
@@ -302,7 +377,7 @@ func (m *Muxer) WriteH26x(ntp time.Time, pts time.Duration, au [][]byte) error {
 
 			switch typ {
 			case h264.NALUTypeIDR:
-				randomAccessPresent = true
+				randomAccess = true
 
 			case h264.NALUTypeNonIDR:
 				nonIDRPresent = true
@@ -335,18 +410,18 @@ func (m *Muxer) WriteH26x(ntp time.Time, pts time.Duration, au [][]byte) error {
 			m.forceSwitch = true
 		}
 
-		if !randomAccessPresent && !nonIDRPresent {
+		if !randomAccess && !nonIDRPresent {
 			return nil
 		}
 	}
 
 	forceSwitch := false
-	if randomAccessPresent && m.forceSwitch {
+	if randomAccess && m.forceSwitch {
 		m.forceSwitch = false
 		forceSwitch = true
 	}
 
-	return m.segmenter.writeH26x(ntp, pts, au, randomAccessPresent, forceSwitch)
+	return m.segmenter.writeH26x(ntp, pts, au, randomAccess, forceSwitch)
 }
 
 // WriteOpus writes Opus packets.
