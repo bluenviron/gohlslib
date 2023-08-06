@@ -542,28 +542,28 @@ func TestMuxerAudioOnly(t *testing.T) {
 	}
 }
 
-func TestMuxerCloseBeforeFirstSegment(t *testing.T) {
+func TestMuxerCloseBeforeData(t *testing.T) {
 	m := &Muxer{
-		Variant:         MuxerVariantMPEGTS,
+		Variant:         MuxerVariantFMP4,
 		SegmentCount:    3,
 		SegmentDuration: 1 * time.Second,
-		VideoTrack:      testVideoTrack,
+		VideoTrack: &Track{
+			Codec: &codecs.AV1{},
+		},
 	}
 
 	err := m.Start()
 	require.NoError(t, err)
 
-	// access unit with IDR
-	err = m.WriteH26x(testTime, 2*time.Second, [][]byte{
-		testSPS, // SPS
-		{8},     // PPS
-		{5},     // IDR
-	})
-	require.NoError(t, err)
-
 	m.Close()
 
-	b, _, _ := doRequest(m, "stream.m3u8", "", "", "")
+	b, _, _ := doRequest(m, "index.m3u8", "", "", "")
+	require.Equal(t, []byte(nil), b)
+
+	b, _, _ = doRequest(m, "stream.m3u8", "", "", "")
+	require.NotEqual(t, []byte(nil), b)
+
+	b, _, _ = doRequest(m, m.prefix+"_init.mp4", "", "", "")
 	require.Equal(t, []byte(nil), b)
 }
 

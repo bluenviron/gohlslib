@@ -9,4 +9,5 @@ type MPEG4Audio struct {
 	mpeg4audio.Config
 }
 
-func (*MPEG4Audio) isCodec() {}
+func (MPEG4Audio) isCodec() {
+}

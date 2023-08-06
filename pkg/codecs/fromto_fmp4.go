@@ -12,6 +12,16 @@ func FromFMP4(in fmp4.Codec) Codec {
 			SequenceHeader: in.SequenceHeader,
 		}
 
+	case *fmp4.CodecVP9:
+		return &VP9{
+			Width:             in.Width,
+			Height:            in.Height,
+			Profile:           in.Profile,
+			BitDepth:          in.BitDepth,
+			ChromaSubsampling: in.ChromaSubsampling,
+			ColorRange:        in.ColorRange,
+		}
+
 	case *fmp4.CodecH265:
 		return &H265{
 			VPS: in.VPS,
@@ -45,6 +55,16 @@ func ToFMP4(in Codec) fmp4.Codec {
 	case *AV1:
 		return &fmp4.CodecAV1{
 			SequenceHeader: in.SequenceHeader,
+		}
+
+	case *VP9:
+		return &fmp4.CodecVP9{
+			Width:             in.Width,
+			Height:            in.Height,
+			Profile:           in.Profile,
+			BitDepth:          in.BitDepth,
+			ChromaSubsampling: in.ChromaSubsampling,
+			ColorRange:        in.ColorRange,
 		}
 
 	case *H265:

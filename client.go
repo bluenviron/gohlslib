@@ -39,6 +39,9 @@ type ClientOnTracksFunc func([]*Track) error
 // ClientOnDataAV1Func is the prototype of the function passed to OnDataAV1().
 type ClientOnDataAV1Func func(pts time.Duration, obus [][]byte)
 
+// ClientOnDataVP9Func is the prototype of the function passed to OnDataVP9().
+type ClientOnDataVP9Func func(pts time.Duration, frame []byte)
+
 // ClientOnDataH26xFunc is the prototype of the function passed to OnDataH26x().
 type ClientOnDataH26xFunc func(pts time.Duration, dts time.Duration, au [][]byte)
 
@@ -144,6 +147,11 @@ func (c *Client) OnTracks(cb ClientOnTracksFunc) {
 
 // OnDataAV1 sets a callback that is called when data from an AV1 track is received.
 func (c *Client) OnDataAV1(forma *Track, cb ClientOnDataAV1Func) {
+	c.onData[forma] = cb
+}
+
+// OnDataVP9 sets a callback that is called when data from a VP9 track is received.
+func (c *Client) OnDataVP9(forma *Track, cb ClientOnDataVP9Func) {
 	c.onData[forma] = cb
 }
 

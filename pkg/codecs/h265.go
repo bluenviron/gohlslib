@@ -7,4 +7,5 @@ type H265 struct {
 	PPS []byte
 }
 
-func (*H265) isCodec() {}
+func (H265) isCodec() {
+}

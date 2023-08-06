@@ -25,6 +25,18 @@ func TestMarshal(t *testing.T) {
 			"av01.0.08M.08.1.110.01.01.01.0",
 		},
 		{
+			"vp9",
+			&codecs.VP9{
+				Width:             1920,
+				Height:            1080,
+				Profile:           1,
+				BitDepth:          8,
+				ChromaSubsampling: 1,
+				ColorRange:        false,
+			},
+			"vp09.01.10.08",
+		},
+		{
 			"h265",
 			&codecs.H265{
 				VPS: []byte{0x01, 0x02, 0x03, 0x04},

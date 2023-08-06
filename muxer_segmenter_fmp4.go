@@ -197,12 +197,12 @@ func (m *muxerSegmenterFMP4) writeAV1(
 	ntp time.Time,
 	dts time.Duration,
 	obus [][]byte,
-	sequenceHeaderPresent bool,
+	randomAccess bool,
 	forceSwitch bool,
 ) error {
 	if !m.videoFirstRandomAccessReceived {
 		// skip sample silently until we find one with an IDR
-		if !sequenceHeaderPresent {
+		if !randomAccess {
 			return nil
 		}
 
@@ -213,7 +213,7 @@ func (m *muxerSegmenterFMP4) writeAV1(
 	}
 
 	ps, err := fmp4.NewPartSampleAV1(
-		sequenceHeaderPresent,
+		randomAccess,
 		obus)
 	if err != nil {
 		return err
@@ -225,97 +225,58 @@ func (m *muxerSegmenterFMP4) writeAV1(
 		ntp:        ntp,
 	}
 
-	// put samples into a queue in order to
-	// - compute sample duration
-	// - check if next sample is IDR
-	sample, m.nextVideoSample = m.nextVideoSample, sample
-	if sample == nil {
-		return nil
-	}
-	sample.Duration = uint32(durationGoToMp4(m.nextVideoSample.dts-sample.dts, 90000))
+	return m.writeVideo(
+		randomAccess,
+		forceSwitch,
+		sample)
+}
 
-	if m.currentSegment == nil {
-		// create first segment
-		var err error
-		m.currentSegment, err = newMuxerSegmentFMP4(
-			m.lowLatency,
-			m.genSegmentID(),
-			sample.ntp,
-			sample.dts,
-			m.segmentMaxSize,
-			m.videoTrack,
-			m.audioTrack,
-			m.audioTrackTimeScale,
-			m.prefix,
-			m.factory,
-			m.genPartID,
-			m.publishPart,
-		)
-		if err != nil {
-			return err
-		}
-	}
-
-	m.adjustPartDuration(m.nextVideoSample.dts - sample.dts)
-
-	err = m.currentSegment.writeVideo(sample, m.nextVideoSample.dts, m.adjustedPartDuration)
-	if err != nil {
-		return err
-	}
-
-	// switch segment
-	if sequenceHeaderPresent &&
-		((m.nextVideoSample.dts-m.currentSegment.startDTS) >= m.segmentDuration ||
-			forceSwitch) {
-		err := m.currentSegment.finalize(m.nextVideoSample.dts)
-		if err != nil {
-			return err
-		}
-		m.publishSegment(m.currentSegment)
-
-		m.firstSegmentFinalized = true
-
-		m.currentSegment, err = newMuxerSegmentFMP4(
-			m.lowLatency,
-			m.genSegmentID(),
-			m.nextVideoSample.ntp,
-			m.nextVideoSample.dts,
-			m.segmentMaxSize,
-			m.videoTrack,
-			m.audioTrack,
-			m.audioTrackTimeScale,
-			m.prefix,
-			m.factory,
-			m.genPartID,
-			m.publishPart,
-		)
-		if err != nil {
-			return err
+func (m *muxerSegmenterFMP4) writeVP9(
+	ntp time.Time,
+	dts time.Duration,
+	frame []byte,
+	randomAccess bool,
+	forceSwitch bool,
+) error {
+	if !m.videoFirstRandomAccessReceived {
+		// skip sample silently until we find one with an IDR
+		if !randomAccess {
+			return nil
 		}
 
-		if forceSwitch {
-			m.firstSegmentFinalized = false
-
-			// reset adjusted part duration
-			m.sampleDurations = make(map[time.Duration]struct{})
-		}
+		m.videoFirstRandomAccessReceived = true
+		m.startDTS = dts
+	} else {
+		dts -= m.startDTS
 	}
 
-	return nil
+	sample := &augmentedVideoSample{
+		PartSample: fmp4.PartSample{
+			IsNonSyncSample: !randomAccess,
+			Payload:         frame,
+		},
+		dts: dts,
+		ntp: ntp,
+	}
+
+	return m.writeVideo(
+		randomAccess,
+		forceSwitch,
+		sample)
 }
 
 func (m *muxerSegmenterFMP4) writeH26x(
 	ntp time.Time,
 	pts time.Duration,
 	au [][]byte,
-	randomAccessPresent bool,
+	randomAccess bool,
 	forceSwitch bool,
 ) error {
 	var dts time.Duration
 
 	if !m.videoFirstRandomAccessReceived {
 		// skip sample silently until we find one with an IDR
-		if !randomAccessPresent {
+		if !randomAccess {
 			return nil
 		}
 
@@ -344,7 +305,7 @@ func (m *muxerSegmenterFMP4) writeH26x(
 
 	ps, err := fmp4.NewPartSampleH26x(
 		int32(durationGoToMp4(pts-dts, 90000)),
-		randomAccessPresent,
+		randomAccess,
 		au)
 	if err != nil {
 		return err
@@ -356,6 +317,17 @@ func (m *muxerSegmenterFMP4) writeH26x(
 		ntp:        ntp,
 	}
 
+	return m.writeVideo(
+		randomAccess,
+		forceSwitch,
+		sample)
+}
+
+func (m *muxerSegmenterFMP4) writeVideo(
+	randomAccess bool,
+	forceSwitch bool,
+	sample *augmentedVideoSample,
+) error {
 	// put samples into a queue in order to
 	// - compute sample duration
 	// - check if next sample is IDR
@@ -389,13 +361,13 @@ func (m *muxerSegmenterFMP4) writeH26x(
 
 	m.adjustPartDuration(m.nextVideoSample.dts - sample.dts)
 
-	err = m.currentSegment.writeVideo(sample, m.nextVideoSample.dts, m.adjustedPartDuration)
+	err := m.currentSegment.writeVideo(sample, m.nextVideoSample.dts, m.adjustedPartDuration)
 	if err != nil {
 		return err
 	}
 
 	// switch segment
-	if randomAccessPresent &&
+	if randomAccess &&
 		((m.nextVideoSample.dts-m.currentSegment.startDTS) >= m.segmentDuration ||
 			forceSwitch) {
 		err := m.currentSegment.finalize(m.nextVideoSample.dts)
@@ -482,9 +454,11 @@ func (m *muxerSegmenterFMP4) writeAudio(ntp time.Time, dts time.Duration, au []b
 	}
 
 	sample := &augmentedAudioSample{
-		PartSample: *fmp4.NewPartSampleAudio(au),
-		dts:        dts,
-		ntp:        ntp,
+		PartSample: fmp4.PartSample{
+			Payload: au,
+		},
+		dts: dts,
+		ntp: ntp,
 	}
 
 	// put samples into a queue in order to compute the sample duration
