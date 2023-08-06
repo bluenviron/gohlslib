@@ -90,15 +90,16 @@ type augmentedAudioSample struct {
 }
 
 type muxerSegmenterFMP4 struct {
-	lowLatency         bool
-	segmentDuration    time.Duration
-	partDuration       time.Duration
-	segmentMaxSize     uint64
-	videoTrack         *Track
-	audioTrack         *Track
-	factory            storage.Factory
-	onSegmentFinalized func(muxerSegment)
-	onPartFinalized    func(*muxerPart)
+	lowLatency      bool
+	segmentDuration time.Duration
+	partDuration    time.Duration
+	segmentMaxSize  uint64
+	videoTrack      *Track
+	audioTrack      *Track
+	prefix          string
+	factory         storage.Factory
+	publishSegment  func(muxerSegment)
+	publishPart     func(*muxerPart)
 
 	audioTrackTimeScale            uint32
 	startDTS                       time.Duration
@@ -121,21 +122,23 @@ func newMuxerSegmenterFMP4(
 	segmentMaxSize uint64,
 	videoTrack *Track,
 	audioTrack *Track,
+	prefix string,
 	factory storage.Factory,
-	onSegmentFinalized func(muxerSegment),
-	onPartFinalized func(*muxerPart),
+	publishSegment func(muxerSegment),
+	publishPart func(*muxerPart),
 ) *muxerSegmenterFMP4 {
 	m := &muxerSegmenterFMP4{
-		lowLatency:         lowLatency,
-		segmentDuration:    segmentDuration,
-		partDuration:       partDuration,
-		segmentMaxSize:     segmentMaxSize,
-		videoTrack:         videoTrack,
-		audioTrack:         audioTrack,
-		factory:            factory,
-		onSegmentFinalized: onSegmentFinalized,
-		onPartFinalized:    onPartFinalized,
-		sampleDurations:    make(map[time.Duration]struct{}),
+		lowLatency:      lowLatency,
+		segmentDuration: segmentDuration,
+		partDuration:    partDuration,
+		segmentMaxSize:  segmentMaxSize,
+		videoTrack:      videoTrack,
+		audioTrack:      audioTrack,
+		prefix:          prefix,
+		factory:         factory,
+		publishSegment:  publishSegment,
+		publishPart:     publishPart,
+		sampleDurations: make(map[time.Duration]struct{}),
 	}
 
 	if audioTrack != nil {
@@ -243,9 +246,10 @@ func (m *muxerSegmenterFMP4) writeAV1(
 			m.videoTrack,
 			m.audioTrack,
 			m.audioTrackTimeScale,
+			m.prefix,
 			m.factory,
 			m.genPartID,
-			m.onPartFinalized,
+			m.publishPart,
 		)
 		if err != nil {
 			return err
@@ -267,7 +271,7 @@ func (m *muxerSegmenterFMP4) writeAV1(
 		if err != nil {
 			return err
 		}
-		m.onSegmentFinalized(m.currentSegment)
+		m.publishSegment(m.currentSegment)
 
 		m.firstSegmentFinalized = true
 
@@ -280,9 +284,10 @@ func (m *muxerSegmenterFMP4) writeAV1(
 			m.videoTrack,
 			m.audioTrack,
 			m.audioTrackTimeScale,
+			m.prefix,
 			m.factory,
 			m.genPartID,
-			m.onPartFinalized,
+			m.publishPart,
 		)
 		if err != nil {
 			return err
@@ -372,9 +377,10 @@ func (m *muxerSegmenterFMP4) writeH26x(
 			m.videoTrack,
 			m.audioTrack,
 			m.audioTrackTimeScale,
+			m.prefix,
 			m.factory,
 			m.genPartID,
-			m.onPartFinalized,
+			m.publishPart,
 		)
 		if err != nil {
 			return err
@@ -396,7 +402,7 @@ func (m *muxerSegmenterFMP4) writeH26x(
 		if err != nil {
 			return err
 		}
-		m.onSegmentFinalized(m.currentSegment)
+		m.publishSegment(m.currentSegment)
 
 		m.firstSegmentFinalized = true
 
@@ -409,9 +415,10 @@ func (m *muxerSegmenterFMP4) writeH26x(
 			m.videoTrack,
 			m.audioTrack,
 			m.audioTrackTimeScale,
+			m.prefix,
 			m.factory,
 			m.genPartID,
-			m.onPartFinalized,
+			m.publishPart,
 		)
 		if err != nil {
 			return err
@@ -500,9 +507,10 @@ func (m *muxerSegmenterFMP4) writeAudio(ntp time.Time, dts time.Duration, au []b
 				m.videoTrack,
 				m.audioTrack,
 				m.audioTrackTimeScale,
+				m.prefix,
 				m.factory,
 				m.genPartID,
-				m.onPartFinalized,
+				m.publishPart,
 			)
 			if err != nil {
 				return err
@@ -527,7 +535,7 @@ func (m *muxerSegmenterFMP4) writeAudio(ntp time.Time, dts time.Duration, au []b
 		if err != nil {
 			return err
 		}
-		m.onSegmentFinalized(m.currentSegment)
+		m.publishSegment(m.currentSegment)
 
 		m.firstSegmentFinalized = true
 
@@ -540,9 +548,10 @@ func (m *muxerSegmenterFMP4) writeAudio(ntp time.Time, dts time.Duration, au []b
 			m.videoTrack,
 			m.audioTrack,
 			m.audioTrackTimeScale,
+			m.prefix,
 			m.factory,
 			m.genPartID,
-			m.onPartFinalized,
+			m.publishPart,
 		)
 		if err != nil {
 			return err

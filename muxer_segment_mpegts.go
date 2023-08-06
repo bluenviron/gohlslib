@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"strconv"
 	"time"
 
 	"github.com/bluenviron/gohlslib/pkg/storage"
@@ -42,6 +41,7 @@ func newMuxerSegmentMPEGTS(
 	writerAudioTrack *mpegts.Track,
 	switchableWriter *switchableWriter,
 	writer *mpegts.Writer,
+	prefix string,
 	factory storage.Factory,
 ) (*muxerSegmentMPEGTS, error) {
 	t := &muxerSegmentMPEGTS{
@@ -50,11 +50,11 @@ func newMuxerSegmentMPEGTS(
 		writerAudioTrack: writerAudioTrack,
 		writer:           writer,
 		startNTP:         startNTP,
-		name:             "seg" + strconv.FormatUint(id, 10),
+		name:             segmentName(prefix, id, false),
 	}
 
 	var err error
-	t.storage, err = factory.NewFile(t.name + ".ts")
+	t.storage, err = factory.NewFile(t.name)
 	if err != nil {
 		return nil, err
 	}
