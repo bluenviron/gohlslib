@@ -3,7 +3,7 @@ module github.com/bluenviron/gohlslib
 go 1.18
 
 require (
-	github.com/aler9/writerseeker v0.0.0-20220601075008-6f0e685b9c82
+	github.com/aler9/writerseeker v1.1.0
 	github.com/asticode/go-astits v1.12.0
 	github.com/bluenviron/mediacommon v0.7.1-0.20230806181841-a2766dec314f
 	github.com/gin-gonic/gin v1.9.1
