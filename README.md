@@ -6,48 +6,40 @@
 [![CodeCov](https://codecov.io/gh/bluenviron/gohlslib/branch/main/graph/badge.svg)](https://app.codecov.io/gh/bluenviron/gohlslib/branch/main)
 [![PkgGoDev](https://pkg.go.dev/badge/github.com/bluenviron/gohlslib)](https://pkg.go.dev/github.com/bluenviron/gohlslib#pkg-index)
 
-HLS client and muxer library for the Go programming language.
+HLS client and muxer library for the Go programming language, written for [MediaMTX](https://github.com/bluenviron/mediamtx).
 
 Go &ge; 1.18 is required.
 
-This library was forked from [MediaMTX](https://github.com/bluenviron/mediamtx), it is currently in alpha stage and implements only the features strictly needed by MediaMTX, but the aim is implementing a wide range of features that allow to read and generate HLS streams.
+Features:
 
-Client features:
+* Client
 
-|name|state|
-|----|-----|
-|Read MPEG-TS streams|OK|
-|Read fMP4 streams|OK|
-|Read Low-latency streams|TODO|
-|Read AV1 tracks|OK|
-|Read VP9 tracks|OK|
-|Read H265 tracks|OK|
-|Read H264 tracks|OK|
-|Read Opus tracks|OK|
-|Read MPEG-4 audio (AAC) tracks|OK|
+  * Read MPEG-TS streams
+  * Read fMP4 streams
+  * Read AV1 tracks
+  * Read VP9 tracks
+  * Read H265 tracks
+  * Read H264 tracks
+  * Read Opus tracks
+  * Read MPEG-4 audio (AAC) tracks
 
-Muxer features:
+* Muxer
 
-|name|state|
-|----|-----|
-|Generate MPEG-TS streams|OK|
-|Generate fMP4 streams|OK|
-|Generate Low-latency streams|OK|
-|Write AV1 tracks|OK|
-|Write VP9 tracks|OK|
-|Write H265 tracks|OK|
-|Write H264 tracks|OK|
-|Write Opus tracks|OK|
-|Write MPEG-4 audio (AAC) tracks|OK|
-|Save generated segments on disk|OK|
-|Generate multi-variant streams|TODO|
+  * Generate MPEG-TS streams
+  * Generate fMP4 streams
+  * Generate Low-latency streams
+  * Write AV1 tracks
+  * Write VP9 tracks
+  * Write H265 tracks
+  * Write H264 tracks
+  * Write Opus tracks
+  * Write MPEG-4 audio (AAC) tracks
+  * Save generated segments on disk
 
-General features:
+* General
 
-|name|state|
-|----|-----|
-|Parse and produce M3U8 playlists|OK|
-|Examples|OK|
+  * Parse and produce M3U8 playlists
+  * Examples
 
 ## Table of contents
 
