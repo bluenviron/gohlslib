@@ -195,18 +195,18 @@ func (p *clientProcessorFMP4) initializeTrackProcs(ctx context.Context, track *f
 
 		switch track.Codec.(type) {
 		case *codecs.AV1:
-			var onDataCasted ClientOnDataAV1Func = func(pts time.Duration, obus [][]byte) {}
+			var onDataCasted ClientOnDataAV1Func = func(pts time.Duration, tu [][]byte) {}
 			if onData != nil {
 				onDataCasted = onData.(ClientOnDataAV1Func)
 			}
 
 			postProcess = func(pts time.Duration, dts time.Duration, sample *fmp4.PartSample) error {
-				obus, err := sample.GetAV1()
+				tu, err := sample.GetAV1()
 				if err != nil {
 					return err
 				}
 
-				onDataCasted(pts, obus)
+				onDataCasted(pts, tu)
 				return nil
 			}
 

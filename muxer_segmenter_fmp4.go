@@ -196,7 +196,7 @@ func (m *muxerSegmenterFMP4) adjustPartDuration(sampleDuration time.Duration) {
 func (m *muxerSegmenterFMP4) writeAV1(
 	ntp time.Time,
 	dts time.Duration,
-	obus [][]byte,
+	tu [][]byte,
 	randomAccess bool,
 	forceSwitch bool,
 ) error {
@@ -214,7 +214,7 @@ func (m *muxerSegmenterFMP4) writeAV1(
 
 	ps, err := fmp4.NewPartSampleAV1(
 		randomAccess,
-		obus)
+		tu)
 	if err != nil {
 		return err
 	}

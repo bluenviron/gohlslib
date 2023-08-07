@@ -194,14 +194,14 @@ func (m *Muxer) Close() {
 	m.segmenter.close()
 }
 
-// WriteAV1 writes an AV1 OBU sequence.
-func (m *Muxer) WriteAV1(ntp time.Time, pts time.Duration, obus [][]byte) error {
+// WriteAV1 writes an AV1 temporal unit.
+func (m *Muxer) WriteAV1(ntp time.Time, pts time.Duration, tu [][]byte) error {
 	codec := m.VideoTrack.Codec.(*codecs.AV1)
 	update := false
 	sequenceHeader := codec.SequenceHeader
 	randomAccess := false
 
-	for _, obu := range obus {
+	for _, obu := range tu {
 		var h av1.OBUHeader
 		err := h.Unmarshal(obu)
 		if err != nil {
@@ -236,7 +236,7 @@ func (m *Muxer) WriteAV1(ntp time.Time, pts time.Duration, obus [][]byte) error 
 		forceSwitch = true
 	}
 
-	return m.segmenter.writeAV1(ntp, pts, obus, randomAccess, forceSwitch)
+	return m.segmenter.writeAV1(ntp, pts, tu, randomAccess, forceSwitch)
 }
 
 // WriteVP9 writes a VP9 frame.
