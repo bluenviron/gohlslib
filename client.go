@@ -37,7 +37,7 @@ type ClientOnDecodeErrorFunc func(err error)
 type ClientOnTracksFunc func([]*Track) error
 
 // ClientOnDataAV1Func is the prototype of the function passed to OnDataAV1().
-type ClientOnDataAV1Func func(pts time.Duration, obus [][]byte)
+type ClientOnDataAV1Func func(pts time.Duration, tu [][]byte)
 
 // ClientOnDataVP9Func is the prototype of the function passed to OnDataVP9().
 type ClientOnDataVP9Func func(pts time.Duration, frame []byte)
@@ -73,6 +73,8 @@ type Client struct {
 	//
 	// callbacks (all optional)
 	//
+	// called when tracks are available.
+	OnTracks ClientOnTracksFunc
 	// called before downloading a primary playlist.
 	OnDownloadPrimaryPlaylist ClientOnDownloadPrimaryPlaylistFunc
 	// called before downloading a stream playlist.
@@ -88,7 +90,6 @@ type Client struct {
 
 	ctx         context.Context
 	ctxCancel   func()
-	onTracks    ClientOnTracksFunc
 	onData      map[*Track]interface{}
 	playlistURL *url.URL
 
@@ -100,6 +101,11 @@ type Client struct {
 func (c *Client) Start() error {
 	if c.HTTPClient == nil {
 		c.HTTPClient = http.DefaultClient
+	}
+	if c.OnTracks == nil {
+		c.OnTracks = func(_ []*Track) error {
+			return nil
+		}
 	}
 	if c.OnDownloadPrimaryPlaylist == nil {
 		c.OnDownloadPrimaryPlaylist = func(_ string) {}
@@ -138,11 +144,6 @@ func (c *Client) Close() {
 // Wait waits for any error of the Client.
 func (c *Client) Wait() chan error {
 	return c.outErr
-}
-
-// OnTracks sets a callback that is called when tracks are read.
-func (c *Client) OnTracks(cb ClientOnTracksFunc) {
-	c.onTracks = cb
 }
 
 // OnDataAV1 sets a callback that is called when data from an AV1 track is received.
@@ -185,7 +186,7 @@ func (c *Client) runInner() error {
 		c.OnDownloadSegment,
 		c.OnDecodeError,
 		rp,
-		c.onTracks,
+		c.OnTracks,
 		c.onData,
 	)
 	rp.add(dl)

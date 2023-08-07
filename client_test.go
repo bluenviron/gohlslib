@@ -270,17 +270,6 @@ func TestClientMPEGTS(t *testing.T) {
 				prefix = "https"
 			}
 
-			c := &Client{
-				URI: prefix + "://localhost:5780/stream.m3u8",
-				HTTPClient: &http.Client{
-					Transport: &http.Transport{
-						TLSClientConfig: &tls.Config{
-							InsecureSkipVerify: true,
-						},
-					},
-				},
-			}
-
 			onH264 := func(pts time.Duration, dts time.Duration, au [][]byte) {
 				require.Equal(t, 2*time.Second, pts)
 				require.Equal(t, time.Duration(0), dts)
@@ -292,12 +281,23 @@ func TestClientMPEGTS(t *testing.T) {
 				close(packetRecv)
 			}
 
-			c.OnTracks(func(tracks []*Track) error {
-				require.Equal(t, 1, len(tracks))
-				require.Equal(t, &codecs.H264{}, tracks[0].Codec)
-				c.OnDataH26x(tracks[0], onH264)
-				return nil
-			})
+			var c *Client
+			c = &Client{
+				URI: prefix + "://localhost:5780/stream.m3u8",
+				HTTPClient: &http.Client{
+					Transport: &http.Transport{
+						TLSClientConfig: &tls.Config{
+							InsecureSkipVerify: true,
+						},
+					},
+				},
+				OnTracks: func(tracks []*Track) error {
+					require.Equal(t, 1, len(tracks))
+					require.Equal(t, &codecs.H264{}, tracks[0].Codec)
+					c.OnDataH26x(tracks[0], onH264)
+					return nil
+				},
+			}
 
 			err = c.Start()
 			require.NoError(t, err)
@@ -355,17 +355,17 @@ segment.mp4
 		close(packetRecv)
 	}
 
-	c := &Client{
+	var c *Client
+	c = &Client{
 		URI: "http://localhost:5780/stream.m3u8",
+		OnTracks: func(tracks []*Track) error {
+			require.Equal(t, 1, len(tracks))
+			_, ok := tracks[0].Codec.(*codecs.H264)
+			require.Equal(t, true, ok)
+			c.OnDataH26x(tracks[0], onH264)
+			return nil
+		},
 	}
-
-	c.OnTracks(func(tracks []*Track) error {
-		require.Equal(t, 1, len(tracks))
-		_, ok := tracks[0].Codec.(*codecs.H264)
-		require.Equal(t, true, ok)
-		c.OnDataH26x(tracks[0], onH264)
-		return nil
-	})
 
 	err = c.Start()
 	require.NoError(t, err)
@@ -428,10 +428,6 @@ segment1.ts
 		URI: "http://localhost:5780/stream.m3u8",
 	}
 	require.NoError(t, err)
-
-	c.OnTracks(func(tracks []*Track) error {
-		return nil
-	})
 
 	err = c.Start()
 	require.NoError(t, err)
