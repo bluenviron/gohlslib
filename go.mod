@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/aler9/writerseeker v1.1.0
-	github.com/asticode/go-astits v1.12.0
+	github.com/asticode/go-astits v1.13.0
 	github.com/bluenviron/mediacommon v1.0.0
 	github.com/gin-gonic/gin v1.9.1
 	github.com/stretchr/testify v1.8.4

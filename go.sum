@@ -4,8 +4,8 @@ github.com/aler9/writerseeker v1.1.0 h1:t+Sm3tjp8scNlqyoa8obpeqwciMNOvdvsxjxEb3S
 github.com/aler9/writerseeker v1.1.0/go.mod h1:QNCcjSKnLsYoTfMmXkEEfgbz6nNXWxKSaBY+hGJGWDA=
 github.com/asticode/go-astikit v0.30.0 h1:DkBkRQRIxYcknlaU7W7ksNfn4gMFsB0tqMJflxkRsZA=
 github.com/asticode/go-astikit v0.30.0/go.mod h1:h4ly7idim1tNhaVkdVBeXQZEE3L0xblP7fCWbgwipF0=
-github.com/asticode/go-astits v1.12.0 h1:BiefTgVEyPgEB8nT6J+Sys/uxE4H/a04SW/aedpOpPc=
-github.com/asticode/go-astits v1.12.0/go.mod h1:QSHmknZ51pf6KJdHKZHJTLlMegIrhega3LPWz3ND/iI=
+github.com/asticode/go-astits v1.13.0 h1:XOgkaadfZODnyZRR5Y0/DWkA9vrkLLPLeeOvDwfKZ1c=
+github.com/asticode/go-astits v1.13.0/go.mod h1:QSHmknZ51pf6KJdHKZHJTLlMegIrhega3LPWz3ND/iI=
 github.com/bluenviron/mediacommon v1.0.0 h1:hKelTQKfetasCmXaXMiL1ihID0GRmItyWZt1/pqiKKk=
 github.com/bluenviron/mediacommon v1.0.0/go.mod h1:nt5oKCO0WcZ+AH1oc12gs2ldp67xW2vl88c2StNmPlI=
 github.com/bytedance/sonic v1.5.0/go.mod h1:ED5hyg4y6t3/9Ku1R6dU/4KyJ48DZ4jPhfY1O2AihPM=
