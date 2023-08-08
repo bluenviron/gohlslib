@@ -5,13 +5,13 @@ go 1.18
 require (
 	github.com/aler9/writerseeker v1.1.0
 	github.com/asticode/go-astits v1.12.0
-	github.com/bluenviron/mediacommon v0.7.1-0.20230806181841-a2766dec314f
+	github.com/bluenviron/mediacommon v1.0.0
 	github.com/gin-gonic/gin v1.9.1
 	github.com/stretchr/testify v1.8.4
 )
 
 require (
-	github.com/abema/go-mp4 v0.11.0 // indirect
+	github.com/abema/go-mp4 v0.12.0 // indirect
 	github.com/asticode/go-astikit v0.30.0 // indirect
 	github.com/bytedance/sonic v1.9.1 // indirect
 	github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311 // indirect
