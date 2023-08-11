@@ -367,9 +367,8 @@ func (m *muxerSegmenterFMP4) writeVideo(
 	}
 
 	// switch segment
-	if randomAccess &&
-		((m.nextVideoSample.dts-m.currentSegment.startDTS) >= m.segmentDuration ||
-			forceSwitch) {
+	if (m.nextVideoSample.dts-m.currentSegment.startDTS) >= m.segmentDuration ||
+		forceSwitch {
 		err := m.currentSegment.finalize(m.nextVideoSample.dts)
 		if err != nil {
 			return err
