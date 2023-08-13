@@ -894,6 +894,6 @@ func FuzzMultivariantUnmarshal(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, a string) {
 		var m Multivariant
-		m.Unmarshal([]byte(a))
+		m.Unmarshal([]byte(a)) //nolint:errcheck
 	})
 }

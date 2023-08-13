@@ -155,7 +155,7 @@ func newMuxerSegmenterFMP4(
 
 func (m *muxerSegmenterFMP4) close() {
 	if m.currentSegment != nil {
-		m.currentSegment.finalize(0)
+		m.currentSegment.finalize(0) //nolint:errcheck
 		m.currentSegment.close()
 	}
 }

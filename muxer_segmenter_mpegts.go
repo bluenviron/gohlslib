@@ -31,7 +31,7 @@ type muxerSegmenterMPEGTS struct {
 	audioTrack      *Track
 	prefix          string
 	factory         storage.Factory
-	onSegmentReady  func(muxerSegment)
+	publishSegment  func(muxerSegment)
 
 	writerVideoTrack  *mpegts.Track
 	writerAudioTrack  *mpegts.Track
@@ -50,7 +50,7 @@ func newMuxerSegmenterMPEGTS(
 	audioTrack *Track,
 	prefix string,
 	factory storage.Factory,
-	onSegmentReady func(muxerSegment),
+	publishSegment func(muxerSegment),
 ) *muxerSegmenterMPEGTS {
 	m := &muxerSegmenterMPEGTS{
 		segmentDuration: segmentDuration,
@@ -59,7 +59,7 @@ func newMuxerSegmenterMPEGTS(
 		audioTrack:      audioTrack,
 		prefix:          prefix,
 		factory:         factory,
-		onSegmentReady:  onSegmentReady,
+		publishSegment:  publishSegment,
 	}
 
 	var tracks []*mpegts.Track
@@ -87,7 +87,7 @@ func newMuxerSegmenterMPEGTS(
 
 func (m *muxerSegmenterMPEGTS) close() {
 	if m.currentSegment != nil {
-		m.currentSegment.finalize(0)
+		m.currentSegment.finalize(0) //nolint:errcheck
 		m.currentSegment.close()
 	}
 }
@@ -173,10 +173,13 @@ func (m *muxerSegmenterMPEGTS) writeH26x(
 		if randomAccessPresent &&
 			((dts-*m.currentSegment.startDTS) >= m.segmentDuration ||
 				forceSwitch) {
-			m.currentSegment.finalize(dts)
-			m.onSegmentReady(m.currentSegment)
+			err := m.currentSegment.finalize(dts)
+			if err != nil {
+				return err
+			}
 
-			var err error
+			m.publishSegment(m.currentSegment)
+
 			m.currentSegment, err = newMuxerSegmentMPEGTS(
 				m.genSegmentID(),
 				ntp,
@@ -238,10 +241,13 @@ func (m *muxerSegmenterMPEGTS) writeMPEG4Audio(ntp time.Time, pts time.Duration,
 			// switch segment
 			if m.currentSegment.audioAUCount >= mpegtsSegmentMinAUCount &&
 				(pts-*m.currentSegment.startDTS) >= m.segmentDuration {
-				m.currentSegment.finalize(pts)
-				m.onSegmentReady(m.currentSegment)
+				err := m.currentSegment.finalize(pts)
+				if err != nil {
+					return err
+				}
 
-				var err error
+				m.publishSegment(m.currentSegment)
+
 				m.currentSegment, err = newMuxerSegmentMPEGTS(
 					m.genSegmentID(),
 					ntp,
