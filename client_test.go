@@ -89,14 +89,19 @@ func writeTempFile(byts []byte) (string, error) {
 	return tmpf.Name(), nil
 }
 
-func mpegtsSegment(w io.Writer) {
+func mpegtsSegment(t *testing.T, w io.Writer) {
 	mux := astits.NewMuxer(context.Background(), w)
-	mux.AddElementaryStream(astits.PMTElementaryStream{
+
+	err := mux.AddElementaryStream(astits.PMTElementaryStream{
 		ElementaryPID: 256,
 		StreamType:    astits.StreamTypeH264Video,
 	})
+	require.NoError(t, err)
+
 	mux.SetPCRPID(256)
-	mux.WriteTables()
+
+	_, err = mux.WriteTables()
+	require.NoError(t, err)
 
 	enc, _ := h264.AnnexBMarshal([][]byte{
 		{7, 1, 2, 3}, // SPS
@@ -104,7 +109,7 @@ func mpegtsSegment(w io.Writer) {
 		{5},          // IDR
 	})
 
-	mux.WriteData(&astits.MuxerData{
+	_, err = mux.WriteData(&astits.MuxerData{
 		PID: 256,
 		PES: &astits.PESData{
 			Header: &astits.PESHeader{
@@ -119,6 +124,7 @@ func mpegtsSegment(w io.Writer) {
 			Data: enc,
 		},
 	})
+	require.NoError(t, err)
 }
 
 func mp4Init(t *testing.T, w io.Writer) {
@@ -256,7 +262,7 @@ func TestClientMPEGTS(t *testing.T) {
 					require.Equal(t, "val", ctx.Query("key"))
 				}
 				ctx.Writer.Header().Set("Content-Type", `video/MP2T`)
-				mpegtsSegment(ctx.Writer)
+				mpegtsSegment(t, ctx.Writer)
 			})
 
 			s, err := newTestHLSServer(router, ca == "tls")
@@ -417,7 +423,7 @@ segment1.ts
 
 	router.GET("/segment1.ts", func(ctx *gin.Context) {
 		ctx.Writer.Header().Set("Content-Type", `video/MP2T`)
-		mpegtsSegment(ctx.Writer)
+		mpegtsSegment(t, ctx.Writer)
 	})
 
 	s, err := newTestHLSServer(router, false)

@@ -87,11 +87,16 @@ func (t *muxerSegmentMPEGTS) reader() (io.ReadCloser, error) {
 	return t.storage.Reader()
 }
 
-func (t *muxerSegmentMPEGTS) finalize(nextDTS time.Duration) {
-	t.endDTS = nextDTS
-	t.bw.Flush()
+func (t *muxerSegmentMPEGTS) finalize(nextDTS time.Duration) error {
+	err := t.bw.Flush()
+	if err != nil {
+		return err
+	}
+
 	t.bw = nil
 	t.storage.Finalize()
+	t.endDTS = nextDTS
+	return nil
 }
 
 func (t *muxerSegmentMPEGTS) writeH264(
