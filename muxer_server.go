@@ -23,6 +23,10 @@ import (
 	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
 )
 
+func boolPtr(v bool) *bool {
+	return &v
+}
+
 func targetDuration(segments []muxerSegment) int {
 	ret := int(0)
 
@@ -462,11 +466,8 @@ func (s *muxerServer) generateMediaPlaylist(isDeltaUpdate bool) []byte {
 
 func (s *muxerServer) generateMediaPlaylistMPEGTS() []byte {
 	pl := &playlist.Media{
-		Version: 3,
-		AllowCache: func() *bool {
-			v := false
-			return &v
-		}(),
+		Version:        3,
+		AllowCache:     boolPtr(false),
 		TargetDuration: targetDuration(s.segments),
 		MediaSequence:  s.segmentDeleteCount,
 	}
