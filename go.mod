@@ -1,6 +1,6 @@
 module github.com/bluenviron/gohlslib
 
-go 1.18
+go 1.19
 
 require (
 	github.com/aler9/writerseeker v1.1.0
