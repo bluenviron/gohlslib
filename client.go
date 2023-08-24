@@ -8,6 +8,7 @@ package gohlslib
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"time"
@@ -108,16 +109,24 @@ func (c *Client) Start() error {
 		}
 	}
 	if c.OnDownloadPrimaryPlaylist == nil {
-		c.OnDownloadPrimaryPlaylist = func(_ string) {}
+		c.OnDownloadPrimaryPlaylist = func(u string) {
+			log.Printf("downloading primary playlist %v", u)
+		}
 	}
 	if c.OnDownloadStreamPlaylist == nil {
-		c.OnDownloadStreamPlaylist = func(_ string) {}
+		c.OnDownloadStreamPlaylist = func(u string) {
+			log.Printf("downloading stream playlist %v", u)
+		}
 	}
 	if c.OnDownloadSegment == nil {
-		c.OnDownloadSegment = func(_ string) {}
+		c.OnDownloadSegment = func(u string) {
+			log.Printf("downloading segment %v", u)
+		}
 	}
 	if c.OnDecodeError == nil {
-		c.OnDecodeError = func(_ error) {}
+		c.OnDecodeError = func(err error) {
+			log.Println(err.Error())
+		}
 	}
 
 	var err error
