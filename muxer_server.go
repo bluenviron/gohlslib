@@ -299,7 +299,6 @@ func (s *muxerServer) handleMultivariantPlaylist(w http.ResponseWriter) {
 	// allow caching but use a small period in order to
 	// allow a stream to change tracks or bitrate
 	w.Header().Set("Cache-Control", "max-age=30")
-
 	w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
 	w.WriteHeader(http.StatusOK)
 	w.Write(byts)
@@ -618,7 +617,6 @@ func (s *muxerServer) handleInitFile(w http.ResponseWriter) {
 	// allow caching but use a small period in order to
 	// allow a stream to change track parameters
 	w.Header().Set("Cache-Control", "max-age=30")
-
 	w.Header().Set("Content-Type", "video/mp4")
 	w.WriteHeader(http.StatusOK)
 	io.Copy(w, r)
@@ -643,7 +641,6 @@ func (s *muxerServer) handleSegmentOrPart(fname string, w http.ResponseWriter) {
 		defer r.Close()
 
 		w.Header().Set("Cache-Control", "max-age=3600")
-
 		w.Header().Set(
 			"Content-Type",
 			func() string {
@@ -653,7 +650,6 @@ func (s *muxerServer) handleSegmentOrPart(fname string, w http.ResponseWriter) {
 				return "video/mp4"
 			}(),
 		)
-
 		w.WriteHeader(http.StatusOK)
 		io.Copy(w, r)
 
@@ -687,7 +683,6 @@ func (s *muxerServer) handleSegmentOrPart(fname string, w http.ResponseWriter) {
 		defer r.Close()
 
 		w.Header().Set("Cache-Control", "max-age=3600")
-
 		w.Header().Set("Content-Type", "video/mp4")
 		w.WriteHeader(http.StatusOK)
 		io.Copy(w, r)

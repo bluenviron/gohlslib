@@ -14,12 +14,12 @@ func partName(prefix string, id uint64) string {
 }
 
 type muxerPart struct {
-	startDTS            time.Duration
-	videoTrack          *Track
-	audioTrack          *Track
-	audioTrackTimeScale uint32
-	id                  uint64
-	storage             storage.Part
+	startDTS       time.Duration
+	videoTrack     *Track
+	audioTrack     *Track
+	audioTimeScale uint32
+	id             uint64
+	storage        storage.Part
 
 	name                string
 	isIndependent       bool
@@ -36,19 +36,19 @@ func newMuxerPart(
 	startDTS time.Duration,
 	videoTrack *Track,
 	audioTrack *Track,
-	audioTrackTimeScale uint32,
+	audioTimeScale uint32,
 	prefix string,
 	id uint64,
 	storage storage.Part,
 ) *muxerPart {
 	p := &muxerPart{
-		startDTS:            startDTS,
-		videoTrack:          videoTrack,
-		audioTrack:          audioTrack,
-		audioTrackTimeScale: audioTrackTimeScale,
-		id:                  id,
-		storage:             storage,
-		name:                partName(prefix, id),
+		startDTS:       startDTS,
+		videoTrack:     videoTrack,
+		audioTrack:     audioTrack,
+		audioTimeScale: audioTimeScale,
+		id:             id,
+		storage:        storage,
+		name:           partName(prefix, id),
 	}
 
 	if videoTrack == nil {
@@ -84,7 +84,7 @@ func (p *muxerPart) finalize(nextDTS time.Duration) error {
 	if p.audioSamples != nil {
 		part.Tracks = append(part.Tracks, &fmp4.PartTrack{
 			ID:       1 + len(part.Tracks),
-			BaseTime: durationGoToMp4(p.audioStartDTS, p.audioTrackTimeScale),
+			BaseTime: durationGoToMp4(p.audioStartDTS, p.audioTimeScale),
 			Samples:  p.audioSamples,
 		})
 	}
