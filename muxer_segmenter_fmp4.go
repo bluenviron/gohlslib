@@ -101,8 +101,7 @@ type muxerSegmenterFMP4 struct {
 	publishSegment  func(muxerSegment)
 	publishPart     func(*muxerPart)
 
-	audioTrackTimeScale            uint32
-	startDTS                       time.Duration
+	audioTimeScale                 uint32
 	videoFirstRandomAccessReceived bool
 	videoDTSExtractor              dtsExtractor
 	currentSegment                 *muxerSegmentFMP4
@@ -142,7 +141,7 @@ func newMuxerSegmenterFMP4(
 	}
 
 	if audioTrack != nil {
-		m.audioTrackTimeScale = fmp4TimeScale(audioTrack.Codec)
+		m.audioTimeScale = fmp4TimeScale(audioTrack.Codec)
 	}
 
 	// add initial gaps, required by iOS LL-HLS
@@ -207,9 +206,6 @@ func (m *muxerSegmenterFMP4) writeAV1(
 		}
 
 		m.videoFirstRandomAccessReceived = true
-		m.startDTS = dts
-	} else {
-		dts -= m.startDTS
 	}
 
 	ps, err := fmp4.NewPartSampleAV1(
@@ -245,9 +241,6 @@ func (m *muxerSegmenterFMP4) writeVP9(
 		}
 
 		m.videoFirstRandomAccessReceived = true
-		m.startDTS = dts
-	} else {
-		dts -= m.startDTS
 	}
 
 	sample := &augmentedVideoSample{
@@ -288,19 +281,12 @@ func (m *muxerSegmenterFMP4) writeH26x(
 		if err != nil {
 			return fmt.Errorf("unable to extract DTS: %v", err)
 		}
-
-		m.startDTS = dts
-		dts = 0
-		pts -= m.startDTS
 	} else {
 		var err error
 		dts, err = m.videoDTSExtractor.Extract(au, pts)
 		if err != nil {
 			return fmt.Errorf("unable to extract DTS: %v", err)
 		}
-
-		dts -= m.startDTS
-		pts -= m.startDTS
 	}
 
 	ps, err := fmp4.NewPartSampleH26x(
@@ -348,7 +334,7 @@ func (m *muxerSegmenterFMP4) writeVideo(
 			m.segmentMaxSize,
 			m.videoTrack,
 			m.audioTrack,
-			m.audioTrackTimeScale,
+			m.audioTimeScale,
 			m.prefix,
 			m.factory,
 			m.genPartID,
@@ -386,7 +372,7 @@ func (m *muxerSegmenterFMP4) writeVideo(
 			m.segmentMaxSize,
 			m.videoTrack,
 			m.audioTrack,
-			m.audioTrackTimeScale,
+			m.audioTimeScale,
 			m.prefix,
 			m.factory,
 			m.genPartID,
@@ -446,11 +432,6 @@ func (m *muxerSegmenterFMP4) writeAudio(ntp time.Time, dts time.Duration, au []b
 		if !m.videoFirstRandomAccessReceived {
 			return nil
 		}
-
-		dts -= m.startDTS
-		if dts < 0 {
-			return nil
-		}
 	}
 
 	sample := &augmentedAudioSample{
@@ -466,7 +447,7 @@ func (m *muxerSegmenterFMP4) writeAudio(ntp time.Time, dts time.Duration, au []b
 	if sample == nil {
 		return nil
 	}
-	sample.Duration = uint32(durationGoToMp4(m.nextAudioSample.dts-sample.dts, m.audioTrackTimeScale))
+	sample.Duration = uint32(durationGoToMp4(m.nextAudioSample.dts-sample.dts, m.audioTimeScale))
 
 	if m.videoTrack == nil {
 		if m.currentSegment == nil {
@@ -480,7 +461,7 @@ func (m *muxerSegmenterFMP4) writeAudio(ntp time.Time, dts time.Duration, au []b
 				m.segmentMaxSize,
 				m.videoTrack,
 				m.audioTrack,
-				m.audioTrackTimeScale,
+				m.audioTimeScale,
 				m.prefix,
 				m.factory,
 				m.genPartID,
@@ -521,7 +502,7 @@ func (m *muxerSegmenterFMP4) writeAudio(ntp time.Time, dts time.Duration, au []b
 			m.segmentMaxSize,
 			m.videoTrack,
 			m.audioTrack,
-			m.audioTrackTimeScale,
+			m.audioTimeScale,
 			m.prefix,
 			m.factory,
 			m.genPartID,

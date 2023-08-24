@@ -9,17 +9,17 @@ import (
 )
 
 type muxerSegmentFMP4 struct {
-	lowLatency          bool
-	id                  uint64
-	startNTP            time.Time
-	startDTS            time.Duration
-	segmentMaxSize      uint64
-	videoTrack          *Track
-	audioTrack          *Track
-	audioTrackTimeScale uint32
-	prefix              string
-	genPartID           func() uint64
-	publishPart         func(*muxerPart)
+	lowLatency     bool
+	id             uint64
+	startNTP       time.Time
+	startDTS       time.Duration
+	segmentMaxSize uint64
+	videoTrack     *Track
+	audioTrack     *Track
+	audioTimeScale uint32
+	prefix         string
+	genPartID      func() uint64
+	publishPart    func(*muxerPart)
 
 	name        string
 	storage     storage.File
@@ -37,25 +37,25 @@ func newMuxerSegmentFMP4(
 	segmentMaxSize uint64,
 	videoTrack *Track,
 	audioTrack *Track,
-	audioTrackTimeScale uint32,
+	audioTimeScale uint32,
 	prefix string,
 	factory storage.Factory,
 	genPartID func() uint64,
 	publishPart func(*muxerPart),
 ) (*muxerSegmentFMP4, error) {
 	s := &muxerSegmentFMP4{
-		lowLatency:          lowLatency,
-		id:                  id,
-		startNTP:            startNTP,
-		startDTS:            startDTS,
-		segmentMaxSize:      segmentMaxSize,
-		videoTrack:          videoTrack,
-		audioTrack:          audioTrack,
-		audioTrackTimeScale: audioTrackTimeScale,
-		prefix:              prefix,
-		genPartID:           genPartID,
-		publishPart:         publishPart,
-		name:                segmentName(prefix, id, true),
+		lowLatency:     lowLatency,
+		id:             id,
+		startNTP:       startNTP,
+		startDTS:       startDTS,
+		segmentMaxSize: segmentMaxSize,
+		videoTrack:     videoTrack,
+		audioTrack:     audioTrack,
+		audioTimeScale: audioTimeScale,
+		prefix:         prefix,
+		genPartID:      genPartID,
+		publishPart:    publishPart,
+		name:           segmentName(prefix, id, true),
 	}
 
 	var err error
@@ -68,7 +68,7 @@ func newMuxerSegmentFMP4(
 		startDTS,
 		s.videoTrack,
 		s.audioTrack,
-		s.audioTrackTimeScale,
+		s.audioTimeScale,
 		prefix,
 		s.genPartID(),
 		s.storage.NewPart(),
@@ -144,7 +144,7 @@ func (s *muxerSegmentFMP4) writeVideo(
 			nextDTS,
 			s.videoTrack,
 			s.audioTrack,
-			s.audioTrackTimeScale,
+			s.audioTimeScale,
 			s.prefix,
 			s.genPartID(),
 			s.storage.NewPart(),
@@ -182,7 +182,7 @@ func (s *muxerSegmentFMP4) writeAudio(
 			nextAudioSampleDTS,
 			s.videoTrack,
 			s.audioTrack,
-			s.audioTrackTimeScale,
+			s.audioTimeScale,
 			s.prefix,
 			s.genPartID(),
 			s.storage.NewPart(),
