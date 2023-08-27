@@ -275,18 +275,12 @@ func (m *muxerSegmenterFMP4) writeH26x(
 
 		m.videoFirstRandomAccessReceived = true
 		m.videoDTSExtractor = allocateDTSExtractor(m.videoTrack)
+	}
 
-		var err error
-		dts, err = m.videoDTSExtractor.Extract(au, pts)
-		if err != nil {
-			return fmt.Errorf("unable to extract DTS: %v", err)
-		}
-	} else {
-		var err error
-		dts, err = m.videoDTSExtractor.Extract(au, pts)
-		if err != nil {
-			return fmt.Errorf("unable to extract DTS: %v", err)
-		}
+	var err error
+	dts, err = m.videoDTSExtractor.Extract(au, pts)
+	if err != nil {
+		return fmt.Errorf("unable to extract DTS: %v", err)
 	}
 
 	ps, err := fmp4.NewPartSampleH26x(
