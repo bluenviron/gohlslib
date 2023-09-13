@@ -90,16 +90,18 @@ type augmentedAudioSample struct {
 }
 
 type muxerSegmenterFMP4 struct {
-	lowLatency      bool
-	segmentDuration time.Duration
-	partDuration    time.Duration
-	segmentMaxSize  uint64
-	videoTrack      *Track
-	audioTrack      *Track
-	prefix          string
-	factory         storage.Factory
-	publishSegment  func(muxerSegment)
-	publishPart     func(*muxerPart)
+	lowLatency                bool
+	segmentDuration           time.Duration
+	partDuration              time.Duration
+	segmentMaxSize            uint64
+	durationRequiredPartCount uint64
+	videoTrack                *Track
+	audioTrack                *Track
+	prefix                    string
+	factory                   storage.Factory
+	updateInProgressSegment   func(muxerSegment)
+	publishSegment            func(muxerSegment)
+	publishPart               func(*muxerPart)
 
 	audioTimeScale                 uint32
 	videoFirstRandomAccessReceived bool
@@ -119,25 +121,29 @@ func newMuxerSegmenterFMP4(
 	segmentDuration time.Duration,
 	partDuration time.Duration,
 	segmentMaxSize uint64,
+	durationRequiredPartCount uint64,
 	videoTrack *Track,
 	audioTrack *Track,
 	prefix string,
 	factory storage.Factory,
+	updateInProgressSegment func(muxerSegment),
 	publishSegment func(muxerSegment),
 	publishPart func(*muxerPart),
 ) *muxerSegmenterFMP4 {
 	m := &muxerSegmenterFMP4{
-		lowLatency:      lowLatency,
-		segmentDuration: segmentDuration,
-		partDuration:    partDuration,
-		segmentMaxSize:  segmentMaxSize,
-		videoTrack:      videoTrack,
-		audioTrack:      audioTrack,
-		prefix:          prefix,
-		factory:         factory,
-		publishSegment:  publishSegment,
-		publishPart:     publishPart,
-		sampleDurations: make(map[time.Duration]struct{}),
+		lowLatency:                lowLatency,
+		segmentDuration:           segmentDuration,
+		partDuration:              partDuration,
+		segmentMaxSize:            segmentMaxSize,
+		durationRequiredPartCount: durationRequiredPartCount,
+		videoTrack:                videoTrack,
+		audioTrack:                audioTrack,
+		prefix:                    prefix,
+		factory:                   factory,
+		updateInProgressSegment:   updateInProgressSegment,
+		publishSegment:            publishSegment,
+		publishPart:               publishPart,
+		sampleDurations:           make(map[time.Duration]struct{}),
 	}
 
 	if audioTrack != nil {
@@ -326,6 +332,7 @@ func (m *muxerSegmenterFMP4) writeVideo(
 			sample.ntp,
 			sample.dts,
 			m.segmentMaxSize,
+			m.durationRequiredPartCount,
 			m.videoTrack,
 			m.audioTrack,
 			m.audioTimeScale,
@@ -337,6 +344,8 @@ func (m *muxerSegmenterFMP4) writeVideo(
 		if err != nil {
 			return err
 		}
+
+		m.updateInProgressSegment(m.currentSegment)
 	}
 
 	m.adjustPartDuration(m.nextVideoSample.dts - sample.dts)
@@ -364,6 +373,7 @@ func (m *muxerSegmenterFMP4) writeVideo(
 			m.nextVideoSample.ntp,
 			m.nextVideoSample.dts,
 			m.segmentMaxSize,
+			m.durationRequiredPartCount,
 			m.videoTrack,
 			m.audioTrack,
 			m.audioTimeScale,
@@ -375,6 +385,8 @@ func (m *muxerSegmenterFMP4) writeVideo(
 		if err != nil {
 			return err
 		}
+
+		m.updateInProgressSegment(m.currentSegment)
 
 		if forceSwitch {
 			m.firstSegmentFinalized = false
@@ -453,6 +465,7 @@ func (m *muxerSegmenterFMP4) writeAudio(ntp time.Time, dts time.Duration, au []b
 				sample.ntp,
 				sample.dts,
 				m.segmentMaxSize,
+				m.durationRequiredPartCount,
 				m.videoTrack,
 				m.audioTrack,
 				m.audioTimeScale,
@@ -494,6 +507,7 @@ func (m *muxerSegmenterFMP4) writeAudio(ntp time.Time, dts time.Duration, au []b
 			m.nextAudioSample.ntp,
 			m.nextAudioSample.dts,
 			m.segmentMaxSize,
+			m.durationRequiredPartCount,
 			m.videoTrack,
 			m.audioTrack,
 			m.audioTimeScale,

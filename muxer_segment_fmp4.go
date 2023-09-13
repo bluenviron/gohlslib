@@ -9,17 +9,18 @@ import (
 )
 
 type muxerSegmentFMP4 struct {
-	lowLatency     bool
-	id             uint64
-	startNTP       time.Time
-	startDTS       time.Duration
-	segmentMaxSize uint64
-	videoTrack     *Track
-	audioTrack     *Track
-	audioTimeScale uint32
-	prefix         string
-	genPartID      func() uint64
-	publishPart    func(*muxerPart)
+	lowLatency                bool
+	id                        uint64
+	startNTP                  time.Time
+	startDTS                  time.Duration
+	segmentMaxSize            uint64
+	durationRequiredPartCount uint64
+	videoTrack                *Track
+	audioTrack                *Track
+	audioTimeScale            uint32
+	prefix                    string
+	genPartID                 func() uint64
+	publishPart               func(*muxerPart)
 
 	name        string
 	storage     storage.File
@@ -35,6 +36,7 @@ func newMuxerSegmentFMP4(
 	startNTP time.Time,
 	startDTS time.Duration,
 	segmentMaxSize uint64,
+	durationRequiredPartCount uint64,
 	videoTrack *Track,
 	audioTrack *Track,
 	audioTimeScale uint32,
@@ -44,18 +46,19 @@ func newMuxerSegmentFMP4(
 	publishPart func(*muxerPart),
 ) (*muxerSegmentFMP4, error) {
 	s := &muxerSegmentFMP4{
-		lowLatency:     lowLatency,
-		id:             id,
-		startNTP:       startNTP,
-		startDTS:       startDTS,
-		segmentMaxSize: segmentMaxSize,
-		videoTrack:     videoTrack,
-		audioTrack:     audioTrack,
-		audioTimeScale: audioTimeScale,
-		prefix:         prefix,
-		genPartID:      genPartID,
-		publishPart:    publishPart,
-		name:           segmentName(prefix, id, true),
+		lowLatency:                lowLatency,
+		id:                        id,
+		startNTP:                  startNTP,
+		startDTS:                  startDTS,
+		segmentMaxSize:            segmentMaxSize,
+		durationRequiredPartCount: durationRequiredPartCount,
+		videoTrack:                videoTrack,
+		audioTrack:                audioTrack,
+		audioTimeScale:            audioTimeScale,
+		prefix:                    prefix,
+		genPartID:                 genPartID,
+		publishPart:               publishPart,
+		name:                      segmentName(prefix, id, true),
 	}
 
 	var err error
@@ -85,8 +88,16 @@ func (s *muxerSegmentFMP4) getName() string {
 	return s.name
 }
 
+func (s *muxerSegmentFMP4) hasDuration() bool {
+	return s.endDTS > 0 || (s.lowLatency && len(s.parts) >= int(s.durationRequiredPartCount))
+}
+
 func (s *muxerSegmentFMP4) getDuration() time.Duration {
-	return s.endDTS - s.startDTS
+	if s.endDTS > 0 {
+		return s.endDTS - s.startDTS
+	}
+
+	return s.parts[len(s.parts)-1].startDTS - s.startDTS
 }
 
 func (s *muxerSegmentFMP4) getSize() uint64 {
