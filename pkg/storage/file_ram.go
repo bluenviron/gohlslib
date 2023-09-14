@@ -52,7 +52,7 @@ func (s *fileRAM) Size() uint64 {
 		return s.finalSize
 	}
 
-	var currentSize uint64 = 0
+	var currentSize uint64
 	for _, part := range s.parts {
 		currentSize += uint64(len(part.buffer.Bytes()))
 	}
