@@ -45,7 +45,7 @@ Features:
 
 * [Examples](#examples)
 * [API Documentation](#api-documentation)
-* [Standards](#standards)
+* [Specifications](#specifications)
 * [Related projects](#related-projects)
 
 ## Examples
@@ -58,13 +58,15 @@ Features:
 
 https://pkg.go.dev/github.com/bluenviron/gohlslib#pkg-index
 
-## Standards
+## Specifications
 
-* [RFC2616, HTTP 1.1](https://datatracker.ietf.org/doc/html/rfc2616)
-* [RFC8216, HLS](https://datatracker.ietf.org/doc/html/rfc8216)
-* [HLS v2](https://datatracker.ietf.org/doc/html/draft-pantos-hls-rfc8216bis)
-* [Codec standards](https://github.com/bluenviron/mediacommon#standards)
-* [Golang project layout](https://github.com/golang-standards/project-layout)
+|name|area|
+|----|----|
+|[RFC2616, HTTP 1.1](https://datatracker.ietf.org/doc/html/rfc2616)|protocol|
+|[RFC8216, HLS](https://datatracker.ietf.org/doc/html/rfc8216)|protocol|
+|[HLS v2](https://datatracker.ietf.org/doc/html/draft-pantos-hls-rfc8216bis)|protocol|
+|[Codec specifications](https://github.com/bluenviron/mediacommon#specifications)|codecs|
+|[Golang project layout](https://github.com/golang-standards/project-layout)|project layout|
 
 ## Related projects
 
