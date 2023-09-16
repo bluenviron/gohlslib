@@ -209,11 +209,12 @@ func (m *Muxer) WriteAV1(ntp time.Time, pts time.Duration, tu [][]byte) error {
 		}
 
 		if h.Type == av1.OBUTypeSequenceHeader {
+			randomAccess = true
+
 			if !bytes.Equal(sequenceHeader, obu) {
 				update = true
 				sequenceHeader = obu
 			}
-			randomAccess = true
 		}
 	}
 
