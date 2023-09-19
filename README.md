@@ -14,26 +14,13 @@ Features:
 
 * Client
 
-  * Read MPEG-TS streams
-  * Read fMP4 streams
-  * Read AV1 tracks
-  * Read VP9 tracks
-  * Read H265 tracks
-  * Read H264 tracks
-  * Read Opus tracks
-  * Read MPEG-4 audio (AAC) tracks
+  * Read MPEG-TS or fMP4 streams
+  * Read tracks encoded with AV1, VP9, H265, H264, Opus, MPEG-4 Audio (AAC)
 
 * Muxer
 
-  * Generate MPEG-TS streams
-  * Generate fMP4 streams
-  * Generate Low-latency streams
-  * Write AV1 tracks
-  * Write VP9 tracks
-  * Write H265 tracks
-  * Write H264 tracks
-  * Write Opus tracks
-  * Write MPEG-4 audio (AAC) tracks
+  * Generate MPEG-TS, fMP4, Low-latency streams
+  * Write tracks encoded with AV1, VP9, H265, H264, Opus, MPEG-4 audio (AAC)
   * Save generated segments on disk
 
 * General
@@ -56,7 +43,7 @@ Features:
 
 ## API Documentation
 
-https://pkg.go.dev/github.com/bluenviron/gohlslib#pkg-index
+[Click to open the API Documentation](https://pkg.go.dev/github.com/bluenviron/gohlslib#pkg-index)
 
 ## Specifications
 
