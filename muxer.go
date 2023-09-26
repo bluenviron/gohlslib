@@ -148,7 +148,7 @@ func (m *Muxer) Start() error {
 		m.storageFactory = storage.NewFactoryRAM()
 	}
 
-	m.server, err = newMuxerServer(
+	m.server = newMuxerServer(
 		m.Variant,
 		m.SegmentCount,
 		m.VideoTrack,
@@ -156,9 +156,6 @@ func (m *Muxer) Start() error {
 		m.prefix,
 		m.storageFactory,
 	)
-	if err != nil {
-		return err
-	}
 
 	if m.Variant == MuxerVariantMPEGTS {
 		m.segmenter = newMuxerSegmenterMPEGTS(
@@ -197,8 +194,6 @@ func (m *Muxer) Close() {
 // WriteAV1 writes an AV1 temporal unit.
 func (m *Muxer) WriteAV1(ntp time.Time, pts time.Duration, tu [][]byte) error {
 	codec := m.VideoTrack.Codec.(*codecs.AV1)
-	update := false
-	sequenceHeader := codec.SequenceHeader
 	randomAccess := false
 
 	for _, obu := range tu {
@@ -211,24 +206,11 @@ func (m *Muxer) WriteAV1(ntp time.Time, pts time.Duration, tu [][]byte) error {
 		if h.Type == av1.OBUTypeSequenceHeader {
 			randomAccess = true
 
-			if !bytes.Equal(sequenceHeader, obu) {
-				update = true
-				sequenceHeader = obu
+			if !bytes.Equal(codec.SequenceHeader, obu) {
+				m.forceSwitch = true
+				codec.SequenceHeader = obu
 			}
 		}
-	}
-
-	if update {
-		err := func() error {
-			m.server.mutex.Lock()
-			defer m.server.mutex.Unlock()
-			codec.SequenceHeader = sequenceHeader
-			return m.server.generateInitFile()
-		}()
-		if err != nil {
-			return fmt.Errorf("unable to generate init.mp4: %v", err)
-		}
-		m.forceSwitch = true
 	}
 
 	forceSwitch := false
@@ -250,59 +232,34 @@ func (m *Muxer) WriteVP9(ntp time.Time, pts time.Duration, frame []byte) error {
 
 	codec := m.VideoTrack.Codec.(*codecs.VP9)
 	randomAccess := false
-	update := false
-	width := codec.Width
-	height := codec.Height
-	profile := codec.Profile
-	bitDepth := codec.BitDepth
-	chromaSubsampling := codec.ChromaSubsampling
-	colorRange := codec.ColorRange
 
 	if h.FrameType == vp9.FrameTypeKeyFrame {
 		randomAccess = true
 
-		if v := h.Width(); v != width {
-			update = true
-			width = v
+		if v := h.Width(); v != codec.Width {
+			m.forceSwitch = true
+			codec.Width = v
 		}
-		if v := h.Height(); v != height {
-			update = true
-			height = v
+		if v := h.Height(); v != codec.Height {
+			m.forceSwitch = true
+			codec.Height = v
 		}
-		if h.Profile != profile {
-			update = true
-			profile = h.Profile
+		if h.Profile != codec.Profile {
+			m.forceSwitch = true
+			codec.Profile = h.Profile
 		}
-		if h.ColorConfig.BitDepth != bitDepth {
-			update = true
-			bitDepth = h.ColorConfig.BitDepth
+		if h.ColorConfig.BitDepth != codec.BitDepth {
+			m.forceSwitch = true
+			codec.BitDepth = h.ColorConfig.BitDepth
 		}
-		if v := h.ChromaSubsampling(); v != chromaSubsampling {
-			update = true
-			chromaSubsampling = v
+		if v := h.ChromaSubsampling(); v != codec.ChromaSubsampling {
+			m.forceSwitch = true
+			codec.ChromaSubsampling = v
 		}
-		if h.ColorConfig.ColorRange != colorRange {
-			update = true
-			colorRange = h.ColorConfig.ColorRange
+		if h.ColorConfig.ColorRange != codec.ColorRange {
+			m.forceSwitch = true
+			codec.ColorRange = h.ColorConfig.ColorRange
 		}
-	}
-
-	if update {
-		err := func() error {
-			m.server.mutex.Lock()
-			defer m.server.mutex.Unlock()
-			codec.Width = width
-			codec.Height = height
-			codec.Profile = profile
-			codec.BitDepth = bitDepth
-			codec.ChromaSubsampling = chromaSubsampling
-			codec.ColorRange = colorRange
-			return m.server.generateInitFile()
-		}()
-		if err != nil {
-			return fmt.Errorf("unable to generate init.mp4: %v", err)
-		}
-		m.forceSwitch = true
 	}
 
 	forceSwitch := false
@@ -320,11 +277,6 @@ func (m *Muxer) WriteH26x(ntp time.Time, pts time.Duration, au [][]byte) error {
 
 	switch codec := m.VideoTrack.Codec.(type) {
 	case *codecs.H265:
-		update := false
-		vps := codec.VPS
-		sps := codec.SPS
-		pps := codec.PPS
-
 		for _, nalu := range au {
 			typ := h265.NALUType((nalu[0] >> 1) & 0b111111)
 
@@ -333,45 +285,27 @@ func (m *Muxer) WriteH26x(ntp time.Time, pts time.Duration, au [][]byte) error {
 				randomAccess = true
 
 			case h265.NALUType_VPS_NUT:
-				if !bytes.Equal(vps, nalu) {
-					update = true
-					vps = nalu
+				if !bytes.Equal(codec.VPS, nalu) {
+					m.forceSwitch = true
+					codec.VPS = nalu
 				}
 
 			case h265.NALUType_SPS_NUT:
-				if !bytes.Equal(sps, nalu) {
-					update = true
-					sps = nalu
+				if !bytes.Equal(codec.SPS, nalu) {
+					m.forceSwitch = true
+					codec.SPS = nalu
 				}
 
 			case h265.NALUType_PPS_NUT:
-				if !bytes.Equal(pps, nalu) {
-					update = true
-					pps = nalu
+				if !bytes.Equal(codec.PPS, nalu) {
+					m.forceSwitch = true
+					codec.PPS = nalu
 				}
 			}
 		}
 
-		if update {
-			err := func() error {
-				m.server.mutex.Lock()
-				defer m.server.mutex.Unlock()
-				codec.VPS = vps
-				codec.SPS = sps
-				codec.PPS = pps
-				return m.server.generateInitFile()
-			}()
-			if err != nil {
-				return fmt.Errorf("unable to generate init.mp4: %v", err)
-			}
-			m.forceSwitch = true
-		}
-
 	case *codecs.H264:
-		update := false
 		nonIDRPresent := false
-		sps := codec.SPS
-		pps := codec.PPS
 
 		for _, nalu := range au {
 			typ := h264.NALUType(nalu[0] & 0x1F)
@@ -384,31 +318,17 @@ func (m *Muxer) WriteH26x(ntp time.Time, pts time.Duration, au [][]byte) error {
 				nonIDRPresent = true
 
 			case h264.NALUTypeSPS:
-				if !bytes.Equal(sps, nalu) {
-					update = true
-					sps = nalu
+				if !bytes.Equal(codec.SPS, nalu) {
+					m.forceSwitch = true
+					codec.SPS = nalu
 				}
 
 			case h264.NALUTypePPS:
-				if !bytes.Equal(pps, nalu) {
-					update = true
-					pps = nalu
+				if !bytes.Equal(codec.PPS, nalu) {
+					m.forceSwitch = true
+					codec.PPS = nalu
 				}
 			}
-		}
-
-		if update {
-			err := func() error {
-				m.server.mutex.Lock()
-				defer m.server.mutex.Unlock()
-				codec.SPS = sps
-				codec.PPS = pps
-				return m.server.generateInitFile()
-			}()
-			if err != nil {
-				return fmt.Errorf("unable to generate init.mp4: %v", err)
-			}
-			m.forceSwitch = true
 		}
 
 		if !randomAccess && !nonIDRPresent {

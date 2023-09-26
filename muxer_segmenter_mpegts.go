@@ -31,7 +31,7 @@ type muxerSegmenterMPEGTS struct {
 	audioTrack      *Track
 	prefix          string
 	factory         storage.Factory
-	publishSegment  func(muxerSegment)
+	publishSegment  func(muxerSegment) error
 
 	writerVideoTrack  *mpegts.Track
 	writerAudioTrack  *mpegts.Track
@@ -49,7 +49,7 @@ func newMuxerSegmenterMPEGTS(
 	audioTrack *Track,
 	prefix string,
 	factory storage.Factory,
-	publishSegment func(muxerSegment),
+	publishSegment func(muxerSegment) error,
 ) *muxerSegmenterMPEGTS {
 	m := &muxerSegmenterMPEGTS{
 		segmentDuration: segmentDuration,
@@ -170,7 +170,10 @@ func (m *muxerSegmenterMPEGTS) writeH26x(
 				return err
 			}
 
-			m.publishSegment(m.currentSegment)
+			err = m.publishSegment(m.currentSegment)
+			if err != nil {
+				return err
+			}
 
 			m.currentSegment, err = newMuxerSegmentMPEGTS(
 				m.genSegmentID(),
@@ -231,7 +234,10 @@ func (m *muxerSegmenterMPEGTS) writeMPEG4Audio(ntp time.Time, pts time.Duration,
 				return err
 			}
 
-			m.publishSegment(m.currentSegment)
+			err = m.publishSegment(m.currentSegment)
+			if err != nil {
+				return err
+			}
 
 			m.currentSegment, err = newMuxerSegmentMPEGTS(
 				m.genSegmentID(),

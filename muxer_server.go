@@ -1,7 +1,6 @@
 package gohlslib
 
 import (
-	"fmt"
 	"io"
 	"math"
 	"net/http"
@@ -70,23 +69,6 @@ func partTargetDuration(
 	return time.Millisecond * time.Duration(math.Ceil(float64(ret)/float64(time.Millisecond)))
 }
 
-func videoHasParameters(videoTrack *Track) bool {
-	switch codec := videoTrack.Codec.(type) {
-	case *codecs.AV1:
-		return codec.SequenceHeader != nil
-
-	case *codecs.VP9:
-		return codec.Width != 0
-
-	case *codecs.H264:
-		return codec.SPS != nil && codec.PPS != nil
-
-	case *codecs.H265:
-		return codec.VPS != nil && codec.SPS != nil && codec.PPS != nil
-	}
-	return false
-}
-
 func parseMSNPart(msn string, part string) (uint64, uint64, error) {
 	var msnint uint64
 	if msn != "" {
@@ -106,7 +88,7 @@ func parseMSNPart(msn string, part string) (uint64, uint64, error) {
 		}
 	}
 
-	return (msnint), (partint), nil
+	return msnint, partint, nil
 }
 
 func bandwidth(segments []muxerSegment) (int, int) {
@@ -134,6 +116,300 @@ func bandwidth(segments []muxerSegment) (int, int) {
 	return int(maxBandwidth), int(averageBandwidth)
 }
 
+func generateMultivariantPlaylist(
+	variant MuxerVariant,
+	videoTrack *Track,
+	audioTrack *Track,
+	segments []muxerSegment,
+) ([]byte, error) {
+	maxBandwidth, averageBandwidth := bandwidth(segments)
+	var resolution string
+	var frameRate *float64
+
+	if videoTrack != nil {
+		switch codec := videoTrack.Codec.(type) {
+		case *codecs.AV1:
+			var sh av1.SequenceHeader
+			err := sh.Unmarshal(codec.SequenceHeader)
+			if err != nil {
+				return nil, err
+			}
+
+			resolution = strconv.FormatInt(int64(sh.Width()), 10) + "x" + strconv.FormatInt(int64(sh.Height()), 10)
+
+			// TODO: FPS
+
+		case *codecs.VP9:
+			resolution = strconv.FormatInt(int64(codec.Width), 10) + "x" + strconv.FormatInt(int64(codec.Height), 10)
+
+			// TODO: FPS
+
+		case *codecs.H265:
+			var sps h265.SPS
+			err := sps.Unmarshal(codec.SPS)
+			if err != nil {
+				return nil, err
+			}
+
+			resolution = strconv.FormatInt(int64(sps.Width()), 10) + "x" + strconv.FormatInt(int64(sps.Height()), 10)
+
+			f := sps.FPS()
+			if f != 0 {
+				frameRate = &f
+			}
+
+		case *codecs.H264:
+			var sps h264.SPS
+			err := sps.Unmarshal(codec.SPS)
+			if err != nil {
+				return nil, err
+			}
+
+			resolution = strconv.FormatInt(int64(sps.Width()), 10) + "x" + strconv.FormatInt(int64(sps.Height()), 10)
+
+			f := sps.FPS()
+			if f != 0 {
+				frameRate = &f
+			}
+		}
+	}
+
+	pl := &playlist.Multivariant{
+		Version: func() int {
+			if variant == MuxerVariantMPEGTS {
+				return 3
+			}
+			return 9
+		}(),
+		IndependentSegments: true,
+		Variants: []*playlist.MultivariantVariant{{
+			Bandwidth:        maxBandwidth,
+			AverageBandwidth: &averageBandwidth,
+			Codecs: func() []string {
+				var codecs []string
+				if videoTrack != nil {
+					codecs = append(codecs, codecparams.Marshal(videoTrack.Codec))
+				}
+				if audioTrack != nil {
+					codecs = append(codecs, codecparams.Marshal(audioTrack.Codec))
+				}
+				return codecs
+			}(),
+			Resolution: resolution,
+			FrameRate:  frameRate,
+			URI:        "stream.m3u8",
+		}},
+	}
+
+	return pl.Marshal()
+}
+
+func generateInitFile(
+	videoTrack *Track,
+	audioTrack *Track,
+	storageFactory storage.Factory,
+	prefix string,
+) (storage.File, error) {
+	var init fmp4.Init
+	trackID := 1
+
+	if videoTrack != nil {
+		init.Tracks = append(init.Tracks, &fmp4.InitTrack{
+			ID:        trackID,
+			TimeScale: 90000,
+			Codec:     codecs.ToFMP4(videoTrack.Codec),
+		})
+		trackID++
+	}
+
+	if audioTrack != nil {
+		init.Tracks = append(init.Tracks, &fmp4.InitTrack{
+			ID:        trackID,
+			TimeScale: fmp4TimeScale(audioTrack.Codec),
+			Codec:     codecs.ToFMP4(audioTrack.Codec),
+		})
+	}
+
+	f, err := storageFactory.NewFile(prefix + "_init.mp4")
+	if err != nil {
+		return nil, err
+	}
+	defer f.Finalize()
+
+	part := f.NewPart()
+	w := part.Writer()
+
+	err = init.Marshal(w)
+	if err != nil {
+		return nil, err
+	}
+
+	return f, nil
+}
+
+func generateMediaPlaylistMPEGTS(
+	segments []muxerSegment,
+	segmentDeleteCount int,
+) ([]byte, error) {
+	pl := &playlist.Media{
+		Version:        3,
+		AllowCache:     boolPtr(false),
+		TargetDuration: targetDuration(segments),
+		MediaSequence:  segmentDeleteCount,
+	}
+
+	for _, s := range segments {
+		if seg, ok := s.(*muxerSegmentMPEGTS); ok {
+			pl.Segments = append(pl.Segments, &playlist.MediaSegment{
+				DateTime: &seg.startNTP,
+				Duration: seg.getDuration(),
+				URI:      seg.name,
+			})
+		}
+	}
+
+	return pl.Marshal()
+}
+
+func generateMediaPlaylistFMP4(
+	isDeltaUpdate bool,
+	variant MuxerVariant,
+	segments []muxerSegment,
+	nextSegmentParts []*muxerPart,
+	nextPartID uint64,
+	segmentDeleteCount int,
+	prefix string,
+) ([]byte, error) {
+	targetDuration := targetDuration(segments)
+	skipBoundary := time.Duration(targetDuration) * 6 * time.Second
+
+	pl := &playlist.Media{
+		Version:        9,
+		TargetDuration: targetDuration,
+		MediaSequence:  segmentDeleteCount,
+	}
+
+	if variant == MuxerVariantLowLatency {
+		partTarget := partTargetDuration(segments, nextSegmentParts)
+		partHoldBack := (partTarget * 25) / 10
+
+		pl.ServerControl = &playlist.MediaServerControl{
+			CanBlockReload: true,
+			PartHoldBack:   &partHoldBack,
+			CanSkipUntil:   &skipBoundary,
+		}
+
+		pl.PartInf = &playlist.MediaPartInf{
+			PartTarget: partTarget,
+		}
+	}
+
+	skipped := 0
+
+	if !isDeltaUpdate {
+		pl.Map = &playlist.MediaMap{
+			URI: prefix + "_init.mp4",
+		}
+	} else {
+		var curDuration time.Duration
+		shown := 0
+		for _, segment := range segments {
+			curDuration += segment.getDuration()
+			if curDuration >= skipBoundary {
+				break
+			}
+			shown++
+		}
+		skipped = len(segments) - shown
+
+		pl.Skip = &playlist.MediaSkip{
+			SkippedSegments: skipped,
+		}
+	}
+
+	for i, sog := range segments {
+		if i < skipped {
+			continue
+		}
+
+		switch seg := sog.(type) {
+		case *muxerSegmentFMP4:
+			plse := &playlist.MediaSegment{
+				Duration: seg.getDuration(),
+				URI:      seg.name,
+			}
+
+			if (len(segments) - i) <= 2 {
+				plse.DateTime = &seg.startNTP
+			}
+
+			if variant == MuxerVariantLowLatency && (len(segments)-i) <= 2 {
+				for _, part := range seg.parts {
+					plse.Parts = append(plse.Parts, &playlist.MediaPart{
+						Duration:    part.finalDuration,
+						URI:         part.getName(),
+						Independent: part.isIndependent,
+					})
+				}
+			}
+
+			pl.Segments = append(pl.Segments, plse)
+
+		case *muxerGap:
+			pl.Segments = append(pl.Segments, &playlist.MediaSegment{
+				Gap:      true,
+				Duration: seg.duration,
+				URI:      "gap.mp4",
+			})
+		}
+	}
+
+	if variant == MuxerVariantLowLatency {
+		for _, part := range nextSegmentParts {
+			pl.Parts = append(pl.Parts, &playlist.MediaPart{
+				Duration:    part.finalDuration,
+				URI:         part.getName(),
+				Independent: part.isIndependent,
+			})
+		}
+
+		// preload hint must always be present
+		// otherwise hls.js goes into a loop
+		pl.PreloadHint = &playlist.MediaPreloadHint{
+			URI: partName(prefix, nextPartID),
+		}
+	}
+
+	return pl.Marshal()
+}
+
+func generateMediaPlaylist(
+	isDeltaUpdate bool,
+	variant MuxerVariant,
+	segments []muxerSegment,
+	nextSegmentParts []*muxerPart,
+	nextPartID uint64,
+	segmentDeleteCount int,
+	prefix string,
+) ([]byte, error) {
+	if variant == MuxerVariantMPEGTS {
+		return generateMediaPlaylistMPEGTS(
+			segments,
+			segmentDeleteCount,
+		)
+	}
+
+	return generateMediaPlaylistFMP4(
+		isDeltaUpdate,
+		variant,
+		segments,
+		nextSegmentParts,
+		nextPartID,
+		segmentDeleteCount,
+		prefix,
+	)
+}
+
 type muxerServer struct {
 	variant        MuxerVariant
 	segmentCount   int
@@ -142,17 +418,18 @@ type muxerServer struct {
 	prefix         string
 	storageFactory storage.Factory
 
-	mutex              sync.Mutex
-	cond               *sync.Cond
-	closed             bool
-	segments           []muxerSegment
-	segmentsByName     map[string]muxerSegment
-	segmentDeleteCount int
-	partsByName        map[string]*muxerPart
-	nextSegmentID      uint64
-	nextSegmentParts   []*muxerPart
-	nextPartID         uint64
-	init               storage.File
+	mutex                sync.Mutex
+	cond                 *sync.Cond
+	closed               bool
+	segments             []muxerSegment
+	segmentsByName       map[string]muxerSegment
+	segmentDeleteCount   int
+	partsByName          map[string]*muxerPart
+	nextSegmentID        uint64
+	nextSegmentParts     []*muxerPart
+	nextPartID           uint64
+	multivariantPlaylist []byte
+	init                 storage.File
 }
 
 func newMuxerServer(
@@ -162,7 +439,7 @@ func newMuxerServer(
 	audioTrack *Track,
 	prefix string,
 	storageFactory storage.Factory,
-) (*muxerServer, error) {
+) *muxerServer {
 	s := &muxerServer{
 		variant:        variant,
 		segmentCount:   segmentCount,
@@ -176,14 +453,7 @@ func newMuxerServer(
 
 	s.cond = sync.NewCond(&s.mutex)
 
-	if s.videoTrack == nil || videoHasParameters(s.videoTrack) {
-		err := s.generateInitFile()
-		if err != nil {
-			return nil, fmt.Errorf("unable to generate init.mp4: %v", err)
-		}
-	}
-
-	return s, nil
+	return s
 }
 
 func (s *muxerServer) close() {
@@ -281,7 +551,7 @@ func (s *muxerServer) handle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *muxerServer) handleMultivariantPlaylist(w http.ResponseWriter) {
-	byts, err := func() ([]byte, error) {
+	buf := func() []byte {
 		s.mutex.Lock()
 		defer s.mutex.Unlock()
 
@@ -289,9 +559,10 @@ func (s *muxerServer) handleMultivariantPlaylist(w http.ResponseWriter) {
 			s.cond.Wait()
 		}
 
-		return s.generateMultivariantPlaylist()
+		return s.multivariantPlaylist
 	}()
-	if err != nil {
+
+	if buf == nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -301,7 +572,7 @@ func (s *muxerServer) handleMultivariantPlaylist(w http.ResponseWriter) {
 	w.Header().Set("Cache-Control", "max-age=30")
 	w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
 	w.WriteHeader(http.StatusOK)
-	w.Write(byts)
+	w.Write(buf)
 }
 
 func (s *muxerServer) handleMediaPlaylist(msn string, part string, skip string, w http.ResponseWriter) {
@@ -317,7 +588,7 @@ func (s *muxerServer) handleMediaPlaylist(msn string, part string, skip string, 
 		}
 
 		if msn != "" {
-			byts := func() []byte {
+			byts, err := func() ([]byte, error) {
 				s.mutex.Lock()
 				defer s.mutex.Unlock()
 
@@ -328,15 +599,27 @@ func (s *muxerServer) handleMediaPlaylist(msn string, part string, skip string, 
 				// Request, such as HTTP 400.
 				if msnint > (s.nextSegmentID + 1) {
 					w.WriteHeader(http.StatusBadRequest)
-					return nil
+					return nil, nil
 				}
 
 				for !s.closed && !s.hasPart(msnint, partint) {
 					s.cond.Wait()
 				}
 
-				return s.generateMediaPlaylist(isDeltaUpdate)
+				return generateMediaPlaylist(
+					isDeltaUpdate,
+					s.variant,
+					s.segments,
+					s.nextSegmentParts,
+					s.nextPartID,
+					s.segmentDeleteCount,
+					s.prefix,
+				)
 			}()
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
 
 			if byts != nil {
 				w.Header().Set("Cache-Control", "no-cache")
@@ -354,7 +637,7 @@ func (s *muxerServer) handleMediaPlaylist(msn string, part string, skip string, 
 		}
 	}
 
-	byts := func() []byte {
+	byts, err := func() ([]byte, error) {
 		s.mutex.Lock()
 		defer s.mutex.Unlock()
 
@@ -362,8 +645,20 @@ func (s *muxerServer) handleMediaPlaylist(msn string, part string, skip string, 
 			s.cond.Wait()
 		}
 
-		return s.generateMediaPlaylist(isDeltaUpdate)
+		return generateMediaPlaylist(
+			isDeltaUpdate,
+			s.variant,
+			s.segments,
+			s.nextSegmentParts,
+			s.nextPartID,
+			s.segmentDeleteCount,
+			s.prefix,
+		)
 	}()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 
 	if byts != nil {
 		w.Header().Set("Cache-Control", "no-cache")
@@ -371,223 +666,6 @@ func (s *muxerServer) handleMediaPlaylist(msn string, part string, skip string, 
 		w.WriteHeader(http.StatusOK)
 		w.Write(byts)
 	}
-}
-
-func (s *muxerServer) generateMultivariantPlaylist() ([]byte, error) {
-	bandwidth, averageBandwidth := bandwidth(s.segments)
-	var resolution string
-	var frameRate *float64
-
-	if s.videoTrack != nil {
-		switch codec := s.videoTrack.Codec.(type) {
-		case *codecs.AV1:
-			var sh av1.SequenceHeader
-			err := sh.Unmarshal(codec.SequenceHeader)
-			if err != nil {
-				return nil, err
-			}
-
-			resolution = strconv.FormatInt(int64(sh.Width()), 10) + "x" + strconv.FormatInt(int64(sh.Height()), 10)
-
-			// TODO: FPS
-
-		case *codecs.VP9:
-			resolution = strconv.FormatInt(int64(codec.Width), 10) + "x" + strconv.FormatInt(int64(codec.Height), 10)
-
-			// TODO: FPS
-
-		case *codecs.H265:
-			var sps h265.SPS
-			err := sps.Unmarshal(codec.SPS)
-			if err != nil {
-				return nil, err
-			}
-
-			resolution = strconv.FormatInt(int64(sps.Width()), 10) + "x" + strconv.FormatInt(int64(sps.Height()), 10)
-
-			f := sps.FPS()
-			if f != 0 {
-				frameRate = &f
-			}
-
-		case *codecs.H264:
-			var sps h264.SPS
-			err := sps.Unmarshal(codec.SPS)
-			if err != nil {
-				return nil, err
-			}
-
-			resolution = strconv.FormatInt(int64(sps.Width()), 10) + "x" + strconv.FormatInt(int64(sps.Height()), 10)
-
-			f := sps.FPS()
-			if f != 0 {
-				frameRate = &f
-			}
-		}
-	}
-
-	pl := &playlist.Multivariant{
-		Version: func() int {
-			if s.variant == MuxerVariantMPEGTS {
-				return 3
-			}
-			return 9
-		}(),
-		IndependentSegments: true,
-		Variants: []*playlist.MultivariantVariant{{
-			Bandwidth:        bandwidth,
-			AverageBandwidth: &averageBandwidth,
-			Codecs: func() []string {
-				var codecs []string
-				if s.videoTrack != nil {
-					codecs = append(codecs, codecparams.Marshal(s.videoTrack.Codec))
-				}
-				if s.audioTrack != nil {
-					codecs = append(codecs, codecparams.Marshal(s.audioTrack.Codec))
-				}
-				return codecs
-			}(),
-			Resolution: resolution,
-			FrameRate:  frameRate,
-			URI:        "stream.m3u8",
-		}},
-	}
-
-	return pl.Marshal()
-}
-
-func (s *muxerServer) generateMediaPlaylist(isDeltaUpdate bool) []byte {
-	if s.variant == MuxerVariantMPEGTS {
-		return s.generateMediaPlaylistMPEGTS()
-	}
-	return s.generateMediaPlaylistFMP4(isDeltaUpdate)
-}
-
-func (s *muxerServer) generateMediaPlaylistMPEGTS() []byte {
-	pl := &playlist.Media{
-		Version:        3,
-		AllowCache:     boolPtr(false),
-		TargetDuration: targetDuration(s.segments),
-		MediaSequence:  s.segmentDeleteCount,
-	}
-
-	for _, s := range s.segments {
-		if seg, ok := s.(*muxerSegmentMPEGTS); ok {
-			pl.Segments = append(pl.Segments, &playlist.MediaSegment{
-				DateTime: &seg.startNTP,
-				Duration: seg.getDuration(),
-				URI:      seg.name,
-			})
-		}
-	}
-
-	byts, _ := pl.Marshal()
-	return byts
-}
-
-func (s *muxerServer) generateMediaPlaylistFMP4(isDeltaUpdate bool) []byte {
-	targetDuration := targetDuration(s.segments)
-	skipBoundary := time.Duration(targetDuration) * 6 * time.Second
-
-	pl := &playlist.Media{
-		Version:        9,
-		TargetDuration: targetDuration,
-		MediaSequence:  s.segmentDeleteCount,
-	}
-
-	if s.variant == MuxerVariantLowLatency {
-		partTarget := partTargetDuration(s.segments, s.nextSegmentParts)
-		partHoldBack := (partTarget * 25) / 10
-
-		pl.ServerControl = &playlist.MediaServerControl{
-			CanBlockReload: true,
-			PartHoldBack:   &partHoldBack,
-			CanSkipUntil:   &skipBoundary,
-		}
-
-		pl.PartInf = &playlist.MediaPartInf{
-			PartTarget: partTarget,
-		}
-	}
-
-	skipped := 0
-
-	if !isDeltaUpdate {
-		pl.Map = &playlist.MediaMap{
-			URI: s.prefix + "_init.mp4",
-		}
-	} else {
-		var curDuration time.Duration
-		shown := 0
-		for _, segment := range s.segments {
-			curDuration += segment.getDuration()
-			if curDuration >= skipBoundary {
-				break
-			}
-			shown++
-		}
-		skipped = len(s.segments) - shown
-
-		pl.Skip = &playlist.MediaSkip{
-			SkippedSegments: skipped,
-		}
-	}
-
-	for i, sog := range s.segments {
-		if i < skipped {
-			continue
-		}
-
-		switch seg := sog.(type) {
-		case *muxerSegmentFMP4:
-			plse := &playlist.MediaSegment{
-				Duration: seg.getDuration(),
-				URI:      seg.name,
-			}
-
-			if (len(s.segments) - i) <= 2 {
-				plse.DateTime = &seg.startNTP
-			}
-
-			if s.variant == MuxerVariantLowLatency && (len(s.segments)-i) <= 2 {
-				for _, part := range seg.parts {
-					plse.Parts = append(plse.Parts, &playlist.MediaPart{
-						Duration:    part.finalDuration,
-						URI:         part.getName(),
-						Independent: part.isIndependent,
-					})
-				}
-			}
-
-			pl.Segments = append(pl.Segments, plse)
-
-		case *muxerGap:
-			pl.Segments = append(pl.Segments, &playlist.MediaSegment{
-				Gap:      true,
-				Duration: seg.duration,
-				URI:      "gap.mp4",
-			})
-		}
-	}
-
-	if s.variant == MuxerVariantLowLatency {
-		for _, part := range s.nextSegmentParts {
-			pl.Parts = append(pl.Parts, &playlist.MediaPart{
-				Duration:    part.finalDuration,
-				URI:         part.getName(),
-				Independent: part.isIndependent,
-			})
-		}
-
-		// preload hint must always be present
-		// otherwise hls.js goes into a loop
-		pl.PreloadHint = &playlist.MediaPreloadHint{
-			URI: partName(s.prefix, s.nextPartID),
-		}
-	}
-
-	byts, _ := pl.Marshal()
-	return byts
 }
 
 func (s *muxerServer) handleInitFile(w http.ResponseWriter) {
@@ -689,8 +767,21 @@ func (s *muxerServer) handleSegmentOrPart(fname string, w http.ResponseWriter) {
 	}
 }
 
-func (s *muxerServer) publishSegment(segment muxerSegment) {
+func (s *muxerServer) publishPart(part *muxerPart) {
 	func() {
+		s.mutex.Lock()
+		defer s.mutex.Unlock()
+
+		s.partsByName[part.getName()] = part
+		s.nextSegmentParts = append(s.nextSegmentParts, part)
+		s.nextPartID = part.id + 1
+	}()
+
+	s.cond.Broadcast()
+}
+
+func (s *muxerServer) publishSegment(segment muxerSegment) error {
+	err := func() error {
 		s.mutex.Lock()
 		defer s.mutex.Unlock()
 
@@ -727,68 +818,32 @@ func (s *muxerServer) publishSegment(segment muxerSegment) {
 			s.segments = s.segments[1:]
 			s.segmentDeleteCount++
 		}
-	}()
 
-	s.cond.Broadcast()
-}
+		buf, err := generateMultivariantPlaylist(s.variant, s.videoTrack, s.audioTrack, s.segments)
+		if err != nil {
+			return err
+		}
+		s.multivariantPlaylist = buf
 
-func (s *muxerServer) publishPart(part *muxerPart) {
-	func() {
-		s.mutex.Lock()
-		defer s.mutex.Unlock()
+		if s.variant != MuxerVariantMPEGTS {
+			if s.init != nil {
+				s.init.Remove()
+				s.init = nil
+			}
 
-		s.partsByName[part.getName()] = part
-		s.nextSegmentParts = append(s.nextSegmentParts, part)
-		s.nextPartID = part.id + 1
-	}()
+			f, err := generateInitFile(s.videoTrack, s.audioTrack, s.storageFactory, s.prefix)
+			if err != nil {
+				return err
+			}
+			s.init = f
+		}
 
-	s.cond.Broadcast()
-}
-
-func (s *muxerServer) generateInitFile() error {
-	if s.variant == MuxerVariantMPEGTS {
 		return nil
-	}
-
-	if s.init != nil {
-		s.init.Remove()
-		s.init = nil
-	}
-
-	init := fmp4.Init{}
-	trackID := 1
-
-	if s.videoTrack != nil {
-		init.Tracks = append(init.Tracks, &fmp4.InitTrack{
-			ID:        trackID,
-			TimeScale: 90000,
-			Codec:     codecs.ToFMP4(s.videoTrack.Codec),
-		})
-		trackID++
-	}
-
-	if s.audioTrack != nil {
-		init.Tracks = append(init.Tracks, &fmp4.InitTrack{
-			ID:        trackID,
-			TimeScale: fmp4TimeScale(s.audioTrack.Codec),
-			Codec:     codecs.ToFMP4(s.audioTrack.Codec),
-		})
-	}
-
-	f, err := s.storageFactory.NewFile(s.prefix + "_init.mp4")
-	if err != nil {
-		return err
-	}
-	defer f.Finalize()
-
-	part := f.NewPart()
-	w := part.Writer()
-
-	err = init.Marshal(w)
+	}()
 	if err != nil {
 		return err
 	}
 
-	s.init = f
+	s.cond.Broadcast()
 	return nil
 }
