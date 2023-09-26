@@ -75,6 +75,10 @@ func (t *muxerSegmentMPEGTS) getName() string {
 	return t.name
 }
 
+func (t *muxerSegmentMPEGTS) hasDuration() bool {
+	return t.endDTS > 0
+}
+
 func (t *muxerSegmentMPEGTS) getDuration() time.Duration {
 	return t.endDTS - *t.startDTS
 }

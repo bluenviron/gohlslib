@@ -76,5 +76,14 @@ func (s *fileDisk) Reader() (io.ReadCloser, error) {
 
 // Size implements File.
 func (s *fileDisk) Size() uint64 {
-	return s.finalSize
+	if s.finalSize > 0 {
+		return s.finalSize
+	}
+
+	var currentSize uint64
+	for _, part := range s.parts {
+		currentSize += uint64(len(part.buffer.Bytes()))
+	}
+
+	return currentSize
 }

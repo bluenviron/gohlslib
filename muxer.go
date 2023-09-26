@@ -70,6 +70,9 @@ type Muxer struct {
 	// and is adjusted in order to produce segments with a similar duration.
 	// It defaults to 200ms.
 	PartDuration time.Duration
+	// Minimum required part count to be able to determine first segment duration in Low-Latency variant
+	// It defaults to 5 parts
+	DurationRequiredPartCount uint64
 	// Maximum size of each segment.
 	// This prevents RAM exhaustion.
 	// It defaults to 50MB.
@@ -104,8 +107,15 @@ func (m *Muxer) Start() error {
 	if m.PartDuration == 0 {
 		m.PartDuration = 200 * time.Millisecond
 	}
+	if m.DurationRequiredPartCount == 0 {
+		m.DurationRequiredPartCount = 5
+	}
 	if m.SegmentMaxSize == 0 {
 		m.SegmentMaxSize = 50 * 1024 * 1024
+	}
+
+	if m.DurationRequiredPartCount < 2 {
+		return fmt.Errorf("the minimum number of parts is 2 to be able to determine segment duration")
 	}
 
 	switch m.Variant {
@@ -155,6 +165,7 @@ func (m *Muxer) Start() error {
 		m.AudioTrack,
 		m.prefix,
 		m.storageFactory,
+		m.SegmentDuration,
 	)
 	if err != nil {
 		return err
@@ -176,10 +187,12 @@ func (m *Muxer) Start() error {
 			m.SegmentDuration,
 			m.PartDuration,
 			m.SegmentMaxSize,
+			m.DurationRequiredPartCount,
 			m.VideoTrack,
 			m.AudioTrack,
 			m.prefix,
 			m.storageFactory,
+			m.server.updateInProgressSegment,
 			m.server.publishSegment,
 			m.server.publishPart,
 		)
