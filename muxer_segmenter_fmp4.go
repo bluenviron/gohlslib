@@ -98,7 +98,7 @@ type muxerSegmenterFMP4 struct {
 	audioTrack      *Track
 	prefix          string
 	factory         storage.Factory
-	publishSegment  func(muxerSegment)
+	publishSegment  func(muxerSegment) error
 	publishPart     func(*muxerPart)
 
 	audioTimeScale                 uint32
@@ -123,7 +123,7 @@ func newMuxerSegmenterFMP4(
 	audioTrack *Track,
 	prefix string,
 	factory storage.Factory,
-	publishSegment func(muxerSegment),
+	publishSegment func(muxerSegment) error,
 	publishPart func(*muxerPart),
 ) *muxerSegmenterFMP4 {
 	m := &muxerSegmenterFMP4{
@@ -354,7 +354,11 @@ func (m *muxerSegmenterFMP4) writeVideo(
 		if err != nil {
 			return err
 		}
-		m.publishSegment(m.currentSegment)
+
+		err = m.publishSegment(m.currentSegment)
+		if err != nil {
+			return err
+		}
 
 		m.firstSegmentFinalized = true
 
@@ -484,7 +488,11 @@ func (m *muxerSegmenterFMP4) writeAudio(ntp time.Time, dts time.Duration, au []b
 		if err != nil {
 			return err
 		}
-		m.publishSegment(m.currentSegment)
+
+		err = m.publishSegment(m.currentSegment)
+		if err != nil {
+			return err
+		}
 
 		m.firstSegmentFinalized = true
 

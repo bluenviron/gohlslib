@@ -764,7 +764,7 @@ func TestMuxerSaveToDisk(t *testing.T) {
 	}
 }
 
-func TestMuxerUpdateParams(t *testing.T) {
+func TestMuxerDynamicParams(t *testing.T) {
 	m := &Muxer{
 		Variant:         MuxerVariantFMP4,
 		SegmentCount:    3,
