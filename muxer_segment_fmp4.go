@@ -18,6 +18,7 @@ type muxerSegmentFMP4 struct {
 	audioTrack     *Track
 	audioTimeScale uint32
 	prefix         string
+	forceSwitched  bool
 	genPartID      func() uint64
 	publishPart    func(*muxerPart)
 
@@ -39,6 +40,7 @@ func newMuxerSegmentFMP4(
 	audioTrack *Track,
 	audioTimeScale uint32,
 	prefix string,
+	forceSwitched bool,
 	factory storage.Factory,
 	genPartID func() uint64,
 	publishPart func(*muxerPart),
@@ -53,6 +55,7 @@ func newMuxerSegmentFMP4(
 		audioTrack:     audioTrack,
 		audioTimeScale: audioTimeScale,
 		prefix:         prefix,
+		forceSwitched:  forceSwitched,
 		genPartID:      genPartID,
 		publishPart:    publishPart,
 		name:           segmentName(prefix, id, true),
@@ -91,6 +94,10 @@ func (s *muxerSegmentFMP4) getDuration() time.Duration {
 
 func (s *muxerSegmentFMP4) getSize() uint64 {
 	return s.storage.Size()
+}
+
+func (s *muxerSegmentFMP4) isForceSwitched() bool {
+	return s.forceSwitched
 }
 
 func (s *muxerSegmentFMP4) reader() (io.ReadCloser, error) {

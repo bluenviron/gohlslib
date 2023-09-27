@@ -83,6 +83,10 @@ func (t *muxerSegmentMPEGTS) getSize() uint64 {
 	return t.storage.Size()
 }
 
+func (*muxerSegmentMPEGTS) isForceSwitched() bool {
+	return false
+}
+
 func (t *muxerSegmentMPEGTS) reader() (io.ReadCloser, error) {
 	return t.storage.Reader()
 }

@@ -19,6 +19,7 @@ type muxerSegment interface {
 	getName() string
 	getDuration() time.Duration
 	getSize() uint64
+	isForceSwitched() bool
 	reader() (io.ReadCloser, error)
 }
 
@@ -37,10 +38,14 @@ func (g muxerGap) getDuration() time.Duration {
 	return g.duration
 }
 
-func (g muxerGap) getSize() uint64 {
+func (muxerGap) getSize() uint64 {
 	return 0
 }
 
-func (g muxerGap) reader() (io.ReadCloser, error) {
+func (muxerGap) isForceSwitched() bool {
+	return false
+}
+
+func (muxerGap) reader() (io.ReadCloser, error) {
 	return nil, fmt.Errorf("unimplemented")
 }
