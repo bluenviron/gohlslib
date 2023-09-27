@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/bluenviron/mediacommon/pkg/codecs/mpeg4audio"
+	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
 	"github.com/stretchr/testify/require"
 
 	"github.com/bluenviron/gohlslib/pkg/codecs"
@@ -805,15 +806,33 @@ func TestMuxerDynamicParams(t *testing.T) {
 		"CODECS=\"avc1.42c028\",RESOLUTION=1920x1084,FRAME-RATE=30.000\n"+
 		"stream.m3u8\n", string(bu))
 
+	bu, _, err = doRequest(m, m.prefix+"_init.mp4", "", "", "")
+	require.NoError(t, err)
+
+	func() {
+		var init fmp4.Init
+		err = init.Unmarshal(bu)
+		require.NoError(t, err)
+		require.Equal(t, testSPS, init.Tracks[0].Codec.(*fmp4.CodecH264).SPS)
+	}()
+
+	// SPS (720p)
+	testSPS2 := []byte{
+		0x67, 0x64, 0x00, 0x1f, 0xac, 0xd9, 0x40, 0x50,
+		0x05, 0xbb, 0x01, 0x6c, 0x80, 0x00, 0x00, 0x03,
+		0x00, 0x80, 0x00, 0x00, 0x1e, 0x07, 0x8c, 0x18,
+		0xcb,
+	}
+
 	err = m.WriteH26x(testTime, 3*time.Second, [][]byte{
-		{ // SPS (720p)
-			0x67, 0x64, 0x00, 0x1f, 0xac, 0xd9, 0x40, 0x50,
-			0x05, 0xbb, 0x01, 0x6c, 0x80, 0x00, 0x00, 0x03,
-			0x00, 0x80, 0x00, 0x00, 0x1e, 0x07, 0x8c, 0x18,
-			0xcb,
-		},
+		testSPS2,
 		{5}, // IDR
 		{2},
+	})
+	require.NoError(t, err)
+
+	err = m.WriteH26x(testTime, 5*time.Second, [][]byte{
+		{5}, // IDR
 	})
 	require.NoError(t, err)
 
@@ -823,7 +842,17 @@ func TestMuxerDynamicParams(t *testing.T) {
 		"#EXT-X-VERSION:9\n"+
 		"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 		"\n"+
-		"#EXT-X-STREAM-INF:BANDWIDTH=1144,AVERAGE-BANDWIDTH=989,"+
+		"#EXT-X-STREAM-INF:BANDWIDTH=912,AVERAGE-BANDWIDTH=742,"+
 		"CODECS=\"avc1.64001f\",RESOLUTION=1280x720,FRAME-RATE=30.000\n"+
 		"stream.m3u8\n", string(bu))
+
+	bu, _, err = doRequest(m, m.prefix+"_init.mp4", "", "", "")
+	require.NoError(t, err)
+
+	func() {
+		var init fmp4.Init
+		err = init.Unmarshal(bu)
+		require.NoError(t, err)
+		require.Equal(t, testSPS2, init.Tracks[0].Codec.(*fmp4.CodecH264).SPS)
+	}()
 }

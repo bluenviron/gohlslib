@@ -819,13 +819,15 @@ func (s *muxerServer) publishSegment(segment muxerSegment) error {
 			s.segmentDeleteCount++
 		}
 
+		// always regenerate multivariant playlist since it contains bandwidth
 		buf, err := generateMultivariantPlaylist(s.variant, s.videoTrack, s.audioTrack, s.segments)
 		if err != nil {
 			return err
 		}
 		s.multivariantPlaylist = buf
 
-		if s.variant != MuxerVariantMPEGTS {
+		// regenerate init.mp4 only if missing or codec parameters have changed
+		if s.variant != MuxerVariantMPEGTS && (s.init == nil || segment.isForceSwitched()) {
 			if s.init != nil {
 				s.init.Remove()
 				s.init = nil
@@ -837,6 +839,8 @@ func (s *muxerServer) publishSegment(segment muxerSegment) error {
 			}
 			s.init = f
 		}
+
+		// do not pregenerate media playlist since it's too dynamic.
 
 		return nil
 	}()
