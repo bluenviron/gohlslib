@@ -112,10 +112,6 @@ func (t *MultivariantRendition) unmarshal(v string) error {
 	}
 
 	if t.Type != MultivariantRenditionTypeClosedCaptions {
-		if t.URI == "" {
-			return fmt.Errorf("missing URI")
-		}
-
 		if t.InstreamID != "" {
 			return fmt.Errorf("INSTREAM-ID is forbidden with type %s", t.Type)
 		}
