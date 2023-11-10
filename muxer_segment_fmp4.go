@@ -19,7 +19,8 @@ type muxerSegmentFMP4 struct {
 	audioTimeScale uint32
 	prefix         string
 	forceSwitched  bool
-	genPartID      func() uint64
+	takePartID     func() uint64
+	givePartID     func()
 	publishPart    func(*muxerPart)
 
 	name        string
@@ -42,7 +43,8 @@ func newMuxerSegmentFMP4(
 	prefix string,
 	forceSwitched bool,
 	factory storage.Factory,
-	genPartID func() uint64,
+	takePartID func() uint64,
+	givePartID func(),
 	publishPart func(*muxerPart),
 ) (*muxerSegmentFMP4, error) {
 	s := &muxerSegmentFMP4{
@@ -56,7 +58,8 @@ func newMuxerSegmentFMP4(
 		audioTimeScale: audioTimeScale,
 		prefix:         prefix,
 		forceSwitched:  forceSwitched,
-		genPartID:      genPartID,
+		takePartID:     takePartID,
+		givePartID:     givePartID,
 		publishPart:    publishPart,
 		name:           segmentName(prefix, id, true),
 	}
@@ -73,7 +76,7 @@ func newMuxerSegmentFMP4(
 		s.audioTrack,
 		s.audioTimeScale,
 		prefix,
-		s.genPartID(),
+		s.takePartID(),
 		s.storage.NewPart(),
 	)
 
@@ -111,9 +114,12 @@ func (s *muxerSegmentFMP4) finalize(nextDTS time.Duration) error {
 			return err
 		}
 
-		s.publishPart(s.currentPart)
 		s.parts = append(s.parts, s.currentPart)
+		s.publishPart(s.currentPart)
+	} else {
+		s.givePartID()
 	}
+
 	s.currentPart = nil
 
 	s.storage.Finalize()
@@ -153,7 +159,7 @@ func (s *muxerSegmentFMP4) writeVideo(
 			s.audioTrack,
 			s.audioTimeScale,
 			s.prefix,
-			s.genPartID(),
+			s.takePartID(),
 			s.storage.NewPart(),
 		)
 	}
@@ -191,7 +197,7 @@ func (s *muxerSegmentFMP4) writeAudio(
 			s.audioTrack,
 			s.audioTimeScale,
 			s.prefix,
-			s.genPartID(),
+			s.takePartID(),
 			s.storage.NewPart(),
 		)
 	}
