@@ -291,10 +291,10 @@ func TestMuxerVideoAudio(t *testing.T) {
 						`#EXTINF:4.00000,\n` +
 						`(.*?_seg7\.mp4)\n` +
 						`#EXT-X-PROGRAM-DATE-TIME:2010-01-01T01:01:06Z\n` +
-						`#EXT-X-PART:DURATION=1.00000,URI="(.*?_part3\.mp4)",INDEPENDENT=YES\n` +
+						`#EXT-X-PART:DURATION=1.00000,URI="(.*?_part2\.mp4)",INDEPENDENT=YES\n` +
 						`#EXTINF:1.00000,\n` +
 						`(.*?_seg8\.mp4)\n` +
-						`#EXT-X-PRELOAD-HINT:TYPE=PART,URI="(.*?_part4\.mp4)"\n$`)
+						`#EXT-X-PRELOAD-HINT:TYPE=PART,URI="(.*?_part3\.mp4)"\n$`)
 				require.Regexp(t, re, string(byts))
 				ma := re.FindStringSubmatch(string(byts))
 
