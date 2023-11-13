@@ -12,7 +12,7 @@ import (
 
 	"github.com/bluenviron/mediacommon/pkg/formats/mpegts"
 
-	"github.com/bluenviron/gohlslib/pkg/codecs"
+	"github.com/vicon-security/gohlslib/pkg/codecs"
 )
 
 var errSkipSilently = errors.New("skip silently")

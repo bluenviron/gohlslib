@@ -8,7 +8,7 @@ import (
 	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
 	"github.com/bluenviron/mediacommon/pkg/formats/mpegts"
 
-	"github.com/bluenviron/gohlslib/pkg/codecs"
+	"github.com/vicon-security/gohlslib/pkg/codecs"
 	"github.com/vicon-security/gohlslib/pkg/storage"
 )
 

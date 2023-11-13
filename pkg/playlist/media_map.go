@@ -3,7 +3,7 @@ package playlist
 import (
 	"fmt"
 
-	"github.com/bluenviron/gohlslib/pkg/playlist/primitives"
+	"github.com/vicon-security/gohlslib/pkg/playlist/primitives"
 )
 
 // MediaMap is a EXT-X-MAP tag.

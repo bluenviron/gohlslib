@@ -5,7 +5,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/bluenviron/gohlslib/pkg/playlist"
+	"github.com/vicon-security/gohlslib/pkg/playlist"
 )
 
 // This example shows how to download and parse a HLS playlist.

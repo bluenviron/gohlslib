@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/bluenviron/gohlslib/pkg/playlist/primitives"
+	"github.com/vicon-security/gohlslib/pkg/playlist/primitives"
 )
 
 // Multivariant is a multivariant playlist.

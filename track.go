@@ -1,7 +1,7 @@
 package gohlslib
 
 import (
-	"github.com/bluenviron/gohlslib/pkg/codecs"
+	"github.com/vicon-security/gohlslib/pkg/codecs"
 )
 
 // Track is a HLS track.

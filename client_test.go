@@ -18,7 +18,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 
-	"github.com/bluenviron/gohlslib/pkg/codecs"
+	"github.com/vicon-security/gohlslib/pkg/codecs"
 	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
 )
 

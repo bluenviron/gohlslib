@@ -4,8 +4,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/bluenviron/gohlslib"
-	"github.com/bluenviron/gohlslib/pkg/codecs"
+	"github.com/vicon-security/gohlslib"
+	"github.com/vicon-security/gohlslib/pkg/codecs"
 )
 
 // This example shows how to read a HLS stream.

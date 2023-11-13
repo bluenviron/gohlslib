@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/bluenviron/gohlslib/pkg/playlist"
+	"github.com/vicon-security/gohlslib/pkg/playlist"
 )
 
 func findSegmentWithInvPosition(segments []*playlist.MediaSegment, invPos int) (*playlist.MediaSegment, int) {
