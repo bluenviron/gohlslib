@@ -364,7 +364,7 @@ func (m Media) Marshal() ([]byte, error) {
 	}
 
 	if m.PlaylistType != nil {
-		ret += "#EXT-X-PLAYLIST-TYPE=" + string(*m.PlaylistType) + "\n"
+		ret += "#EXT-X-PLAYLIST-TYPE:" + string(*m.PlaylistType) + "\n"
 	}
 
 	if m.Map != nil {
