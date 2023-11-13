@@ -5,4 +5,5 @@ package storage
 type Factory interface {
 	// NewFile allocates a file
 	NewFile(fileName string) (File, error)
+	GetPath() (string)
 }

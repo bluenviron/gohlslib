@@ -6,7 +6,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/bluenviron/gohlslib/pkg/storage"
+	"github.com/vicon-security/gohlslib/pkg/storage"
 
 	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
 	"github.com/bluenviron/mediacommon/pkg/formats/mpegts"
@@ -50,7 +50,7 @@ func newMuxerSegmentMPEGTS(
 		writerAudioTrack: writerAudioTrack,
 		writer:           writer,
 		startNTP:         startNTP,
-		name:             segmentName(prefix, id, false),
+		name:             segmentName(prefix, id, false, false),
 	}
 
 	var err error

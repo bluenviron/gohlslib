@@ -7,8 +7,11 @@ import (
 	"time"
 )
 
-func segmentName(prefix string, id uint64, mp4 bool) string {
+func segmentName(prefix string, id uint64, mp4 bool, ignoreSegmentId bool) string {
 	if mp4 {
+		if ignoreSegmentId {
+			return prefix + ".mp4"
+		}
 		return prefix + "_seg" + strconv.FormatUint(id, 10) + ".mp4"
 	}
 	return prefix + "_seg" + strconv.FormatUint(id, 10) + ".ts"

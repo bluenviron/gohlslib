@@ -9,7 +9,7 @@ import (
 	"github.com/bluenviron/mediacommon/pkg/formats/mpegts"
 
 	"github.com/bluenviron/gohlslib/pkg/codecs"
-	"github.com/bluenviron/gohlslib/pkg/storage"
+	"github.com/vicon-security/gohlslib/pkg/storage"
 )
 
 const (
@@ -91,7 +91,7 @@ func (m *muxerSegmenterMPEGTS) close() {
 	}
 }
 
-func (m *muxerSegmenterMPEGTS) takeSegmentID() uint64 {
+func (m *muxerSegmenterMPEGTS) genSegmentID() uint64 {
 	id := m.nextSegmentID
 	m.nextSegmentID++
 	return id
@@ -142,7 +142,7 @@ func (m *muxerSegmenterMPEGTS) writeH26x(
 
 		// create first segment
 		m.currentSegment, err = newMuxerSegmentMPEGTS(
-			m.takeSegmentID(),
+			m.genSegmentID(),
 			ntp,
 			m.segmentMaxSize,
 			m.writerVideoTrack,
@@ -176,7 +176,7 @@ func (m *muxerSegmenterMPEGTS) writeH26x(
 			}
 
 			m.currentSegment, err = newMuxerSegmentMPEGTS(
-				m.takeSegmentID(),
+				m.genSegmentID(),
 				ntp,
 				m.segmentMaxSize,
 				m.writerVideoTrack,
@@ -214,7 +214,7 @@ func (m *muxerSegmenterMPEGTS) writeMPEG4Audio(ntp time.Time, pts time.Duration,
 			// create first segment
 			var err error
 			m.currentSegment, err = newMuxerSegmentMPEGTS(
-				m.takeSegmentID(),
+				m.genSegmentID(),
 				ntp,
 				m.segmentMaxSize,
 				m.writerVideoTrack,
@@ -240,7 +240,7 @@ func (m *muxerSegmenterMPEGTS) writeMPEG4Audio(ntp time.Time, pts time.Duration,
 			}
 
 			m.currentSegment, err = newMuxerSegmentMPEGTS(
-				m.takeSegmentID(),
+				m.genSegmentID(),
 				ntp,
 				m.segmentMaxSize,
 				m.writerVideoTrack,

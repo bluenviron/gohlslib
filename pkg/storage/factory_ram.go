@@ -11,3 +11,7 @@ func NewFactoryRAM() Factory {
 func (s *factoryRAM) NewFile(_ string) (File, error) {
 	return newFileRAM(), nil
 }
+
+func (s *factoryRAM) GetPath() (string) {
+	return ""
+}

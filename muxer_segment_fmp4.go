@@ -5,7 +5,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/bluenviron/gohlslib/pkg/storage"
+	"github.com/vicon-security/gohlslib/pkg/storage"
 )
 
 type muxerSegmentFMP4 struct {
@@ -19,8 +19,7 @@ type muxerSegmentFMP4 struct {
 	audioTimeScale uint32
 	prefix         string
 	forceSwitched  bool
-	takePartID     func() uint64
-	givePartID     func()
+	genPartID      func() uint64
 	publishPart    func(*muxerPart)
 
 	name        string
@@ -43,8 +42,7 @@ func newMuxerSegmentFMP4(
 	prefix string,
 	forceSwitched bool,
 	factory storage.Factory,
-	takePartID func() uint64,
-	givePartID func(),
+	genPartID func() uint64,
 	publishPart func(*muxerPart),
 ) (*muxerSegmentFMP4, error) {
 	s := &muxerSegmentFMP4{
@@ -58,10 +56,9 @@ func newMuxerSegmentFMP4(
 		audioTimeScale: audioTimeScale,
 		prefix:         prefix,
 		forceSwitched:  forceSwitched,
-		takePartID:     takePartID,
-		givePartID:     givePartID,
+		genPartID:      genPartID,
 		publishPart:    publishPart,
-		name:           segmentName(prefix, id, true),
+		name:           segmentName(prefix, id, true, true),
 	}
 
 	var err error
@@ -76,7 +73,7 @@ func newMuxerSegmentFMP4(
 		s.audioTrack,
 		s.audioTimeScale,
 		prefix,
-		s.takePartID(),
+		s.genPartID(),
 		s.storage.NewPart(),
 	)
 
@@ -114,12 +111,9 @@ func (s *muxerSegmentFMP4) finalize(nextDTS time.Duration) error {
 			return err
 		}
 
-		s.parts = append(s.parts, s.currentPart)
 		s.publishPart(s.currentPart)
-	} else {
-		s.givePartID()
+		s.parts = append(s.parts, s.currentPart)
 	}
-
 	s.currentPart = nil
 
 	s.storage.Finalize()
@@ -159,7 +153,7 @@ func (s *muxerSegmentFMP4) writeVideo(
 			s.audioTrack,
 			s.audioTimeScale,
 			s.prefix,
-			s.takePartID(),
+			s.genPartID(),
 			s.storage.NewPart(),
 		)
 	}
@@ -197,7 +191,7 @@ func (s *muxerSegmentFMP4) writeAudio(
 			s.audioTrack,
 			s.audioTimeScale,
 			s.prefix,
-			s.takePartID(),
+			s.genPartID(),
 			s.storage.NewPart(),
 		)
 	}

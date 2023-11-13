@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/bluenviron/gohlslib/pkg/storage"
+	"github.com/vicon-security/gohlslib/pkg/storage"
 	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
 )
 

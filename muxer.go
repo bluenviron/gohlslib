@@ -14,7 +14,7 @@ import (
 	"github.com/bluenviron/mediacommon/pkg/codecs/vp9"
 
 	"github.com/bluenviron/gohlslib/pkg/codecs"
-	"github.com/bluenviron/gohlslib/pkg/storage"
+	"github.com/vicon-security/gohlslib/pkg/storage"
 )
 
 // a prefix is needed to prevent usage of cached segments
@@ -56,6 +56,12 @@ type Muxer struct {
 	// Their number doesn't influence latency.
 	// It defaults to 7.
 	SegmentCount int
+
+	// Force segments to be created/written at specific times of the day
+	WriteSegmentsOnClockInterval bool
+	SegmentSecondsInterval int
+	PlaylistMinutesInterval time.Duration
+
 	// Minimum duration of each segment.
 	// A player usually puts 3 segments in a buffer before reproducing the stream.
 	// The final segment duration is also influenced by the interval between IDR frames,
@@ -155,6 +161,7 @@ func (m *Muxer) Start() error {
 		m.AudioTrack,
 		m.prefix,
 		m.storageFactory,
+		m.PlaylistMinutesInterval,
 	)
 
 	if m.Variant == MuxerVariantMPEGTS {
@@ -179,6 +186,8 @@ func (m *Muxer) Start() error {
 			m.storageFactory,
 			m.server.publishSegment,
 			m.server.publishPart,
+			m.WriteSegmentsOnClockInterval,
+			m.SegmentSecondsInterval,
 		)
 	}
 

@@ -19,3 +19,7 @@ func NewFactoryDisk(dirPath string) Factory {
 func (s *factoryDisk) NewFile(fileName string) (File, error) {
 	return newFileDisk(filepath.Join(s.dirPath, fileName))
 }
+
+func (s *factoryDisk) GetPath() (string) {
+	return s.dirPath
+}

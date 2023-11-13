@@ -5,6 +5,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -18,7 +19,7 @@ import (
 	"github.com/bluenviron/gohlslib/pkg/codecparams"
 	"github.com/bluenviron/gohlslib/pkg/codecs"
 	"github.com/bluenviron/gohlslib/pkg/playlist"
-	"github.com/bluenviron/gohlslib/pkg/storage"
+	"github.com/vicon-security/gohlslib/pkg/storage"
 	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
 )
 
@@ -271,6 +272,75 @@ func generateMediaPlaylistMPEGTS(
 	return pl.Marshal()
 }
 
+func updateMediaPlaylistFMP4(
+	segment muxerSegment,
+	initFilename string,
+	playlistFullPath string,
+) {
+	targetDuration := targetDuration([]muxerSegment{segment})
+	fileExist := true
+
+	data, err := os.ReadFile(playlistFullPath)
+
+	if err != nil {
+		fileExist = false
+	}
+
+	pl := &playlist.Media{
+		Version:        9,
+		TargetDuration: targetDuration,
+		MediaSequence:  0,
+		Endlist: true,
+	}
+
+	if fileExist {
+		pl.Unmarshal(data)
+	}
+
+	pl.Map = &playlist.MediaMap{
+		URI: initFilename + "_init.mp4",
+	}
+
+	switch seg := segment.(type) {
+		case *muxerSegmentFMP4:
+			plse := &playlist.MediaSegment{
+				Duration: seg.getDuration(),
+				URI:      seg.name,
+			}
+
+			pl.Segments = append(pl.Segments, plse)
+
+		case *muxerGap:
+			pl.Segments = append(pl.Segments, &playlist.MediaSegment{
+				Gap:      true,
+				Duration: seg.duration,
+				URI:      "gap.mp4",
+			})
+	}
+
+	updatedData, err := pl.Marshal()
+
+	if err != nil {
+		panic(err)
+	}
+
+	plFile, err := os.Create(playlistFullPath)
+
+	if err != nil {
+		panic(err)
+	}
+
+	if _, err = plFile.Write(updatedData); err != nil {
+		panic(err)
+	}
+
+	err = plFile.Close()
+
+	if err != nil {
+		panic(err)
+	}
+}
+
 func generateMediaPlaylistFMP4(
 	isDeltaUpdate bool,
 	variant MuxerVariant,
@@ -287,6 +357,7 @@ func generateMediaPlaylistFMP4(
 		Version:        9,
 		TargetDuration: targetDuration,
 		MediaSequence:  segmentDeleteCount,
+		Endlist: true,
 	}
 
 	if variant == MuxerVariantLowLatency {
@@ -430,6 +501,10 @@ type muxerServer struct {
 	nextPartID           uint64
 	multivariantPlaylist []byte
 	init                 storage.File
+
+	playlistName				 		string
+	removeStartupSegment		bool
+	playlistMinutesInterval time.Duration
 }
 
 func newMuxerServer(
@@ -439,6 +514,7 @@ func newMuxerServer(
 	audioTrack *Track,
 	prefix string,
 	storageFactory storage.Factory,
+	playlistMinutesInterval time.Duration,
 ) *muxerServer {
 	s := &muxerServer{
 		variant:        variant,
@@ -449,6 +525,9 @@ func newMuxerServer(
 		storageFactory: storageFactory,
 		segmentsByName: make(map[string]muxerSegment),
 		partsByName:    make(map[string]*muxerPart),
+		playlistName:		time.Now().Format("2006-01-02T15:04:05.000Z"),
+		removeStartupSegment: true,
+		playlistMinutesInterval: playlistMinutesInterval,
 	}
 
 	s.cond = sync.NewCond(&s.mutex)
@@ -785,6 +864,20 @@ func (s *muxerServer) publishSegment(segment muxerSegment) error {
 		s.mutex.Lock()
 		defer s.mutex.Unlock()
 
+		if s.removeStartupSegment {
+			s.removeStartupSegment = false
+
+			if toDeleteSeg, ok := segment.(*muxerSegmentFMP4); ok {
+				for _, part := range toDeleteSeg.parts {
+					delete(s.partsByName, part.getName())
+				}
+			}
+
+			segment.close()
+
+			return nil
+		}
+
 		// add initial gaps, required by iOS LL-HLS
 		if s.variant == MuxerVariantLowLatency && len(s.segments) == 0 {
 			for i := 0; i < 7; i++ {
@@ -803,44 +896,39 @@ func (s *muxerServer) publishSegment(segment muxerSegment) error {
 
 		s.nextSegmentParts = s.nextSegmentParts[:0]
 
-		if len(s.segments) > s.segmentCount {
-			toDelete := s.segments[0]
+		startSegName := s.segments[0].getName()
+		startSegmentTime, _ := time.Parse("2006-01-02T15:04:05Z", startSegName[:len(startSegName)-4])
+		startSegmentMinuteInterval := startSegmentTime.Truncate(s.playlistMinutesInterval)
 
-			if toDeleteSeg, ok := toDelete.(*muxerSegmentFMP4); ok {
-				for _, part := range toDeleteSeg.parts {
-					delete(s.partsByName, part.getName())
+		currentSegmentName := segment.getName()
+		currentSegmentTime, _ := time.Parse("2006-01-02T15:04:05Z", currentSegmentName[:len(currentSegmentName)-4])
+		currentSegmentMinuteInterval := currentSegmentTime.Truncate(s.playlistMinutesInterval)
+
+		if currentSegmentMinuteInterval.Compare(startSegmentMinuteInterval) > 0 {
+			segmentsToRemove := s.segments[:len(s.segments)-1]
+
+			for _, seg := range segmentsToRemove {
+				if toDeleteSeg, ok := seg.(*muxerSegmentFMP4); ok {
+					for _, part := range toDeleteSeg.parts {
+						delete(s.partsByName, part.getName())
+					}
 				}
+				// seg.close() // This will actually delete the file, but we will have a separate job handling this
+				delete(s.segmentsByName, seg.getName())
 			}
 
-			toDelete.close()
-			delete(s.segmentsByName, toDelete.getName())
-
-			s.segments = s.segments[1:]
-			s.segmentDeleteCount++
+			s.segments = s.segments[len(s.segments)-1:]
+			// s.segmentDeleteCount++ // Removed as this only applies for live streams where we are dynamically adjusting the playlist
 		}
 
-		// always regenerate multivariant playlist since it contains bandwidth
-		buf, err := generateMultivariantPlaylist(s.variant, s.videoTrack, s.audioTrack, s.segments)
-		if err != nil {
-			return err
-		}
-		s.multivariantPlaylist = buf
+		s.playlistName = currentSegmentMinuteInterval.Format("2006-01-02T15:04:05Z")
+		playlistFullpath := s.storageFactory.GetPath() + "/" + s.playlistName + ".m3u8"
 
-		// regenerate init.mp4 only if missing or codec parameters have changed
-		if s.variant != MuxerVariantMPEGTS && (s.init == nil || segment.isForceSwitched()) {
-			if s.init != nil {
-				s.init.Remove()
-				s.init = nil
-			}
-
-			f, err := generateInitFile(s.videoTrack, s.audioTrack, s.storageFactory, s.prefix)
-			if err != nil {
-				return err
-			}
-			s.init = f
+		if len(s.segments) == 1 {
+			generateInitFile(s.videoTrack, s.audioTrack, s.storageFactory, s.playlistName)
 		}
 
-		// do not pregenerate media playlist since it's too dynamic.
+		updateMediaPlaylistFMP4(segment, s.playlistName, playlistFullpath)
 
 		return nil
 	}()
