@@ -635,33 +635,6 @@ func TestMuxerDoubleRead(t *testing.T) {
 	require.Equal(t, byts1, byts2)
 }
 
-func TestMuxerFMP4ZeroDuration(t *testing.T) {
-	m := &Muxer{
-		Variant:         MuxerVariantFMP4,
-		SegmentCount:    3,
-		SegmentDuration: 1 * time.Second,
-		VideoTrack:      testVideoTrack,
-	}
-
-	err := m.Start()
-	require.NoError(t, err)
-	defer m.Close()
-
-	err = m.WriteH26x(time.Now(), 0, [][]byte{
-		testSPS, // SPS
-		{8},     // PPS
-		{5},     // IDR
-	})
-	require.NoError(t, err)
-
-	err = m.WriteH26x(time.Now(), 1*time.Nanosecond, [][]byte{
-		testSPS, // SPS
-		{8},     // PPS
-		{5},     // IDR
-	})
-	require.NoError(t, err)
-}
-
 func TestMuxerSaveToDisk(t *testing.T) {
 	for _, ca := range []string{
 		"mpegts",
@@ -855,4 +828,125 @@ func TestMuxerDynamicParams(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, testSPS2, init.Tracks[0].Codec.(*fmp4.CodecH264).SPS)
 	}()
+}
+
+func TestMuxerFMP4ZeroDuration(t *testing.T) {
+	m := &Muxer{
+		Variant:         MuxerVariantFMP4,
+		SegmentCount:    3,
+		SegmentDuration: 1 * time.Second,
+		VideoTrack:      testVideoTrack,
+	}
+
+	err := m.Start()
+	require.NoError(t, err)
+	defer m.Close()
+
+	err = m.WriteH26x(time.Now(), 0, [][]byte{
+		testSPS, // SPS
+		{8},     // PPS
+		{5},     // IDR
+	})
+	require.NoError(t, err)
+
+	err = m.WriteH26x(time.Now(), 1*time.Nanosecond, [][]byte{
+		testSPS, // SPS
+		{8},     // PPS
+		{5},     // IDR
+	})
+	require.NoError(t, err)
+}
+
+func TestMuxerFMP4NegativeTimestamp(t *testing.T) {
+	m := &Muxer{
+		Variant:         MuxerVariantFMP4,
+		SegmentCount:    3,
+		SegmentDuration: 2 * time.Second,
+		VideoTrack:      testVideoTrack,
+		AudioTrack:      testAudioTrack,
+	}
+
+	err := m.Start()
+	require.NoError(t, err)
+	defer m.Close()
+
+	err = m.WriteH26x(testTime, -10*time.Second, [][]byte{
+		testSPS,
+		{5}, // IDR
+		{1},
+	})
+	require.NoError(t, err)
+
+	err = m.WriteH26x(testTime, -9*time.Second, [][]byte{
+		{5}, // IDR
+		{2},
+	})
+	require.NoError(t, err)
+
+	// this is skipped
+	err = m.WriteMPEG4Audio(testTime, -11*time.Second, [][]byte{
+		{1, 2, 3, 4},
+	})
+	require.NoError(t, err)
+
+	err = m.WriteMPEG4Audio(testTime, -9*time.Second, [][]byte{
+		{5, 6, 7, 8},
+	})
+	require.NoError(t, err)
+
+	err = m.WriteMPEG4Audio(testTime, -8*time.Second, [][]byte{
+		{9, 10, 11, 12},
+	})
+	require.NoError(t, err)
+
+	// switch segment
+	err = m.WriteH26x(testTime, -8*time.Second, [][]byte{
+		{5}, // IDR
+		{3},
+	})
+	require.NoError(t, err)
+
+	bu, _, err := doRequest(m, m.prefix+"_seg0.mp4", "", "", "")
+	require.NoError(t, err)
+
+	var parts fmp4.Parts
+	err = parts.Unmarshal(bu)
+	require.NoError(t, err)
+
+	require.Equal(t, fmp4.Parts{{
+		Tracks: []*fmp4.PartTrack{
+			{
+				ID: 1,
+				Samples: []*fmp4.PartSample{
+					{
+						Duration: 90000,
+						Payload: []byte{
+							0x00, 0x00, 0x00, 0x19, 0x67, 0x42, 0xc0, 0x28,
+							0xd9, 0x00, 0x78, 0x02, 0x27, 0xe5, 0x84, 0x00,
+							0x00, 0x03, 0x00, 0x04, 0x00, 0x00, 0x03, 0x00,
+							0xf0, 0x3c, 0x60, 0xc9, 0x20, 0x00, 0x00, 0x00,
+							0x01, 0x05, 0x00, 0x00, 0x00, 0x01, 0x01,
+						},
+					},
+					{
+						Duration: 90000,
+						Payload: []byte{
+							0x00, 0x00, 0x00, 0x01, 0x05, 0x00, 0x00, 0x00,
+							0x01, 0x02,
+						},
+					},
+				},
+			},
+			{
+				ID:       2,
+				BaseTime: 44100,
+				Samples: []*fmp4.PartSample{
+					{
+						Duration: 44100,
+						Payload:  []byte{5, 6, 7, 8},
+					},
+				},
+			},
+		},
+	}}, parts)
 }

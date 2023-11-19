@@ -102,7 +102,7 @@ func (p *muxerPart) finalize(nextDTS time.Duration) error {
 	return nil
 }
 
-func (p *muxerPart) writeVideo(sample *augmentedVideoSample) {
+func (p *muxerPart) writeVideo(sample *augmentedSample) {
 	if !p.videoStartDTSFilled {
 		p.videoStartDTSFilled = true
 		p.videoStartDTS = sample.dts
@@ -115,7 +115,7 @@ func (p *muxerPart) writeVideo(sample *augmentedVideoSample) {
 	p.videoSamples = append(p.videoSamples, &sample.PartSample)
 }
 
-func (p *muxerPart) writeAudio(sample *augmentedAudioSample) {
+func (p *muxerPart) writeAudio(sample *augmentedSample) {
 	if !p.audioStartDTSFilled {
 		p.audioStartDTSFilled = true
 		p.audioStartDTS = sample.dts
