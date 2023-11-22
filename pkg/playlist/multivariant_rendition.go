@@ -111,22 +111,32 @@ func (t *MultivariantRendition) unmarshal(v string) error {
 		return fmt.Errorf("GROUP-ID missing")
 	}
 
-	if t.Type != MultivariantRenditionTypeClosedCaptions {
-		if t.URI == "" {
-			return fmt.Errorf("missing URI")
-		}
-
-		if t.InstreamID != "" {
-			return fmt.Errorf("INSTREAM-ID is forbidden with type %s", t.Type)
-		}
-	} else {
+	// If the TYPE is CLOSED-CAPTIONS, the URI
+	// attribute MUST NOT be present.
+	// The URI attribute of the EXT-X-MEDIA tag is REQUIRED if the media
+	// type is SUBTITLES, but OPTIONAL if the media type is VIDEO or AUDIO.
+	switch t.Type {
+	case MultivariantRenditionTypeClosedCaptions:
 		if t.URI != "" {
 			return fmt.Errorf("URI is forbidden for type CLOSED-CAPTIONS")
 		}
 
+	case MultivariantRenditionTypeSubtitles:
+		if t.URI == "" {
+			return fmt.Errorf("URI is required for type SUBTITLES")
+		}
+
+	default:
+	}
+
+	// This attribute is REQUIRED if the TYPE attribute is CLOSED-CAPTIONS
+	// For all other TYPE values, the INSTREAM-ID MUST NOT be specified.
+	if t.Type == MultivariantRenditionTypeClosedCaptions {
 		if t.InstreamID == "" {
 			return fmt.Errorf("missing INSTREAM-ID")
 		}
+	} else if t.InstreamID != "" {
+		return fmt.Errorf("INSTREAM-ID is forbidden with type %s", t.Type)
 	}
 
 	return nil
@@ -164,7 +174,11 @@ func (t MultivariantRendition) marshal() string {
 		ret += ",CHANNELS=\"" + t.Channels + "\""
 	}
 
-	ret += ",URI=\"" + t.URI + "\"\n"
+	if t.URI != "" {
+		ret += ",URI=\"" + t.URI + "\""
+	}
+
+	ret += "\n"
 
 	return ret
 }
