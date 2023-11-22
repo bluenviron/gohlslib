@@ -130,7 +130,7 @@ func (s *muxerSegmentFMP4) finalize(nextDTS time.Duration) error {
 }
 
 func (s *muxerSegmentFMP4) writeVideo(
-	sample *augmentedVideoSample,
+	sample *augmentedSample,
 	nextDTS time.Duration,
 	adjustedPartDuration time.Duration,
 ) error {
@@ -168,7 +168,7 @@ func (s *muxerSegmentFMP4) writeVideo(
 }
 
 func (s *muxerSegmentFMP4) writeAudio(
-	sample *augmentedAudioSample,
+	sample *augmentedSample,
 	nextAudioSampleDTS time.Duration,
 	adjustedPartDuration time.Duration,
 ) error {
