@@ -209,27 +209,29 @@ func (d *clientDownloaderPrimary) run(ctx context.Context) error {
 				return fmt.Errorf("audio playlist with id \"%s\" not found", leadingPlaylist.Audio)
 			}
 
-			u, err := clientAbsoluteURL(d.primaryPlaylistURL, audioPlaylist.URI)
-			if err != nil {
-				return err
-			}
+			if audioPlaylist.URI != "" {
+				u, err := clientAbsoluteURL(d.primaryPlaylistURL, audioPlaylist.URI)
+				if err != nil {
+					return err
+				}
 
-			ds := newClientDownloaderStream(
-				false,
-				d.httpClient,
-				d.onDownloadStreamPlaylist,
-				d.onDownloadSegment,
-				d.onDecodeError,
-				u,
-				nil,
-				d.rp,
-				d.onStreamTracks,
-				d.onSetLeadingTimeSync,
-				d.onGetLeadingTimeSync,
-				d.onData,
-			)
-			d.rp.add(ds)
-			streamCount++
+				ds := newClientDownloaderStream(
+					false,
+					d.httpClient,
+					d.onDownloadStreamPlaylist,
+					d.onDownloadSegment,
+					d.onDecodeError,
+					u,
+					nil,
+					d.rp,
+					d.onStreamTracks,
+					d.onSetLeadingTimeSync,
+					d.onGetLeadingTimeSync,
+					d.onData,
+				)
+				d.rp.add(ds)
+				streamCount++
+			}
 		}
 
 	default:
