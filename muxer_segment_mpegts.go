@@ -17,54 +17,41 @@ func durationGoToMPEGTS(v time.Duration) int64 {
 }
 
 type muxerSegmentMPEGTS struct {
+	id               uint64
+	startNTP         time.Time
 	segmentMaxSize   uint64
 	writerVideoTrack *mpegts.Track
 	writerAudioTrack *mpegts.Track
+	switchableWriter *switchableWriter
 	writer           *mpegts.Writer
+	prefix           string
+	factory          storage.Factory
 
 	storage      storage.File
 	storagePart  storage.Part
 	bw           *bufio.Writer
 	size         uint64
-	startNTP     time.Time
 	name         string
 	startDTS     *time.Duration
 	endDTS       time.Duration
 	audioAUCount int
 }
 
-func newMuxerSegmentMPEGTS(
-	id uint64,
-	startNTP time.Time,
-	segmentMaxSize uint64,
-	writerVideoTrack *mpegts.Track,
-	writerAudioTrack *mpegts.Track,
-	switchableWriter *switchableWriter,
-	writer *mpegts.Writer,
-	prefix string,
-	factory storage.Factory,
-) (*muxerSegmentMPEGTS, error) {
-	t := &muxerSegmentMPEGTS{
-		segmentMaxSize:   segmentMaxSize,
-		writerVideoTrack: writerVideoTrack,
-		writerAudioTrack: writerAudioTrack,
-		writer:           writer,
-		startNTP:         startNTP,
-		name:             segmentName(prefix, id, false),
-	}
+func (t *muxerSegmentMPEGTS) initialize() error {
+	t.name = segmentName(t.prefix, t.id, false)
 
 	var err error
-	t.storage, err = factory.NewFile(t.name)
+	t.storage, err = t.factory.NewFile(t.name)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	t.storagePart = t.storage.NewPart()
 	t.bw = bufio.NewWriter(t.storagePart.Writer())
 
-	switchableWriter.w = t.bw
+	t.switchableWriter.w = t.bw
 
-	return t, nil
+	return nil
 }
 
 func (t *muxerSegmentMPEGTS) close() {

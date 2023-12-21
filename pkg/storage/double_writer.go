@@ -9,13 +9,6 @@ type doubleWriter struct {
 	w2 io.WriteSeeker
 }
 
-func newDoubleWriter(w1, w2 io.WriteSeeker) io.WriteSeeker {
-	return &doubleWriter{
-		w1: w1,
-		w2: w2,
-	}
-}
-
 func (w *doubleWriter) Write(p []byte) (int, error) {
 	_, err := w.w1.Write(p)
 	if err != nil {

@@ -54,28 +54,6 @@ type clientProcessorMPEGTS struct {
 	timeSync         *clientTimeSyncMPEGTS
 }
 
-func newClientProcessorMPEGTS(
-	onDecodeError ClientOnDecodeErrorFunc,
-	isLeading bool,
-	segmentQueue *clientSegmentQueue,
-	rp *clientRoutinePool,
-	onStreamTracks func(context.Context, []*Track) bool,
-	onSetLeadingTimeSync func(clientTimeSync),
-	onGetLeadingTimeSync func(context.Context) (clientTimeSync, bool),
-	onData map[*Track]interface{},
-) *clientProcessorMPEGTS {
-	return &clientProcessorMPEGTS{
-		onDecodeError:        onDecodeError,
-		isLeading:            isLeading,
-		segmentQueue:         segmentQueue,
-		rp:                   rp,
-		onStreamTracks:       onStreamTracks,
-		onSetLeadingTimeSync: onSetLeadingTimeSync,
-		onGetLeadingTimeSync: onGetLeadingTimeSync,
-		onData:               onData,
-	}
-}
-
 func (p *clientProcessorMPEGTS) run(ctx context.Context) error {
 	for {
 		seg, ok := p.segmentQueue.pull(ctx)
@@ -222,7 +200,11 @@ func (p *clientProcessorMPEGTS) initializeTrackProcs(ctx context.Context, isLead
 			return errSkipSilently
 		}
 
-		p.timeSync = newClientTimeSyncMPEGTS(dts)
+		p.timeSync = &clientTimeSyncMPEGTS{
+			startDTS: dts,
+		}
+		p.timeSync.initialize()
+
 		p.onSetLeadingTimeSync(p.timeSync)
 	} else {
 		rawTS, ok := p.onGetLeadingTimeSync(ctx)
@@ -239,7 +221,8 @@ func (p *clientProcessorMPEGTS) initializeTrackProcs(ctx context.Context, isLead
 	p.trackProcs = make(map[*Track]*clientTrackProcessor)
 
 	for _, track := range p.tracks {
-		proc := newClientTrackProcessor()
+		proc := &clientTrackProcessor{}
+		proc.initialize()
 		p.rp.add(proc)
 		p.trackProcs[track] = proc
 	}

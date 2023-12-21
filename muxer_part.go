@@ -18,6 +18,7 @@ type muxerPart struct {
 	videoTrack     *Track
 	audioTrack     *Track
 	audioTimeScale uint32
+	prefix         string
 	id             uint64
 	storage        storage.Part
 
@@ -32,30 +33,12 @@ type muxerPart struct {
 	audioStartDTS       time.Duration
 }
 
-func newMuxerPart(
-	startDTS time.Duration,
-	videoTrack *Track,
-	audioTrack *Track,
-	audioTimeScale uint32,
-	prefix string,
-	id uint64,
-	storage storage.Part,
-) *muxerPart {
-	p := &muxerPart{
-		startDTS:       startDTS,
-		videoTrack:     videoTrack,
-		audioTrack:     audioTrack,
-		audioTimeScale: audioTimeScale,
-		id:             id,
-		storage:        storage,
-		name:           partName(prefix, id),
-	}
+func (p *muxerPart) initialize() {
+	p.name = partName(p.prefix, p.id)
 
-	if videoTrack == nil {
+	if p.videoTrack == nil {
 		p.isIndependent = true
 	}
-
-	return p
 }
 
 func (p *muxerPart) getName() string {

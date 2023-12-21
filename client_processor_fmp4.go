@@ -23,9 +23,12 @@ func fmp4PickLeadingTrack(init *fmp4.Init) int {
 }
 
 type clientProcessorFMP4 struct {
+	ctx                  context.Context
 	isLeading            bool
+	initFile             []byte
 	segmentQueue         *clientSegmentQueue
 	rp                   *clientRoutinePool
+	onStreamTracks       func(context.Context, []*Track) bool
 	onSetLeadingTimeSync func(clientTimeSync)
 	onGetLeadingTimeSync func(context.Context) (clientTimeSync, bool)
 	onData               map[*Track]interface{}
@@ -39,30 +42,12 @@ type clientProcessorFMP4 struct {
 	subpartProcessed chan struct{}
 }
 
-func newClientProcessorFMP4(
-	ctx context.Context,
-	isLeading bool,
-	initFile []byte,
-	segmentQueue *clientSegmentQueue,
-	rp *clientRoutinePool,
-	onStreamTracks func(context.Context, []*Track) bool,
-	onSetLeadingTimeSync func(clientTimeSync),
-	onGetLeadingTimeSync func(context.Context) (clientTimeSync, bool),
-	onData map[*Track]interface{},
-) (*clientProcessorFMP4, error) {
-	p := &clientProcessorFMP4{
-		isLeading:            isLeading,
-		segmentQueue:         segmentQueue,
-		rp:                   rp,
-		onSetLeadingTimeSync: onSetLeadingTimeSync,
-		onGetLeadingTimeSync: onGetLeadingTimeSync,
-		onData:               onData,
-		subpartProcessed:     make(chan struct{}, clientFMP4MaxPartTracksPerSegment),
-	}
+func (p *clientProcessorFMP4) initialize() error {
+	p.subpartProcessed = make(chan struct{}, clientFMP4MaxPartTracksPerSegment)
 
-	err := p.init.Unmarshal(initFile)
+	err := p.init.Unmarshal(p.initFile)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	p.leadingTrackID = fmp4PickLeadingTrack(&p.init)
@@ -74,12 +59,12 @@ func newClientProcessorFMP4(
 		}
 	}
 
-	ok := onStreamTracks(ctx, p.tracks)
+	ok := p.onStreamTracks(p.ctx, p.tracks)
 	if !ok {
-		return nil, fmt.Errorf("terminated")
+		return fmt.Errorf("terminated")
 	}
 
-	return p, nil
+	return nil
 }
 
 func (p *clientProcessorFMP4) run(ctx context.Context) error {
@@ -172,7 +157,13 @@ func (p *clientProcessorFMP4) initializeTrackProcs(ctx context.Context, track *f
 			}
 			return 0
 		}()
-		timeSync = newClientTimeSyncFMP4(timeScale, track.BaseTime)
+
+		timeSync = &clientTimeSyncFMP4{
+			timeScale: timeScale,
+			baseTime:  track.BaseTime,
+		}
+		timeSync.initialize()
+
 		p.onSetLeadingTimeSync(timeSync)
 	} else {
 		rawTS, ok := p.onGetLeadingTimeSync(ctx)
@@ -288,7 +279,8 @@ func (p *clientProcessorFMP4) initializeTrackProcs(ctx context.Context, track *f
 			return nil
 		}
 
-		trackProc := newClientTrackProcessor()
+		trackProc := &clientTrackProcessor{}
+		trackProc.initialize()
 		p.rp.add(trackProc)
 
 		prePreProcess := func(ctx context.Context, partTrack *fmp4.PartTrack) error {

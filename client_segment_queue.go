@@ -12,11 +12,9 @@ type clientSegmentQueue struct {
 	didPull chan struct{}
 }
 
-func newClientSegmentQueue() *clientSegmentQueue {
-	return &clientSegmentQueue{
-		didPush: make(chan struct{}),
-		didPull: make(chan struct{}),
-	}
+func (q *clientSegmentQueue) initialize() {
+	q.didPush = make(chan struct{})
+	q.didPull = make(chan struct{})
 }
 
 func (q *clientSegmentQueue) push(seg []byte) {

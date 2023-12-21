@@ -17,14 +17,9 @@ type clientRoutinePool struct {
 	err chan error
 }
 
-func newClientRoutinePool() *clientRoutinePool {
-	ctx, ctxCancel := context.WithCancel(context.Background())
-
-	return &clientRoutinePool{
-		ctx:       ctx,
-		ctxCancel: ctxCancel,
-		err:       make(chan error),
-	}
+func (rp *clientRoutinePool) initialize() {
+	rp.ctx, rp.ctxCancel = context.WithCancel(context.Background())
+	rp.err = make(chan error)
 }
 
 func (rp *clientRoutinePool) close() {
