@@ -112,9 +112,9 @@ func TestMuxerVideoAudio(t *testing.T) {
 					}
 					return 3
 				}(),
-				SegmentDuration: 1 * time.Second,
-				VideoTrack:      testVideoTrack,
-				AudioTrack:      testAudioTrack,
+				SegmentMinDuration: 1 * time.Second,
+				VideoTrack:         testVideoTrack,
+				AudioTrack:         testAudioTrack,
 			}
 
 			err := m.Start()
@@ -337,10 +337,10 @@ func TestMuxerVideoOnly(t *testing.T) {
 			}
 
 			m := &Muxer{
-				Variant:         v,
-				SegmentCount:    3,
-				SegmentDuration: 1 * time.Second,
-				VideoTrack:      testVideoTrack,
+				Variant:            v,
+				SegmentCount:       3,
+				SegmentMinDuration: 1 * time.Second,
+				VideoTrack:         testVideoTrack,
 			}
 
 			err := m.Start()
@@ -451,10 +451,10 @@ func TestMuxerAudioOnly(t *testing.T) {
 			}
 
 			m := &Muxer{
-				Variant:         v,
-				SegmentCount:    3,
-				SegmentDuration: 1 * time.Second,
-				AudioTrack:      testAudioTrack,
+				Variant:            v,
+				SegmentCount:       3,
+				SegmentMinDuration: 1 * time.Second,
+				AudioTrack:         testAudioTrack,
 			}
 
 			err := m.Start()
@@ -545,9 +545,9 @@ func TestMuxerAudioOnly(t *testing.T) {
 
 func TestMuxerCloseBeforeData(t *testing.T) {
 	m := &Muxer{
-		Variant:         MuxerVariantFMP4,
-		SegmentCount:    3,
-		SegmentDuration: 1 * time.Second,
+		Variant:            MuxerVariantFMP4,
+		SegmentCount:       3,
+		SegmentMinDuration: 1 * time.Second,
 		VideoTrack: &Track{
 			Codec: &codecs.AV1{},
 		},
@@ -570,11 +570,11 @@ func TestMuxerCloseBeforeData(t *testing.T) {
 
 func TestMuxerMaxSegmentSize(t *testing.T) {
 	m := &Muxer{
-		Variant:         MuxerVariantMPEGTS,
-		SegmentCount:    3,
-		SegmentDuration: 1 * time.Second,
-		SegmentMaxSize:  1,
-		VideoTrack:      testVideoTrack,
+		Variant:            MuxerVariantMPEGTS,
+		SegmentCount:       3,
+		SegmentMinDuration: 1 * time.Second,
+		SegmentMaxSize:     1,
+		VideoTrack:         testVideoTrack,
 	}
 
 	err := m.Start()
@@ -590,10 +590,10 @@ func TestMuxerMaxSegmentSize(t *testing.T) {
 
 func TestMuxerDoubleRead(t *testing.T) {
 	m := &Muxer{
-		Variant:         MuxerVariantMPEGTS,
-		SegmentCount:    3,
-		SegmentDuration: 1 * time.Second,
-		VideoTrack:      testVideoTrack,
+		Variant:            MuxerVariantMPEGTS,
+		SegmentCount:       3,
+		SegmentMinDuration: 1 * time.Second,
+		VideoTrack:         testVideoTrack,
 	}
 
 	err := m.Start()
@@ -653,11 +653,11 @@ func TestMuxerSaveToDisk(t *testing.T) {
 			}
 
 			m := &Muxer{
-				Variant:         v,
-				SegmentCount:    3,
-				SegmentDuration: 1 * time.Second,
-				VideoTrack:      testVideoTrack,
-				Directory:       dir,
+				Variant:            v,
+				SegmentCount:       3,
+				SegmentMinDuration: 1 * time.Second,
+				VideoTrack:         testVideoTrack,
+				Directory:          dir,
 			}
 
 			err = m.Start()
@@ -740,10 +740,10 @@ func TestMuxerSaveToDisk(t *testing.T) {
 
 func TestMuxerDynamicParams(t *testing.T) {
 	m := &Muxer{
-		Variant:         MuxerVariantFMP4,
-		SegmentCount:    3,
-		SegmentDuration: 1 * time.Second,
-		VideoTrack:      testVideoTrack,
+		Variant:            MuxerVariantFMP4,
+		SegmentCount:       3,
+		SegmentMinDuration: 1 * time.Second,
+		VideoTrack:         testVideoTrack,
 	}
 
 	err := m.Start()
@@ -832,10 +832,10 @@ func TestMuxerDynamicParams(t *testing.T) {
 
 func TestMuxerFMP4ZeroDuration(t *testing.T) {
 	m := &Muxer{
-		Variant:         MuxerVariantFMP4,
-		SegmentCount:    3,
-		SegmentDuration: 1 * time.Second,
-		VideoTrack:      testVideoTrack,
+		Variant:            MuxerVariantFMP4,
+		SegmentCount:       3,
+		SegmentMinDuration: 1 * time.Second,
+		VideoTrack:         testVideoTrack,
 	}
 
 	err := m.Start()
@@ -859,11 +859,11 @@ func TestMuxerFMP4ZeroDuration(t *testing.T) {
 
 func TestMuxerFMP4NegativeTimestamp(t *testing.T) {
 	m := &Muxer{
-		Variant:         MuxerVariantFMP4,
-		SegmentCount:    3,
-		SegmentDuration: 2 * time.Second,
-		VideoTrack:      testVideoTrack,
-		AudioTrack:      testAudioTrack,
+		Variant:            MuxerVariantFMP4,
+		SegmentCount:       3,
+		SegmentMinDuration: 2 * time.Second,
+		VideoTrack:         testVideoTrack,
+		AudioTrack:         testAudioTrack,
 	}
 
 	err := m.Start()
