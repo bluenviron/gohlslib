@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"testing"
 	"time"
 
@@ -822,12 +823,10 @@ func TestMuxerDynamicParams(t *testing.T) {
 	bu, _, err = doRequest(m, m.prefix+"_init.mp4", "", "", "")
 	require.NoError(t, err)
 
-	func() {
-		var init fmp4.Init
-		err = init.Unmarshal(bu)
-		require.NoError(t, err)
-		require.Equal(t, testSPS2, init.Tracks[0].Codec.(*fmp4.CodecH264).SPS)
-	}()
+	var init fmp4.Init
+	err = init.Unmarshal(bu)
+	require.NoError(t, err)
+	require.Equal(t, testSPS2, init.Tracks[0].Codec.(*fmp4.CodecH264).SPS)
 }
 
 func TestMuxerFMP4ZeroDuration(t *testing.T) {
@@ -949,4 +948,41 @@ func TestMuxerFMP4NegativeTimestamp(t *testing.T) {
 			},
 		},
 	}}, parts)
+}
+
+func TestMuxerFMP4SequenceNumber(t *testing.T) {
+	m := &Muxer{
+		Variant:         MuxerVariantLowLatency,
+		SegmentCount:    7,
+		SegmentDuration: 2 * time.Second,
+		VideoTrack:      testVideoTrack,
+	}
+
+	err := m.Start()
+	require.NoError(t, err)
+	defer m.Close()
+
+	err = m.WriteH26x(testTime, 0, [][]byte{
+		testSPS,
+		{5}, // IDR
+		{1},
+	})
+	require.NoError(t, err)
+
+	for i := 0; i < 3; i++ {
+		err = m.WriteH26x(testTime, (1+time.Duration(i))*time.Second, [][]byte{
+			{1}, // non IDR
+		})
+		require.NoError(t, err)
+	}
+
+	for i := 0; i < 3; i++ {
+		buf, _, err := doRequest(m, m.prefix+"_part"+strconv.FormatInt(int64(i), 10)+".mp4", "", "", "")
+		require.NoError(t, err)
+
+		var parts fmp4.Parts
+		err = parts.Unmarshal(buf)
+		require.NoError(t, err)
+		require.Equal(t, uint32(i), parts[0].SequenceNumber)
+	}
 }
