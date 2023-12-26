@@ -42,37 +42,19 @@ type muxerSegmenterMPEGTS struct {
 	videoDTSExtractor *h264.DTSExtractor
 }
 
-func newMuxerSegmenterMPEGTS(
-	segmentDuration time.Duration,
-	segmentMaxSize uint64,
-	videoTrack *Track,
-	audioTrack *Track,
-	prefix string,
-	factory storage.Factory,
-	publishSegment func(muxerSegment) error,
-) *muxerSegmenterMPEGTS {
-	m := &muxerSegmenterMPEGTS{
-		segmentDuration: segmentDuration,
-		segmentMaxSize:  segmentMaxSize,
-		videoTrack:      videoTrack,
-		audioTrack:      audioTrack,
-		prefix:          prefix,
-		factory:         factory,
-		publishSegment:  publishSegment,
-	}
-
+func (m *muxerSegmenterMPEGTS) initialize() {
 	var tracks []*mpegts.Track
 
-	if videoTrack != nil {
+	if m.videoTrack != nil {
 		m.writerVideoTrack = &mpegts.Track{
-			Codec: codecs.ToMPEGTS(videoTrack.Codec),
+			Codec: codecs.ToMPEGTS(m.videoTrack.Codec),
 		}
 		tracks = append(tracks, m.writerVideoTrack)
 	}
 
-	if audioTrack != nil {
+	if m.audioTrack != nil {
 		m.writerAudioTrack = &mpegts.Track{
-			Codec: codecs.ToMPEGTS(audioTrack.Codec),
+			Codec: codecs.ToMPEGTS(m.audioTrack.Codec),
 		}
 		tracks = append(tracks, m.writerAudioTrack)
 	}
@@ -80,8 +62,6 @@ func newMuxerSegmenterMPEGTS(
 	m.switchableWriter = &switchableWriter{}
 
 	m.writer = mpegts.NewWriter(m.switchableWriter, tracks)
-
-	return m
 }
 
 func (m *muxerSegmenterMPEGTS) close() {
@@ -141,16 +121,18 @@ func (m *muxerSegmenterMPEGTS) writeH26x(
 		}
 
 		// create first segment
-		m.currentSegment, err = newMuxerSegmentMPEGTS(
-			m.takeSegmentID(),
-			ntp,
-			m.segmentMaxSize,
-			m.writerVideoTrack,
-			m.writerAudioTrack,
-			m.switchableWriter,
-			m.writer,
-			m.prefix,
-			m.factory)
+		m.currentSegment = &muxerSegmentMPEGTS{
+			id:               m.takeSegmentID(),
+			startNTP:         ntp,
+			segmentMaxSize:   m.segmentMaxSize,
+			writerVideoTrack: m.writerVideoTrack,
+			writerAudioTrack: m.writerAudioTrack,
+			switchableWriter: m.switchableWriter,
+			writer:           m.writer,
+			prefix:           m.prefix,
+			factory:          m.factory,
+		}
+		err = m.currentSegment.initialize()
 		if err != nil {
 			return err
 		}
@@ -175,17 +157,18 @@ func (m *muxerSegmenterMPEGTS) writeH26x(
 				return err
 			}
 
-			m.currentSegment, err = newMuxerSegmentMPEGTS(
-				m.takeSegmentID(),
-				ntp,
-				m.segmentMaxSize,
-				m.writerVideoTrack,
-				m.writerAudioTrack,
-				m.switchableWriter,
-				m.writer,
-				m.prefix,
-				m.factory,
-			)
+			m.currentSegment = &muxerSegmentMPEGTS{
+				id:               m.takeSegmentID(),
+				startNTP:         ntp,
+				segmentMaxSize:   m.segmentMaxSize,
+				writerVideoTrack: m.writerVideoTrack,
+				writerAudioTrack: m.writerAudioTrack,
+				switchableWriter: m.switchableWriter,
+				writer:           m.writer,
+				prefix:           m.prefix,
+				factory:          m.factory,
+			}
+			err = m.currentSegment.initialize()
 			if err != nil {
 				return err
 			}
@@ -212,18 +195,18 @@ func (m *muxerSegmenterMPEGTS) writeMPEG4Audio(ntp time.Time, pts time.Duration,
 	if m.videoTrack == nil {
 		if m.currentSegment == nil {
 			// create first segment
-			var err error
-			m.currentSegment, err = newMuxerSegmentMPEGTS(
-				m.takeSegmentID(),
-				ntp,
-				m.segmentMaxSize,
-				m.writerVideoTrack,
-				m.writerAudioTrack,
-				m.switchableWriter,
-				m.writer,
-				m.prefix,
-				m.factory,
-			)
+			m.currentSegment = &muxerSegmentMPEGTS{
+				id:               m.takeSegmentID(),
+				startNTP:         ntp,
+				segmentMaxSize:   m.segmentMaxSize,
+				writerVideoTrack: m.writerVideoTrack,
+				writerAudioTrack: m.writerAudioTrack,
+				switchableWriter: m.switchableWriter,
+				writer:           m.writer,
+				prefix:           m.prefix,
+				factory:          m.factory,
+			}
+			err := m.currentSegment.initialize()
 			if err != nil {
 				return err
 			}
@@ -239,17 +222,18 @@ func (m *muxerSegmenterMPEGTS) writeMPEG4Audio(ntp time.Time, pts time.Duration,
 				return err
 			}
 
-			m.currentSegment, err = newMuxerSegmentMPEGTS(
-				m.takeSegmentID(),
-				ntp,
-				m.segmentMaxSize,
-				m.writerVideoTrack,
-				m.writerAudioTrack,
-				m.switchableWriter,
-				m.writer,
-				m.prefix,
-				m.factory,
-			)
+			m.currentSegment = &muxerSegmentMPEGTS{
+				id:               m.takeSegmentID(),
+				startNTP:         ntp,
+				segmentMaxSize:   m.segmentMaxSize,
+				writerVideoTrack: m.writerVideoTrack,
+				writerAudioTrack: m.writerAudioTrack,
+				switchableWriter: m.switchableWriter,
+				writer:           m.writer,
+				prefix:           m.prefix,
+				factory:          m.factory,
+			}
+			err = m.currentSegment.initialize()
 			if err != nil {
 				return err
 			}

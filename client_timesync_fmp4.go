@@ -21,15 +21,16 @@ func durationMp4ToGo(v uint64, timeScale uint32) time.Duration {
 }
 
 type clientTimeSyncFMP4 struct {
+	timeScale uint32
+	baseTime  uint64
+
 	startRTC time.Time
 	startDTS time.Duration
 }
 
-func newClientTimeSyncFMP4(timeScale uint32, baseTime uint64) *clientTimeSyncFMP4 {
-	return &clientTimeSyncFMP4{
-		startRTC: time.Now(),
-		startDTS: durationMp4ToGo(baseTime, timeScale),
-	}
+func (ts *clientTimeSyncFMP4) initialize() {
+	ts.startRTC = time.Now()
+	ts.startDTS = durationMp4ToGo(ts.baseTime, ts.timeScale)
 }
 
 func (ts *clientTimeSyncFMP4) convertAndSync(ctx context.Context, timeScale uint32,

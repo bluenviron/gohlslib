@@ -10,16 +10,16 @@ import (
 )
 
 type clientTimeSyncMPEGTS struct {
+	startDTS int64
+
 	startRTC time.Time
 	td       *mpegts.TimeDecoder
 	mutex    sync.Mutex
 }
 
-func newClientTimeSyncMPEGTS(startDTS int64) *clientTimeSyncMPEGTS {
-	return &clientTimeSyncMPEGTS{
-		startRTC: time.Now(),
-		td:       mpegts.NewTimeDecoder(startDTS),
-	}
+func (ts *clientTimeSyncMPEGTS) initialize() {
+	ts.startRTC = time.Now()
+	ts.td = mpegts.NewTimeDecoder(ts.startDTS)
 }
 
 func (ts *clientTimeSyncMPEGTS) convertAndSync(ctx context.Context,

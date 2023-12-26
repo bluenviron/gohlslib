@@ -105,9 +105,9 @@ type clientDownloaderPrimary struct {
 	onDownloadStreamPlaylist  ClientOnDownloadStreamPlaylistFunc
 	onDownloadSegment         ClientOnDownloadSegmentFunc
 	onDecodeError             ClientOnDecodeErrorFunc
+	rp                        *clientRoutinePool
 	onTracks                  ClientOnTracksFunc
 	onData                    map[*Track]interface{}
-	rp                        *clientRoutinePool
 
 	leadingTimeSync clientTimeSync
 
@@ -119,31 +119,10 @@ type clientDownloaderPrimary struct {
 	leadingTimeSyncReady chan struct{}
 }
 
-func newClientDownloaderPrimary(
-	primaryPlaylistURL *url.URL,
-	httpClient *http.Client,
-	onDownloadPrimaryPlaylist ClientOnDownloadPrimaryPlaylistFunc,
-	onDownloadStreamPlaylist ClientOnDownloadStreamPlaylistFunc,
-	onDownloadSegment ClientOnDownloadSegmentFunc,
-	onDecodeError ClientOnDecodeErrorFunc,
-	rp *clientRoutinePool,
-	onTracks ClientOnTracksFunc,
-	onData map[*Track]interface{},
-) *clientDownloaderPrimary {
-	return &clientDownloaderPrimary{
-		primaryPlaylistURL:        primaryPlaylistURL,
-		httpClient:                httpClient,
-		onDownloadPrimaryPlaylist: onDownloadPrimaryPlaylist,
-		onDownloadStreamPlaylist:  onDownloadStreamPlaylist,
-		onDownloadSegment:         onDownloadSegment,
-		onDecodeError:             onDecodeError,
-		onTracks:                  onTracks,
-		onData:                    onData,
-		rp:                        rp,
-		streamTracks:              make(chan []*Track),
-		startStreaming:            make(chan struct{}),
-		leadingTimeSyncReady:      make(chan struct{}),
-	}
+func (d *clientDownloaderPrimary) initialize() {
+	d.streamTracks = make(chan []*Track)
+	d.startStreaming = make(chan struct{})
+	d.leadingTimeSyncReady = make(chan struct{})
 }
 
 func (d *clientDownloaderPrimary) run(ctx context.Context) error {
@@ -158,20 +137,20 @@ func (d *clientDownloaderPrimary) run(ctx context.Context) error {
 
 	switch plt := pl.(type) {
 	case *playlist.Media:
-		ds := newClientDownloaderStream(
-			true,
-			d.httpClient,
-			d.onDownloadStreamPlaylist,
-			d.onDownloadSegment,
-			d.onDecodeError,
-			d.primaryPlaylistURL,
-			plt,
-			d.rp,
-			d.onStreamTracks,
-			d.onSetLeadingTimeSync,
-			d.onGetLeadingTimeSync,
-			d.onData,
-		)
+		ds := &clientDownloaderStream{
+			isLeading:                true,
+			httpClient:               d.httpClient,
+			onDownloadStreamPlaylist: d.onDownloadStreamPlaylist,
+			onDownloadSegment:        d.onDownloadSegment,
+			onDecodeError:            d.onDecodeError,
+			playlistURL:              d.primaryPlaylistURL,
+			initialPlaylist:          plt,
+			rp:                       d.rp,
+			onStreamTracks:           d.onStreamTracks,
+			onSetLeadingTimeSync:     d.onSetLeadingTimeSync,
+			onGetLeadingTimeSync:     d.onGetLeadingTimeSync,
+			onData:                   d.onData,
+		}
 		d.rp.add(ds)
 		streamCount++
 
@@ -186,20 +165,20 @@ func (d *clientDownloaderPrimary) run(ctx context.Context) error {
 			return err
 		}
 
-		ds := newClientDownloaderStream(
-			true,
-			d.httpClient,
-			d.onDownloadStreamPlaylist,
-			d.onDownloadSegment,
-			d.onDecodeError,
-			u,
-			nil,
-			d.rp,
-			d.onStreamTracks,
-			d.onSetLeadingTimeSync,
-			d.onGetLeadingTimeSync,
-			d.onData,
-		)
+		ds := &clientDownloaderStream{
+			isLeading:                true,
+			httpClient:               d.httpClient,
+			onDownloadStreamPlaylist: d.onDownloadStreamPlaylist,
+			onDownloadSegment:        d.onDownloadSegment,
+			onDecodeError:            d.onDecodeError,
+			playlistURL:              u,
+			initialPlaylist:          nil,
+			rp:                       d.rp,
+			onStreamTracks:           d.onStreamTracks,
+			onSetLeadingTimeSync:     d.onSetLeadingTimeSync,
+			onGetLeadingTimeSync:     d.onGetLeadingTimeSync,
+			onData:                   d.onData,
+		}
 		d.rp.add(ds)
 		streamCount++
 
@@ -215,20 +194,20 @@ func (d *clientDownloaderPrimary) run(ctx context.Context) error {
 					return err
 				}
 
-				ds := newClientDownloaderStream(
-					false,
-					d.httpClient,
-					d.onDownloadStreamPlaylist,
-					d.onDownloadSegment,
-					d.onDecodeError,
-					u,
-					nil,
-					d.rp,
-					d.onStreamTracks,
-					d.onSetLeadingTimeSync,
-					d.onGetLeadingTimeSync,
-					d.onData,
-				)
+				ds := &clientDownloaderStream{
+					isLeading:                false,
+					httpClient:               d.httpClient,
+					onDownloadStreamPlaylist: d.onDownloadStreamPlaylist,
+					onDownloadSegment:        d.onDownloadSegment,
+					onDecodeError:            d.onDecodeError,
+					playlistURL:              u,
+					initialPlaylist:          nil,
+					rp:                       d.rp,
+					onStreamTracks:           d.onStreamTracks,
+					onSetLeadingTimeSync:     d.onSetLeadingTimeSync,
+					onGetLeadingTimeSync:     d.onGetLeadingTimeSync,
+					onData:                   d.onData,
+				}
 				d.rp.add(ds)
 				streamCount++
 			}

@@ -9,10 +9,8 @@ type clientTrackProcessor struct {
 	queue chan func() error
 }
 
-func newClientTrackProcessor() *clientTrackProcessor {
-	return &clientTrackProcessor{
-		queue: make(chan func() error, clientMPEGTSEntryQueueSize),
-	}
+func (t *clientTrackProcessor) initialize() {
+	t.queue = make(chan func() error, clientMPEGTSEntryQueueSize)
 }
 
 func (t *clientTrackProcessor) run(ctx context.Context) error {

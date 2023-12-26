@@ -97,7 +97,7 @@ type muxerSegmenterFMP4 struct {
 	prefix          string
 	factory         storage.Factory
 	publishSegment  func(muxerSegment) error
-	publishPart     func(*muxerPart)
+	publishPart     func(*muxerPart) error
 
 	audioTimeScale                 uint32
 	videoFirstRandomAccessReceived bool
@@ -113,42 +113,17 @@ type muxerSegmenterFMP4 struct {
 	adjustedPartDuration           time.Duration
 }
 
-func newMuxerSegmenterFMP4(
-	lowLatency bool,
-	segmentDuration time.Duration,
-	partDuration time.Duration,
-	segmentMaxSize uint64,
-	videoTrack *Track,
-	audioTrack *Track,
-	prefix string,
-	factory storage.Factory,
-	publishSegment func(muxerSegment) error,
-	publishPart func(*muxerPart),
-) *muxerSegmenterFMP4 {
-	m := &muxerSegmenterFMP4{
-		lowLatency:      lowLatency,
-		segmentDuration: segmentDuration,
-		partDuration:    partDuration,
-		segmentMaxSize:  segmentMaxSize,
-		videoTrack:      videoTrack,
-		audioTrack:      audioTrack,
-		prefix:          prefix,
-		factory:         factory,
-		publishSegment:  publishSegment,
-		publishPart:     publishPart,
-		sampleDurations: make(map[time.Duration]struct{}),
-	}
+func (m *muxerSegmenterFMP4) initialize() {
+	m.sampleDurations = make(map[time.Duration]struct{})
 
-	if audioTrack != nil {
-		m.audioTimeScale = fmp4TimeScale(audioTrack.Codec)
+	if m.audioTrack != nil {
+		m.audioTimeScale = fmp4TimeScale(m.audioTrack.Codec)
 	}
 
 	// add initial gaps, required by iOS LL-HLS
 	if m.lowLatency {
 		m.nextSegmentID = 7
 	}
-
-	return m
 }
 
 func (m *muxerSegmenterFMP4) close() {
@@ -371,23 +346,23 @@ func (m *muxerSegmenterFMP4) writeVideo(
 	if m.currentSegment == nil {
 		m.startDTS = sample.dts
 
-		var err error
-		m.currentSegment, err = newMuxerSegmentFMP4(
-			m.lowLatency,
-			m.takeSegmentID(),
-			sample.ntp,
-			sample.dts,
-			m.segmentMaxSize,
-			m.videoTrack,
-			m.audioTrack,
-			m.audioTimeScale,
-			m.prefix,
-			false,
-			m.factory,
-			m.takePartID,
-			m.givePartID,
-			m.publishPart,
-		)
+		m.currentSegment = &muxerSegmentFMP4{
+			lowLatency:     m.lowLatency,
+			id:             m.takeSegmentID(),
+			startNTP:       sample.ntp,
+			startDTS:       sample.dts,
+			segmentMaxSize: m.segmentMaxSize,
+			videoTrack:     m.videoTrack,
+			audioTrack:     m.audioTrack,
+			audioTimeScale: m.audioTimeScale,
+			prefix:         m.prefix,
+			forceSwitched:  false,
+			factory:        m.factory,
+			takePartID:     m.takePartID,
+			givePartID:     m.givePartID,
+			publishPart:    m.publishPart,
+		}
+		err := m.currentSegment.initialize()
 		if err != nil {
 			return err
 		}
@@ -416,22 +391,23 @@ func (m *muxerSegmenterFMP4) writeVideo(
 
 		m.firstSegmentFinalized = true
 
-		m.currentSegment, err = newMuxerSegmentFMP4(
-			m.lowLatency,
-			m.takeSegmentID(),
-			m.nextVideoSample.ntp,
-			m.nextVideoSample.dts,
-			m.segmentMaxSize,
-			m.videoTrack,
-			m.audioTrack,
-			m.audioTimeScale,
-			m.prefix,
-			forceSwitch,
-			m.factory,
-			m.takePartID,
-			m.givePartID,
-			m.publishPart,
-		)
+		m.currentSegment = &muxerSegmentFMP4{
+			lowLatency:     m.lowLatency,
+			id:             m.takeSegmentID(),
+			startNTP:       m.nextVideoSample.ntp,
+			startDTS:       m.nextVideoSample.dts,
+			segmentMaxSize: m.segmentMaxSize,
+			videoTrack:     m.videoTrack,
+			audioTrack:     m.audioTrack,
+			audioTimeScale: m.audioTimeScale,
+			prefix:         m.prefix,
+			forceSwitched:  forceSwitch,
+			factory:        m.factory,
+			takePartID:     m.takePartID,
+			givePartID:     m.givePartID,
+			publishPart:    m.publishPart,
+		}
+		err = m.currentSegment.initialize()
 		if err != nil {
 			return err
 		}
@@ -475,23 +451,23 @@ func (m *muxerSegmenterFMP4) writeAudio(sample *augmentedSample) error {
 		if m.currentSegment == nil {
 			m.startDTS = sample.dts
 
-			var err error
-			m.currentSegment, err = newMuxerSegmentFMP4(
-				m.lowLatency,
-				m.takeSegmentID(),
-				sample.ntp,
-				sample.dts,
-				m.segmentMaxSize,
-				m.videoTrack,
-				m.audioTrack,
-				m.audioTimeScale,
-				m.prefix,
-				false,
-				m.factory,
-				m.takePartID,
-				m.givePartID,
-				m.publishPart,
-			)
+			m.currentSegment = &muxerSegmentFMP4{
+				lowLatency:     m.lowLatency,
+				id:             m.takeSegmentID(),
+				startNTP:       sample.ntp,
+				startDTS:       sample.dts,
+				segmentMaxSize: m.segmentMaxSize,
+				videoTrack:     m.videoTrack,
+				audioTrack:     m.audioTrack,
+				audioTimeScale: m.audioTimeScale,
+				prefix:         m.prefix,
+				forceSwitched:  false,
+				factory:        m.factory,
+				takePartID:     m.takePartID,
+				givePartID:     m.givePartID,
+				publishPart:    m.publishPart,
+			}
+			err := m.currentSegment.initialize()
 			if err != nil {
 				return err
 			}
@@ -523,22 +499,23 @@ func (m *muxerSegmenterFMP4) writeAudio(sample *augmentedSample) error {
 
 		m.firstSegmentFinalized = true
 
-		m.currentSegment, err = newMuxerSegmentFMP4(
-			m.lowLatency,
-			m.takeSegmentID(),
-			m.nextAudioSample.ntp,
-			m.nextAudioSample.dts,
-			m.segmentMaxSize,
-			m.videoTrack,
-			m.audioTrack,
-			m.audioTimeScale,
-			m.prefix,
-			false,
-			m.factory,
-			m.takePartID,
-			m.givePartID,
-			m.publishPart,
-		)
+		m.currentSegment = &muxerSegmentFMP4{
+			lowLatency:     m.lowLatency,
+			id:             m.takeSegmentID(),
+			startNTP:       m.nextAudioSample.ntp,
+			startDTS:       m.nextAudioSample.dts,
+			segmentMaxSize: m.segmentMaxSize,
+			videoTrack:     m.videoTrack,
+			audioTrack:     m.audioTrack,
+			audioTimeScale: m.audioTimeScale,
+			prefix:         m.prefix,
+			forceSwitched:  false,
+			factory:        m.factory,
+			takePartID:     m.takePartID,
+			givePartID:     m.givePartID,
+			publishPart:    m.publishPart,
+		}
+		err = m.currentSegment.initialize()
 		if err != nil {
 			return err
 		}

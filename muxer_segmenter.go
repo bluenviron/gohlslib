@@ -5,6 +5,7 @@ import (
 )
 
 type muxerSegmenter interface {
+	initialize()
 	close()
 	writeAV1(time.Time, time.Duration, [][]byte, bool, bool) error
 	writeVP9(time.Time, time.Duration, []byte, bool, bool) error

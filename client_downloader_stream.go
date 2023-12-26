@@ -46,36 +46,6 @@ type clientDownloaderStream struct {
 	curSegmentID *int
 }
 
-func newClientDownloaderStream(
-	isLeading bool,
-	httpClient *http.Client,
-	onDownloadStreamPlaylist ClientOnDownloadStreamPlaylistFunc,
-	onDownloadSegment ClientOnDownloadSegmentFunc,
-	onDecodeError ClientOnDecodeErrorFunc,
-	playlistURL *url.URL,
-	initialPlaylist *playlist.Media,
-	rp *clientRoutinePool,
-	onStreamTracks func(context.Context, []*Track) bool,
-	onSetLeadingTimeSync func(clientTimeSync),
-	onGetLeadingTimeSync func(context.Context) (clientTimeSync, bool),
-	onData map[*Track]interface{},
-) *clientDownloaderStream {
-	return &clientDownloaderStream{
-		isLeading:                isLeading,
-		httpClient:               httpClient,
-		onDownloadStreamPlaylist: onDownloadStreamPlaylist,
-		onDownloadSegment:        onDownloadSegment,
-		onDecodeError:            onDecodeError,
-		playlistURL:              playlistURL,
-		initialPlaylist:          initialPlaylist,
-		rp:                       rp,
-		onStreamTracks:           onStreamTracks,
-		onSetLeadingTimeSync:     onSetLeadingTimeSync,
-		onGetLeadingTimeSync:     onGetLeadingTimeSync,
-		onData:                   onData,
-	}
-}
-
 func (d *clientDownloaderStream) run(ctx context.Context) error {
 	initialPlaylist := d.initialPlaylist
 	d.initialPlaylist = nil
@@ -87,7 +57,8 @@ func (d *clientDownloaderStream) run(ctx context.Context) error {
 		}
 	}
 
-	segmentQueue := newClientSegmentQueue()
+	segmentQueue := &clientSegmentQueue{}
+	segmentQueue.initialize()
 
 	if initialPlaylist.Map != nil && initialPlaylist.Map.URI != "" {
 		byts, err := d.downloadSegment(
@@ -99,33 +70,34 @@ func (d *clientDownloaderStream) run(ctx context.Context) error {
 			return err
 		}
 
-		proc, err := newClientProcessorFMP4(
-			ctx,
-			d.isLeading,
-			byts,
-			segmentQueue,
-			d.rp,
-			d.onStreamTracks,
-			d.onSetLeadingTimeSync,
-			d.onGetLeadingTimeSync,
-			d.onData,
-		)
+		proc := &clientProcessorFMP4{
+			ctx:                  ctx,
+			isLeading:            d.isLeading,
+			initFile:             byts,
+			segmentQueue:         segmentQueue,
+			rp:                   d.rp,
+			onStreamTracks:       d.onStreamTracks,
+			onSetLeadingTimeSync: d.onSetLeadingTimeSync,
+			onGetLeadingTimeSync: d.onGetLeadingTimeSync,
+			onData:               d.onData,
+		}
+		err = proc.initialize()
 		if err != nil {
 			return err
 		}
 
 		d.rp.add(proc)
 	} else {
-		proc := newClientProcessorMPEGTS(
-			d.onDecodeError,
-			d.isLeading,
-			segmentQueue,
-			d.rp,
-			d.onStreamTracks,
-			d.onSetLeadingTimeSync,
-			d.onGetLeadingTimeSync,
-			d.onData,
-		)
+		proc := &clientProcessorMPEGTS{
+			onDecodeError:        d.onDecodeError,
+			isLeading:            d.isLeading,
+			segmentQueue:         segmentQueue,
+			rp:                   d.rp,
+			onStreamTracks:       d.onStreamTracks,
+			onSetLeadingTimeSync: d.onSetLeadingTimeSync,
+			onGetLeadingTimeSync: d.onGetLeadingTimeSync,
+			onData:               d.onData,
+		}
 		d.rp.add(proc)
 	}
 

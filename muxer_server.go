@@ -432,28 +432,10 @@ type muxerServer struct {
 	init                 storage.File
 }
 
-func newMuxerServer(
-	variant MuxerVariant,
-	segmentCount int,
-	videoTrack *Track,
-	audioTrack *Track,
-	prefix string,
-	storageFactory storage.Factory,
-) *muxerServer {
-	s := &muxerServer{
-		variant:        variant,
-		segmentCount:   segmentCount,
-		videoTrack:     videoTrack,
-		audioTrack:     audioTrack,
-		prefix:         prefix,
-		storageFactory: storageFactory,
-		segmentsByName: make(map[string]muxerSegment),
-		partsByName:    make(map[string]*muxerPart),
-	}
-
+func (s *muxerServer) initialize() {
+	s.segmentsByName = make(map[string]muxerSegment)
+	s.partsByName = make(map[string]*muxerPart)
 	s.cond = sync.NewCond(&s.mutex)
-
-	return s
 }
 
 func (s *muxerServer) close() {
@@ -767,83 +749,91 @@ func (s *muxerServer) handleSegmentOrPart(fname string, w http.ResponseWriter) {
 	}
 }
 
-func (s *muxerServer) publishPart(part *muxerPart) {
-	func() {
-		s.mutex.Lock()
-		defer s.mutex.Unlock()
+func (s *muxerServer) publishPartInner(part *muxerPart) error {
+	s.partsByName[part.getName()] = part
+	s.nextSegmentParts = append(s.nextSegmentParts, part)
+	s.nextPartID = part.id + 1
 
-		s.partsByName[part.getName()] = part
-		s.nextSegmentParts = append(s.nextSegmentParts, part)
-		s.nextPartID = part.id + 1
-	}()
-
-	s.cond.Broadcast()
+	return nil
 }
 
-func (s *muxerServer) publishSegment(segment muxerSegment) error {
-	err := func() error {
-		s.mutex.Lock()
-		defer s.mutex.Unlock()
+func (s *muxerServer) publishPart(part *muxerPart) error {
+	s.mutex.Lock()
+	err := s.publishPartInner(part)
+	s.mutex.Unlock()
+	if err != nil {
+		return err
+	}
 
-		// add initial gaps, required by iOS LL-HLS
-		if s.variant == MuxerVariantLowLatency && len(s.segments) == 0 {
-			for i := 0; i < 7; i++ {
-				s.segments = append(s.segments, &muxerGap{
-					duration: segment.getDuration(),
-				})
+	s.cond.Broadcast()
+	return nil
+}
+
+func (s *muxerServer) publishSegmentInner(segment muxerSegment) error {
+	// add initial gaps, required by iOS LL-HLS
+	if s.variant == MuxerVariantLowLatency && len(s.segments) == 0 {
+		for i := 0; i < 7; i++ {
+			s.segments = append(s.segments, &muxerGap{
+				duration: segment.getDuration(),
+			})
+		}
+	}
+
+	s.segmentsByName[segment.getName()] = segment
+	s.segments = append(s.segments, segment)
+
+	if seg, ok := segment.(*muxerSegmentFMP4); ok {
+		s.nextSegmentID = seg.id + 1
+	}
+
+	s.nextSegmentParts = s.nextSegmentParts[:0]
+
+	if len(s.segments) > s.segmentCount {
+		toDelete := s.segments[0]
+
+		if toDeleteSeg, ok := toDelete.(*muxerSegmentFMP4); ok {
+			for _, part := range toDeleteSeg.parts {
+				delete(s.partsByName, part.getName())
 			}
 		}
 
-		s.segmentsByName[segment.getName()] = segment
-		s.segments = append(s.segments, segment)
+		toDelete.close()
+		delete(s.segmentsByName, toDelete.getName())
 
-		if seg, ok := segment.(*muxerSegmentFMP4); ok {
-			s.nextSegmentID = seg.id + 1
+		s.segments = s.segments[1:]
+		s.segmentDeleteCount++
+	}
+
+	// always regenerate multivariant playlist since it contains bandwidth
+	buf, err := generateMultivariantPlaylist(s.variant, s.videoTrack, s.audioTrack, s.segments)
+	if err != nil {
+		return err
+	}
+	s.multivariantPlaylist = buf
+
+	// regenerate init.mp4 only if missing or codec parameters have changed
+	if s.variant != MuxerVariantMPEGTS && (s.init == nil || segment.isForceSwitched()) {
+		if s.init != nil {
+			s.init.Remove()
+			s.init = nil
 		}
 
-		s.nextSegmentParts = s.nextSegmentParts[:0]
-
-		if len(s.segments) > s.segmentCount {
-			toDelete := s.segments[0]
-
-			if toDeleteSeg, ok := toDelete.(*muxerSegmentFMP4); ok {
-				for _, part := range toDeleteSeg.parts {
-					delete(s.partsByName, part.getName())
-				}
-			}
-
-			toDelete.close()
-			delete(s.segmentsByName, toDelete.getName())
-
-			s.segments = s.segments[1:]
-			s.segmentDeleteCount++
-		}
-
-		// always regenerate multivariant playlist since it contains bandwidth
-		buf, err := generateMultivariantPlaylist(s.variant, s.videoTrack, s.audioTrack, s.segments)
+		f, err := generateInitFile(s.videoTrack, s.audioTrack, s.storageFactory, s.prefix)
 		if err != nil {
 			return err
 		}
-		s.multivariantPlaylist = buf
+		s.init = f
+	}
 
-		// regenerate init.mp4 only if missing or codec parameters have changed
-		if s.variant != MuxerVariantMPEGTS && (s.init == nil || segment.isForceSwitched()) {
-			if s.init != nil {
-				s.init.Remove()
-				s.init = nil
-			}
+	// do not pregenerate media playlist since it's too dynamic.
 
-			f, err := generateInitFile(s.videoTrack, s.audioTrack, s.storageFactory, s.prefix)
-			if err != nil {
-				return err
-			}
-			s.init = f
-		}
+	return nil
+}
 
-		// do not pregenerate media playlist since it's too dynamic.
-
-		return nil
-	}()
+func (s *muxerServer) publishSegment(segment muxerSegment) error {
+	s.mutex.Lock()
+	err := s.publishSegmentInner(segment)
+	s.mutex.Unlock()
 	if err != nil {
 		return err
 	}

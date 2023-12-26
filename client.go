@@ -185,19 +185,21 @@ func (c *Client) run() {
 }
 
 func (c *Client) runInner() error {
-	rp := newClientRoutinePool()
+	rp := &clientRoutinePool{}
+	rp.initialize()
 
-	dl := newClientDownloaderPrimary(
-		c.playlistURL,
-		c.HTTPClient,
-		c.OnDownloadPrimaryPlaylist,
-		c.OnDownloadStreamPlaylist,
-		c.OnDownloadSegment,
-		c.OnDecodeError,
-		rp,
-		c.OnTracks,
-		c.onData,
-	)
+	dl := &clientDownloaderPrimary{
+		primaryPlaylistURL:        c.playlistURL,
+		httpClient:                c.HTTPClient,
+		onDownloadPrimaryPlaylist: c.OnDownloadPrimaryPlaylist,
+		onDownloadStreamPlaylist:  c.OnDownloadStreamPlaylist,
+		onDownloadSegment:         c.OnDownloadSegment,
+		onDecodeError:             c.OnDecodeError,
+		rp:                        rp,
+		onTracks:                  c.OnTracks,
+		onData:                    c.onData,
+	}
+	dl.initialize()
 	rp.add(dl)
 
 	select {

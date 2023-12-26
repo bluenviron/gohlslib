@@ -148,38 +148,41 @@ func (m *Muxer) Start() error {
 		m.storageFactory = storage.NewFactoryRAM()
 	}
 
-	m.server = newMuxerServer(
-		m.Variant,
-		m.SegmentCount,
-		m.VideoTrack,
-		m.AudioTrack,
-		m.prefix,
-		m.storageFactory,
-	)
+	m.server = &muxerServer{
+		variant:        m.Variant,
+		segmentCount:   m.SegmentCount,
+		videoTrack:     m.VideoTrack,
+		audioTrack:     m.AudioTrack,
+		prefix:         m.prefix,
+		storageFactory: m.storageFactory,
+	}
+	m.server.initialize()
 
 	if m.Variant == MuxerVariantMPEGTS {
-		m.segmenter = newMuxerSegmenterMPEGTS(
-			m.SegmentDuration,
-			m.SegmentMaxSize,
-			m.VideoTrack,
-			m.AudioTrack,
-			m.prefix,
-			m.storageFactory,
-			m.server.publishSegment,
-		)
+		m.segmenter = &muxerSegmenterMPEGTS{
+			segmentDuration: m.SegmentDuration,
+			segmentMaxSize:  m.SegmentMaxSize,
+			videoTrack:      m.VideoTrack,
+			audioTrack:      m.AudioTrack,
+			prefix:          m.prefix,
+			factory:         m.storageFactory,
+			publishSegment:  m.server.publishSegment,
+		}
+		m.segmenter.initialize()
 	} else {
-		m.segmenter = newMuxerSegmenterFMP4(
-			m.Variant == MuxerVariantLowLatency,
-			m.SegmentDuration,
-			m.PartDuration,
-			m.SegmentMaxSize,
-			m.VideoTrack,
-			m.AudioTrack,
-			m.prefix,
-			m.storageFactory,
-			m.server.publishSegment,
-			m.server.publishPart,
-		)
+		m.segmenter = &muxerSegmenterFMP4{
+			lowLatency:      m.Variant == MuxerVariantLowLatency,
+			segmentDuration: m.SegmentDuration,
+			partDuration:    m.PartDuration,
+			segmentMaxSize:  m.SegmentMaxSize,
+			videoTrack:      m.VideoTrack,
+			audioTrack:      m.AudioTrack,
+			prefix:          m.prefix,
+			factory:         m.storageFactory,
+			publishSegment:  m.server.publishSegment,
+			publishPart:     m.server.publishPart,
+		}
+		m.segmenter.initialize()
 	}
 
 	return nil
