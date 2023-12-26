@@ -54,7 +54,9 @@ func (p *muxerPart) computeDuration(nextDTS time.Duration) time.Duration {
 }
 
 func (p *muxerPart) finalize(nextDTS time.Duration) error {
-	part := fmp4.Part{}
+	part := fmp4.Part{
+		SequenceNumber: uint32(p.id),
+	}
 
 	if p.videoSamples != nil {
 		part.Tracks = append(part.Tracks, &fmp4.PartTrack{
