@@ -6,6 +6,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/bluenviron/gohlslib/pkg/playlist"
 	"github.com/bluenviron/gohlslib/pkg/storage"
 
 	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
@@ -72,6 +73,14 @@ func (t *muxerSegmentMPEGTS) getSize() uint64 {
 
 func (*muxerSegmentMPEGTS) isForceSwitched() bool {
 	return false
+}
+
+func (s *muxerSegmentMPEGTS) definition(showDateAndParts bool) *playlist.MediaSegment {
+	return &playlist.MediaSegment{
+		DateTime: &s.startNTP,
+		Duration: s.getDuration(),
+		URI:      s.name,
+	}
 }
 
 func (t *muxerSegmentMPEGTS) reader() (io.ReadCloser, error) {

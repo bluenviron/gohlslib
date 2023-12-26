@@ -1,6 +1,7 @@
 package gohlslib
 
 import (
+	"fmt"
 	"io"
 	"strconv"
 	"time"
@@ -80,6 +81,11 @@ func (p *muxerPart) finalize(nextDTS time.Duration) error {
 	}
 
 	p.finalDuration = p.computeDuration(nextDTS)
+
+	if p.finalDuration > time.Second {
+		fmt.Println(p.startDTS, p.finalDuration)
+		panic("k")
+	}
 
 	p.videoSamples = nil
 	p.audioSamples = nil

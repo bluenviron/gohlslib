@@ -5,13 +5,14 @@ import (
 	"io"
 	"time"
 
+	"github.com/bluenviron/gohlslib/pkg/playlist"
 	"github.com/bluenviron/gohlslib/pkg/storage"
 )
 
 type muxerSegmentFMP4 struct {
 	lowLatency     bool
 	id             uint64
-	startNTP       time.Time
+	startNTP       *time.Time
 	startDTS       time.Duration
 	segmentMaxSize uint64
 	videoTrack     *Track
@@ -75,6 +76,29 @@ func (s *muxerSegmentFMP4) isForceSwitched() bool {
 	return s.forceSwitched
 }
 
+func (s *muxerSegmentFMP4) definition(showDateAndParts bool) *playlist.MediaSegment {
+	def := &playlist.MediaSegment{
+		Duration: s.getDuration(),
+		URI:      s.name,
+	}
+
+	if showDateAndParts {
+		def.DateTime = s.startNTP
+	}
+
+	if s.lowLatency && showDateAndParts {
+		for _, part := range s.parts {
+			def.Parts = append(def.Parts, &playlist.MediaPart{
+				Duration:    part.finalDuration,
+				URI:         part.getName(),
+				Independent: part.isIndependent,
+			})
+		}
+	}
+
+	return def
+}
+
 func (s *muxerSegmentFMP4) reader() (io.ReadCloser, error) {
 	return s.storage.Reader()
 }
@@ -86,10 +110,12 @@ func (s *muxerSegmentFMP4) finalize(nextDTS time.Duration) error {
 			return err
 		}
 
-		s.parts = append(s.parts, s.currentPart)
-		err = s.publishPart(s.currentPart)
-		if err != nil {
-			return err
+		if s.lowLatency {
+			s.parts = append(s.parts, s.currentPart)
+			err = s.publishPart(s.currentPart)
+			if err != nil {
+				return err
+			}
 		}
 	} else {
 		s.givePartID()

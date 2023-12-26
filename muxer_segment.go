@@ -1,10 +1,11 @@
 package gohlslib
 
 import (
-	"fmt"
 	"io"
 	"strconv"
 	"time"
+
+	"github.com/bluenviron/gohlslib/pkg/playlist"
 )
 
 func segmentName(prefix string, id uint64, mp4 bool) string {
@@ -20,32 +21,6 @@ type muxerSegment interface {
 	getDuration() time.Duration
 	getSize() uint64
 	isForceSwitched() bool
+	definition(showDateAndParts bool) *playlist.MediaSegment
 	reader() (io.ReadCloser, error)
-}
-
-type muxerGap struct {
-	duration time.Duration
-}
-
-func (g muxerGap) close() {
-}
-
-func (g muxerGap) getName() string {
-	return ""
-}
-
-func (g muxerGap) getDuration() time.Duration {
-	return g.duration
-}
-
-func (muxerGap) getSize() uint64 {
-	return 0
-}
-
-func (muxerGap) isForceSwitched() bool {
-	return false
-}
-
-func (muxerGap) reader() (io.ReadCloser, error) {
-	return nil, fmt.Errorf("unimplemented")
 }

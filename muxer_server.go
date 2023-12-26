@@ -101,14 +101,12 @@ func bandwidth(segments []muxerSegment) (int, int) {
 	var durations time.Duration
 
 	for _, seg := range segments {
-		if _, ok := seg.(*muxerGap); !ok {
-			bandwidth := 8 * seg.getSize() * uint64(time.Second) / uint64(seg.getDuration())
-			if bandwidth > maxBandwidth {
-				maxBandwidth = bandwidth
-			}
-			sizes += seg.getSize()
-			durations += seg.getDuration()
+		bandwidth := 8 * seg.getSize() * uint64(time.Second) / uint64(seg.getDuration())
+		if bandwidth > maxBandwidth {
+			maxBandwidth = bandwidth
 		}
+		sizes += seg.getSize()
+		durations += seg.getDuration()
 	}
 
 	averageBandwidth := 8 * sizes * uint64(time.Second) / uint64(durations)
@@ -258,14 +256,9 @@ func generateMediaPlaylistMPEGTS(
 		MediaSequence:  segmentDeleteCount,
 	}
 
-	for _, s := range segments {
-		if seg, ok := s.(*muxerSegmentMPEGTS); ok {
-			pl.Segments = append(pl.Segments, &playlist.MediaSegment{
-				DateTime: &seg.startNTP,
-				Duration: seg.getDuration(),
-				URI:      seg.name,
-			})
-		}
+	for i, seg := range segments {
+		showDateAndParts := (len(segments) - i) <= 2
+		pl.Segments = append(pl.Segments, seg.definition(showDateAndParts))
 	}
 
 	return pl.Marshal()
@@ -327,41 +320,13 @@ func generateMediaPlaylistFMP4(
 		}
 	}
 
-	for i, sog := range segments {
+	for i, seg := range segments {
 		if i < skipped {
 			continue
 		}
 
-		switch seg := sog.(type) {
-		case *muxerSegmentFMP4:
-			plse := &playlist.MediaSegment{
-				Duration: seg.getDuration(),
-				URI:      seg.name,
-			}
-
-			if (len(segments) - i) <= 2 {
-				plse.DateTime = &seg.startNTP
-			}
-
-			if variant == MuxerVariantLowLatency && (len(segments)-i) <= 2 {
-				for _, part := range seg.parts {
-					plse.Parts = append(plse.Parts, &playlist.MediaPart{
-						Duration:    part.finalDuration,
-						URI:         part.getName(),
-						Independent: part.isIndependent,
-					})
-				}
-			}
-
-			pl.Segments = append(pl.Segments, plse)
-
-		case *muxerGap:
-			pl.Segments = append(pl.Segments, &playlist.MediaSegment{
-				Gap:      true,
-				Duration: seg.duration,
-				URI:      "gap.mp4",
-			})
-		}
+		showDateAndParts := (len(segments) - i) <= 2
+		pl.Segments = append(pl.Segments, seg.definition(showDateAndParts))
 	}
 
 	if variant == MuxerVariantLowLatency {
@@ -457,10 +422,7 @@ func (s *muxerServer) close() {
 }
 
 func (s *muxerServer) hasContent() bool {
-	if s.variant == MuxerVariantFMP4 {
-		return len(s.segments) >= 2
-	}
-	return len(s.segments) >= 1
+	return len(s.segments) >= s.segmentCount
 }
 
 func (s *muxerServer) hasPart(segmentID uint64, partID uint64) bool {
@@ -770,15 +732,6 @@ func (s *muxerServer) publishPart(part *muxerPart) error {
 }
 
 func (s *muxerServer) publishSegmentInner(segment muxerSegment) error {
-	// add initial gaps, required by iOS LL-HLS
-	if s.variant == MuxerVariantLowLatency && len(s.segments) == 0 {
-		for i := 0; i < 7; i++ {
-			s.segments = append(s.segments, &muxerGap{
-				duration: segment.getDuration(),
-			})
-		}
-	}
-
 	s.segmentsByName[segment.getName()] = segment
 	s.segments = append(s.segments, segment)
 

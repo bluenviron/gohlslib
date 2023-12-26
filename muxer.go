@@ -176,21 +176,24 @@ func (m *Muxer) Start() error {
 			factory:            m.storageFactory,
 			publishSegment:     m.server.publishSegment,
 		}
-		m.segmenter.initialize()
 	} else {
 		m.segmenter = &muxerSegmenterFMP4{
-			lowLatency:         m.Variant == MuxerVariantLowLatency,
-			segmentMinDuration: m.SegmentMinDuration,
-			partMinDuration:    m.PartMinDuration,
-			segmentMaxSize:     m.SegmentMaxSize,
-			videoTrack:         m.VideoTrack,
-			audioTrack:         m.AudioTrack,
-			prefix:             m.prefix,
-			factory:            m.storageFactory,
-			publishSegment:     m.server.publishSegment,
-			publishPart:        m.server.publishPart,
+			lowLatency:           (m.Variant == MuxerVariantLowLatency),
+			segmentCount:         m.SegmentCount,
+			segmentMinDuration:   m.SegmentMinDuration,
+			partMinDuration:      m.PartMinDuration,
+			segmentMaxSize:       m.SegmentMaxSize,
+			videoTrack:           m.VideoTrack,
+			audioTrack:           m.AudioTrack,
+			prefix:               m.prefix,
+			factory:              m.storageFactory,
+			parentPublishSegment: m.server.publishSegment,
+			parentPublishPart:    m.server.publishPart,
 		}
-		m.segmenter.initialize()
+	}
+	err = m.segmenter.initialize()
+	if err != nil {
+		return err
 	}
 
 	return nil

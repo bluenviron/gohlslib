@@ -42,7 +42,7 @@ type muxerSegmenterMPEGTS struct {
 	videoDTSExtractor *h264.DTSExtractor
 }
 
-func (m *muxerSegmenterMPEGTS) initialize() {
+func (m *muxerSegmenterMPEGTS) initialize() error {
 	var tracks []*mpegts.Track
 
 	if m.videoTrack != nil {
@@ -62,6 +62,8 @@ func (m *muxerSegmenterMPEGTS) initialize() {
 	m.switchableWriter = &switchableWriter{}
 
 	m.writer = mpegts.NewWriter(m.switchableWriter, tracks)
+
+	return nil
 }
 
 func (m *muxerSegmenterMPEGTS) close() {
