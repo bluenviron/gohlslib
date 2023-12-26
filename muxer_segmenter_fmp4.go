@@ -329,7 +329,7 @@ func (m *muxerSegmenterFMP4) writeVideo(
 	sample.dts += fmp4StartDTS
 
 	// BaseTime is still negative, this is not supported by fMP4. Reject the sample silently.
-	if (sample.dts - m.startDTS) < 0 {
+	if sample.dts < 0 {
 		return nil
 	}
 
@@ -340,7 +340,8 @@ func (m *muxerSegmenterFMP4) writeVideo(
 	if sample == nil {
 		return nil
 	}
-	sample.Duration = uint32(durationGoToMp4(m.nextVideoSample.dts-sample.dts, 90000))
+	duration := m.nextVideoSample.dts - sample.dts
+	sample.Duration = uint32(durationGoToMp4(duration, 90000))
 
 	// create first segment
 	if m.currentSegment == nil {
@@ -368,7 +369,7 @@ func (m *muxerSegmenterFMP4) writeVideo(
 		}
 	}
 
-	m.adjustPartDuration(m.nextVideoSample.dts - sample.dts)
+	m.adjustPartDuration(duration)
 
 	err := m.currentSegment.writeVideo(sample, m.nextVideoSample.dts, m.adjustedPartDuration)
 	if err != nil {
@@ -428,15 +429,8 @@ func (m *muxerSegmenterFMP4) writeAudio(sample *augmentedSample) error {
 	sample.dts += fmp4StartDTS
 
 	// BaseTime is still negative, this is not supported by fMP4. Reject the sample silently.
-	if (sample.dts - m.startDTS) < 0 {
+	if sample.dts < 0 {
 		return nil
-	}
-
-	if m.videoTrack != nil {
-		// wait for the video track
-		if !m.videoFirstRandomAccessReceived {
-			return nil
-		}
 	}
 
 	// put samples into a queue in order to compute the sample duration
@@ -444,7 +438,8 @@ func (m *muxerSegmenterFMP4) writeAudio(sample *augmentedSample) error {
 	if sample == nil {
 		return nil
 	}
-	sample.Duration = uint32(durationGoToMp4(m.nextAudioSample.dts-sample.dts, m.audioTimeScale))
+	duration := m.nextAudioSample.dts - sample.dts
+	sample.Duration = uint32(durationGoToMp4(duration, m.audioTimeScale))
 
 	if m.videoTrack == nil {
 		// create first segment

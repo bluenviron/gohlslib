@@ -869,7 +869,13 @@ func TestMuxerFMP4NegativeTimestamp(t *testing.T) {
 	require.NoError(t, err)
 	defer m.Close()
 
-	err = m.WriteH26x(testTime, -10*time.Second, [][]byte{
+	err = m.WriteMPEG4Audio(testTime, -9*time.Second, [][]byte{
+		{1, 2, 3, 4},
+	})
+	require.NoError(t, err)
+
+	// this is skipped
+	err = m.WriteH26x(testTime, -11*time.Second, [][]byte{
 		testSPS,
 		{5}, // IDR
 		{1},
@@ -877,6 +883,13 @@ func TestMuxerFMP4NegativeTimestamp(t *testing.T) {
 	require.NoError(t, err)
 
 	err = m.WriteH26x(testTime, -9*time.Second, [][]byte{
+		testSPS,
+		{5}, // IDR
+		{1},
+	})
+	require.NoError(t, err)
+
+	err = m.WriteH26x(testTime, -8*time.Second, [][]byte{
 		{5}, // IDR
 		{2},
 	})
@@ -888,18 +901,18 @@ func TestMuxerFMP4NegativeTimestamp(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = m.WriteMPEG4Audio(testTime, -9*time.Second, [][]byte{
+	err = m.WriteMPEG4Audio(testTime, -8*time.Second, [][]byte{
 		{5, 6, 7, 8},
 	})
 	require.NoError(t, err)
 
-	err = m.WriteMPEG4Audio(testTime, -8*time.Second, [][]byte{
+	err = m.WriteMPEG4Audio(testTime, -7*time.Second, [][]byte{
 		{9, 10, 11, 12},
 	})
 	require.NoError(t, err)
 
 	// switch segment
-	err = m.WriteH26x(testTime, -8*time.Second, [][]byte{
+	err = m.WriteH26x(testTime, -7*time.Second, [][]byte{
 		{5}, // IDR
 		{3},
 	})
@@ -915,7 +928,8 @@ func TestMuxerFMP4NegativeTimestamp(t *testing.T) {
 	require.Equal(t, fmp4.Parts{{
 		Tracks: []*fmp4.PartTrack{
 			{
-				ID: 1,
+				ID:       1,
+				BaseTime: 90000,
 				Samples: []*fmp4.PartSample{
 					{
 						Duration: 90000,
@@ -940,6 +954,10 @@ func TestMuxerFMP4NegativeTimestamp(t *testing.T) {
 				ID:       2,
 				BaseTime: 44100,
 				Samples: []*fmp4.PartSample{
+					{
+						Duration: 44100,
+						Payload:  []byte{1, 2, 3, 4},
+					},
 					{
 						Duration: 44100,
 						Payload:  []byte{5, 6, 7, 8},
