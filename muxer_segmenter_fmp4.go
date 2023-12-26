@@ -88,16 +88,16 @@ type augmentedSample struct {
 }
 
 type muxerSegmenterFMP4 struct {
-	lowLatency      bool
-	segmentDuration time.Duration
-	partDuration    time.Duration
-	segmentMaxSize  uint64
-	videoTrack      *Track
-	audioTrack      *Track
-	prefix          string
-	factory         storage.Factory
-	publishSegment  func(muxerSegment) error
-	publishPart     func(*muxerPart) error
+	lowLatency         bool
+	segmentMinDuration time.Duration
+	partMinDuration    time.Duration
+	segmentMaxSize     uint64
+	videoTrack         *Track
+	audioTrack         *Track
+	prefix             string
+	factory            storage.Factory
+	publishSegment     func(muxerSegment) error
+	publishPart        func(*muxerPart) error
 
 	audioTimeScale                 uint32
 	videoFirstRandomAccessReceived bool
@@ -164,7 +164,7 @@ func (m *muxerSegmenterFMP4) adjustPartDuration(sampleDuration time.Duration) {
 	if _, ok := m.sampleDurations[sampleDuration]; !ok {
 		m.sampleDurations[sampleDuration] = struct{}{}
 		m.adjustedPartDuration = findCompatiblePartDuration(
-			m.partDuration,
+			m.partMinDuration,
 			m.sampleDurations,
 		)
 	}
@@ -377,7 +377,7 @@ func (m *muxerSegmenterFMP4) writeVideo(
 
 	// switch segment
 	if randomAccess &&
-		((m.nextVideoSample.dts-m.currentSegment.startDTS) >= m.segmentDuration ||
+		((m.nextVideoSample.dts-m.currentSegment.startDTS) >= m.segmentMinDuration ||
 			forceSwitch) {
 		err := m.currentSegment.finalize(m.nextVideoSample.dts)
 		if err != nil {
@@ -479,14 +479,14 @@ func (m *muxerSegmenterFMP4) writeAudio(sample *augmentedSample) error {
 		}
 	}
 
-	err := m.currentSegment.writeAudio(sample, m.nextAudioSample.dts, m.partDuration)
+	err := m.currentSegment.writeAudio(sample, m.nextAudioSample.dts, m.partMinDuration)
 	if err != nil {
 		return err
 	}
 
 	// switch segment
 	if m.videoTrack == nil &&
-		(m.nextAudioSample.dts-m.currentSegment.startDTS) >= m.segmentDuration {
+		(m.nextAudioSample.dts-m.currentSegment.startDTS) >= m.segmentMinDuration {
 		err := m.currentSegment.finalize(m.nextAudioSample.dts)
 		if err != nil {
 			return err

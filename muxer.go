@@ -57,19 +57,16 @@ type Muxer struct {
 	// It defaults to 7.
 	SegmentCount int
 	// Minimum duration of each segment.
+	// This is adjusted in order to include at least one IDR frame in each segment.
 	// A player usually puts 3 segments in a buffer before reproducing the stream.
-	// The final segment duration is also influenced by the interval between IDR frames,
-	// since the server changes the duration in order to include at least one IDR frame
-	// in each segment.
 	// It defaults to 1sec.
-	SegmentDuration time.Duration
+	SegmentMinDuration time.Duration
 	// Minimum duration of each part.
 	// Parts are used in Low-Latency HLS in place of segments.
+	// This is adjusted in order to produce segments with a similar duration.
 	// A player usually puts 3 parts in a buffer before reproducing the stream.
-	// Part duration is influenced by the distance between video/audio samples
-	// and is adjusted in order to produce segments with a similar duration.
 	// It defaults to 200ms.
-	PartDuration time.Duration
+	PartMinDuration time.Duration
 	// Maximum size of each segment.
 	// This prevents RAM exhaustion.
 	// It defaults to 50MB.
@@ -78,6 +75,11 @@ type Muxer struct {
 	// This decreases performance, since saving segments on disk is less performant
 	// than saving them on RAM, but allows to preserve RAM.
 	Directory string
+
+	// Deprecated: replaced with SegmentMinDuration
+	SegmentDuration time.Duration
+	// Deprecated: replaced with PartMinDUratino
+	PartDuration time.Duration
 
 	//
 	// private
@@ -98,11 +100,17 @@ func (m *Muxer) Start() error {
 	if m.SegmentCount == 0 {
 		m.SegmentCount = 7
 	}
-	if m.SegmentDuration == 0 {
-		m.SegmentDuration = 1 * time.Second
+	if m.SegmentDuration != 0 {
+		m.SegmentMinDuration = m.SegmentDuration
 	}
-	if m.PartDuration == 0 {
-		m.PartDuration = 200 * time.Millisecond
+	if m.SegmentMinDuration == 0 {
+		m.SegmentMinDuration = 1 * time.Second
+	}
+	if m.PartDuration != 0 {
+		m.PartMinDuration = m.PartDuration
+	}
+	if m.PartMinDuration == 0 {
+		m.PartMinDuration = 200 * time.Millisecond
 	}
 	if m.SegmentMaxSize == 0 {
 		m.SegmentMaxSize = 50 * 1024 * 1024
@@ -160,27 +168,27 @@ func (m *Muxer) Start() error {
 
 	if m.Variant == MuxerVariantMPEGTS {
 		m.segmenter = &muxerSegmenterMPEGTS{
-			segmentDuration: m.SegmentDuration,
-			segmentMaxSize:  m.SegmentMaxSize,
-			videoTrack:      m.VideoTrack,
-			audioTrack:      m.AudioTrack,
-			prefix:          m.prefix,
-			factory:         m.storageFactory,
-			publishSegment:  m.server.publishSegment,
+			segmentMinDuration: m.SegmentMinDuration,
+			segmentMaxSize:     m.SegmentMaxSize,
+			videoTrack:         m.VideoTrack,
+			audioTrack:         m.AudioTrack,
+			prefix:             m.prefix,
+			factory:            m.storageFactory,
+			publishSegment:     m.server.publishSegment,
 		}
 		m.segmenter.initialize()
 	} else {
 		m.segmenter = &muxerSegmenterFMP4{
-			lowLatency:      m.Variant == MuxerVariantLowLatency,
-			segmentDuration: m.SegmentDuration,
-			partDuration:    m.PartDuration,
-			segmentMaxSize:  m.SegmentMaxSize,
-			videoTrack:      m.VideoTrack,
-			audioTrack:      m.AudioTrack,
-			prefix:          m.prefix,
-			factory:         m.storageFactory,
-			publishSegment:  m.server.publishSegment,
-			publishPart:     m.server.publishPart,
+			lowLatency:         m.Variant == MuxerVariantLowLatency,
+			segmentMinDuration: m.SegmentMinDuration,
+			partMinDuration:    m.PartMinDuration,
+			segmentMaxSize:     m.SegmentMaxSize,
+			videoTrack:         m.VideoTrack,
+			audioTrack:         m.AudioTrack,
+			prefix:             m.prefix,
+			factory:            m.storageFactory,
+			publishSegment:     m.server.publishSegment,
+			publishPart:        m.server.publishPart,
 		}
 		m.segmenter.initialize()
 	}

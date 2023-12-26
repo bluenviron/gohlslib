@@ -25,13 +25,13 @@ func (w *switchableWriter) Write(p []byte) (int, error) {
 }
 
 type muxerSegmenterMPEGTS struct {
-	segmentDuration time.Duration
-	segmentMaxSize  uint64
-	videoTrack      *Track
-	audioTrack      *Track
-	prefix          string
-	factory         storage.Factory
-	publishSegment  func(muxerSegment) error
+	segmentMinDuration time.Duration
+	segmentMaxSize     uint64
+	videoTrack         *Track
+	audioTrack         *Track
+	prefix             string
+	factory            storage.Factory
+	publishSegment     func(muxerSegment) error
 
 	writerVideoTrack  *mpegts.Track
 	writerAudioTrack  *mpegts.Track
@@ -145,7 +145,7 @@ func (m *muxerSegmenterMPEGTS) writeH26x(
 
 		// switch segment
 		if randomAccessPresent &&
-			((dts-*m.currentSegment.startDTS) >= m.segmentDuration ||
+			((dts-*m.currentSegment.startDTS) >= m.segmentMinDuration ||
 				forceSwitch) {
 			err := m.currentSegment.finalize(dts)
 			if err != nil {
@@ -211,7 +211,7 @@ func (m *muxerSegmenterMPEGTS) writeMPEG4Audio(ntp time.Time, pts time.Duration,
 				return err
 			}
 		} else if m.currentSegment.audioAUCount >= mpegtsSegmentMinAUCount && // switch segment
-			(pts-*m.currentSegment.startDTS) >= m.segmentDuration {
+			(pts-*m.currentSegment.startDTS) >= m.segmentMinDuration {
 			err := m.currentSegment.finalize(pts)
 			if err != nil {
 				return err
