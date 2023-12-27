@@ -785,7 +785,7 @@ func TestMuxerDynamicParams(t *testing.T) {
 
 	func() {
 		var init fmp4.Init
-		err = init.Unmarshal(bu)
+		err = init.Unmarshal(bytes.NewReader(bu))
 		require.NoError(t, err)
 		require.Equal(t, testSPS, init.Tracks[0].Codec.(*fmp4.CodecH264).SPS)
 	}()
@@ -824,7 +824,7 @@ func TestMuxerDynamicParams(t *testing.T) {
 	require.NoError(t, err)
 
 	var init fmp4.Init
-	err = init.Unmarshal(bu)
+	err = init.Unmarshal(bytes.NewReader(bu))
 	require.NoError(t, err)
 	require.Equal(t, testSPS2, init.Tracks[0].Codec.(*fmp4.CodecH264).SPS)
 }

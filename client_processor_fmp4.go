@@ -1,6 +1,7 @@
 package gohlslib
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"time"
@@ -45,7 +46,7 @@ type clientProcessorFMP4 struct {
 func (p *clientProcessorFMP4) initialize() error {
 	p.subpartProcessed = make(chan struct{}, clientFMP4MaxPartTracksPerSegment)
 
-	err := p.init.Unmarshal(p.initFile)
+	err := p.init.Unmarshal(bytes.NewReader(p.initFile))
 	if err != nil {
 		return err
 	}
