@@ -14,11 +14,11 @@ import (
 	"github.com/asticode/go-astits"
 
 	"github.com/aler9/writerseeker"
+	"github.com/bluenviron/gohlslib/pkg/codecs"
 	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 
-	"github.com/bluenviron/gohlslib/pkg/codecs"
 	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
 )
 
@@ -127,100 +127,19 @@ func mpegtsSegment(t *testing.T, w io.Writer) {
 	require.NoError(t, err)
 }
 
-func mp4Init(t *testing.T, w io.Writer) {
-	i := &fmp4.Init{
-		Tracks: []*fmp4.InitTrack{
-			{
-				ID:        1,
-				TimeScale: 90000,
-				Codec: &fmp4.CodecH264{
-					SPS: []byte{
-						0x67, 0x42, 0xc0, 0x28, 0xd9, 0x00, 0x78, 0x02,
-						0x27, 0xe5, 0x84, 0x00, 0x00, 0x03, 0x00, 0x04,
-						0x00, 0x00, 0x03, 0x00, 0xf0, 0x3c, 0x60, 0xc9,
-						0x20,
-					},
-					PPS: []byte{0x01, 0x02, 0x03, 0x04},
-				},
-			},
-		},
-	}
+type marshaler interface {
+	Marshal(w io.WriteSeeker) error
+}
 
+func mp4ToWriter(i marshaler, w io.Writer) error {
 	ws := &writerseeker.WriterSeeker{}
 	err := i.Marshal(ws)
-	require.NoError(t, err)
-
-	_, err = w.Write(ws.Bytes())
-	require.NoError(t, err)
-}
-
-func mp4Segment(t *testing.T, w io.Writer) {
-	payload, _ := h264.AVCCMarshal([][]byte{
-		{7, 1, 2, 3}, // SPS
-		{8},          // PPS
-		{5},          // IDR
-	})
-
-	p := &fmp4.Part{
-		Tracks: []*fmp4.PartTrack{
-			{
-				ID: 1,
-				Samples: []*fmp4.PartSample{{
-					Duration:  90000 / 30,
-					PTSOffset: 90000 * 2,
-					Payload:   payload,
-				}},
-			},
-		},
-	}
-
-	ws := &writerseeker.WriterSeeker{}
-	err := p.Marshal(ws)
-	require.NoError(t, err)
-
-	_, err = w.Write(ws.Bytes())
-	require.NoError(t, err)
-}
-
-type testHLSServer struct {
-	s *http.Server
-}
-
-func newTestHLSServer(router http.Handler, isTLS bool) (*testHLSServer, error) {
-	ln, err := net.Listen("tcp", "localhost:5780")
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	s := &testHLSServer{
-		s: &http.Server{Handler: router},
-	}
-
-	if isTLS {
-		go func() {
-			serverCertFpath, err := writeTempFile(serverCert)
-			if err != nil {
-				panic(err)
-			}
-			defer os.Remove(serverCertFpath)
-
-			serverKeyFpath, err := writeTempFile(serverKey)
-			if err != nil {
-				panic(err)
-			}
-			defer os.Remove(serverKeyFpath)
-
-			s.s.ServeTLS(ln, serverCertFpath, serverKeyFpath)
-		}()
-	} else {
-		go s.s.Serve(ln)
-	}
-
-	return s, nil
-}
-
-func (s *testHLSServer) close() {
-	s.s.Shutdown(context.Background())
+	_, err = w.Write(ws.Bytes())
+	return err
 }
 
 func TestClientMPEGTS(t *testing.T) {
@@ -232,11 +151,6 @@ func TestClientMPEGTS(t *testing.T) {
 		t.Run(ca, func(t *testing.T) {
 			gin.SetMode(gin.ReleaseMode)
 			router := gin.New()
-
-			segment := "segment.ts"
-			if ca == "segment with query" {
-				segment = "segment.ts?key=val"
-			}
 			sent := false
 
 			router.GET("/stream.m3u8", func(ctx *gin.Context) {
@@ -244,6 +158,11 @@ func TestClientMPEGTS(t *testing.T) {
 					return
 				}
 				sent = true
+
+				segment := "segment.ts"
+				if ca == "segment with query" {
+					segment = "segment.ts?key=val"
+				}
 
 				ctx.Writer.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
 				io.Copy(ctx.Writer, bytes.NewReader([]byte(`#EXTM3U
@@ -265,26 +184,38 @@ func TestClientMPEGTS(t *testing.T) {
 				mpegtsSegment(t, ctx.Writer)
 			})
 
-			s, err := newTestHLSServer(router, ca == "tls")
+			ln, err := net.Listen("tcp", "localhost:5780")
 			require.NoError(t, err)
-			defer s.close()
+
+			s := &http.Server{Handler: router}
+
+			if ca == "tls" {
+				go func() {
+					serverCertFpath, err := writeTempFile(serverCert)
+					if err != nil {
+						panic(err)
+					}
+					defer os.Remove(serverCertFpath)
+
+					serverKeyFpath, err := writeTempFile(serverKey)
+					if err != nil {
+						panic(err)
+					}
+					defer os.Remove(serverKeyFpath)
+
+					s.ServeTLS(ln, serverCertFpath, serverKeyFpath)
+				}()
+			} else {
+				go s.Serve(ln)
+			}
+
+			defer s.Shutdown(context.Background())
 
 			packetRecv := make(chan struct{})
 
 			prefix := "http"
 			if ca == "tls" {
 				prefix = "https"
-			}
-
-			onH264 := func(pts time.Duration, dts time.Duration, au [][]byte) {
-				require.Equal(t, 2*time.Second, pts)
-				require.Equal(t, time.Duration(0), dts)
-				require.Equal(t, [][]byte{
-					{7, 1, 2, 3},
-					{8},
-					{5},
-				}, au)
-				close(packetRecv)
 			}
 
 			var c *Client
@@ -298,9 +229,21 @@ func TestClientMPEGTS(t *testing.T) {
 					},
 				},
 				OnTracks: func(tracks []*Track) error {
-					require.Equal(t, 1, len(tracks))
-					require.Equal(t, &codecs.H264{}, tracks[0].Codec)
-					c.OnDataH26x(tracks[0], onH264)
+					require.Equal(t, []*Track{{
+						Codec: &codecs.H264{},
+					}}, tracks)
+
+					c.OnDataH26x(tracks[0], func(pts time.Duration, dts time.Duration, au [][]byte) {
+						require.Equal(t, 2*time.Second, pts)
+						require.Equal(t, time.Duration(0), dts)
+						require.Equal(t, [][]byte{
+							{7, 1, 2, 3},
+							{8},
+							{5},
+						}, au)
+						close(packetRecv)
+					})
+
 					return nil
 				},
 			}
@@ -336,39 +279,107 @@ segment.mp4
 
 	router.GET("/init.mp4", func(ctx *gin.Context) {
 		ctx.Writer.Header().Set("Content-Type", `video/mp4`)
-		mp4Init(t, ctx.Writer)
+		err := mp4ToWriter(&fmp4.Init{
+			Tracks: []*fmp4.InitTrack{
+				{
+					ID:        99,
+					TimeScale: 90000,
+					Codec: &fmp4.CodecH264{
+						SPS: testSPS,
+						PPS: testPPS,
+					},
+				},
+				{
+					ID:        98,
+					TimeScale: 44100,
+					Codec: &fmp4.CodecMPEG4Audio{
+						Config: testConfig,
+					},
+				},
+			},
+		}, ctx.Writer)
+		require.NoError(t, err)
 	})
 
 	router.GET("/segment.mp4", func(ctx *gin.Context) {
 		ctx.Writer.Header().Set("Content-Type", `video/mp4`)
-		mp4Segment(t, ctx.Writer)
+
+		payload, _ := h264.AVCCMarshal([][]byte{
+			{7, 1, 2, 3}, // SPS
+			{8},          // PPS
+			{5},          // IDR
+		})
+
+		err := mp4ToWriter(&fmp4.Part{
+			Tracks: []*fmp4.PartTrack{
+				{
+					ID:       98,
+					BaseTime: 44100 * 6,
+					Samples: []*fmp4.PartSample{{
+						Duration: 44100 / 30,
+						Payload:  []byte{1, 2, 3, 4},
+					}},
+				},
+				{
+					ID:       99,
+					BaseTime: 90000 * 6,
+					Samples: []*fmp4.PartSample{{
+						Duration:  90000 / 30,
+						PTSOffset: 90000 * 2,
+						Payload:   payload,
+					}},
+				},
+			},
+		}, ctx.Writer)
+		require.NoError(t, err)
 	})
 
-	s, err := newTestHLSServer(router, false)
+	ln, err := net.Listen("tcp", "localhost:5780")
 	require.NoError(t, err)
-	defer s.close()
 
-	packetRecv := make(chan struct{})
+	s := &http.Server{Handler: router}
+	go s.Serve(ln)
+	defer s.Shutdown(context.Background())
 
-	onH264 := func(pts time.Duration, dts time.Duration, au [][]byte) {
-		require.Equal(t, 2*time.Second, pts)
-		require.Equal(t, time.Duration(0), dts)
-		require.Equal(t, [][]byte{
-			{7, 1, 2, 3},
-			{8},
-			{5},
-		}, au)
-		close(packetRecv)
-	}
+	packetRecv := make(chan struct{}, 2)
 
 	var c *Client
 	c = &Client{
 		URI: "http://localhost:5780/stream.m3u8",
 		OnTracks: func(tracks []*Track) error {
-			require.Equal(t, 1, len(tracks))
-			_, ok := tracks[0].Codec.(*codecs.H264)
-			require.Equal(t, true, ok)
-			c.OnDataH26x(tracks[0], onH264)
+			require.Equal(t, []*Track{
+				{
+					Codec: &codecs.H264{
+						SPS: testSPS,
+						PPS: testPPS,
+					},
+				},
+				{
+					Codec: &codecs.MPEG4Audio{
+						Config: testConfig,
+					},
+				},
+			}, tracks)
+
+			c.OnDataH26x(tracks[0], func(pts time.Duration, dts time.Duration, au [][]byte) {
+				require.Equal(t, 2*time.Second, pts)
+				require.Equal(t, time.Duration(0), dts)
+				require.Equal(t, [][]byte{
+					{7, 1, 2, 3},
+					{8},
+					{5},
+				}, au)
+				packetRecv <- struct{}{}
+			})
+
+			c.OnDataMPEG4Audio(tracks[1], func(pts time.Duration, aus [][]byte) {
+				require.Equal(t, 0*time.Second, pts)
+				require.Equal(t, [][]byte{
+					{1, 2, 3, 4},
+				}, aus)
+				packetRecv <- struct{}{}
+			})
+
 			return nil
 		},
 	}
@@ -376,13 +387,196 @@ segment.mp4
 	err = c.Start()
 	require.NoError(t, err)
 
-	<-packetRecv
+	for i := 0; i < 2; i++ {
+		<-packetRecv
+	}
 
 	c.Close()
 	<-c.Wait()
 }
 
-func TestClientInvalidSequenceID(t *testing.T) {
+func TestClientFMP4MultiRenditions(t *testing.T) {
+	gin.SetMode(gin.ReleaseMode)
+	router := gin.New()
+
+	router.GET("/index.m3u8", func(ctx *gin.Context) {
+		ctx.Writer.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
+		io.Copy(ctx.Writer, bytes.NewReader([]byte(`#EXTM3U
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aac",NAME="English",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE="en",URI="audio.m3u8"
+#EXT-X-STREAM-INF:BANDWIDTH=7680000,CODECS="avc1.640015,mp4a.40.5",AUDIO="aac"
+video.m3u8
+`)))
+	})
+
+	router.GET("/video.m3u8", func(ctx *gin.Context) {
+		ctx.Writer.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
+		io.Copy(ctx.Writer, bytes.NewReader([]byte(`#EXTM3U
+#EXT-X-VERSION:7
+#EXT-X-MEDIA-SEQUENCE:20
+#EXT-X-INDEPENDENT-SEGMENTS
+#EXT-X-TARGETDURATION:2
+#EXT-X-MAP:URI="init_video.mp4"
+#EXTINF:2,
+segment_video.mp4
+#EXT-X-ENDLIST
+`)))
+	})
+
+	router.GET("/audio.m3u8", func(ctx *gin.Context) {
+		ctx.Writer.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
+		io.Copy(ctx.Writer, bytes.NewReader([]byte(`#EXTM3U
+#EXT-X-VERSION:7
+#EXT-X-MEDIA-SEQUENCE:20
+#EXT-X-INDEPENDENT-SEGMENTS
+#EXT-X-TARGETDURATION:2
+#EXT-X-MAP:URI="init_audio.mp4"
+#EXTINF:2,
+segment_audio.mp4
+#EXT-X-ENDLIST
+`)))
+	})
+
+	router.GET("/init_video.mp4", func(ctx *gin.Context) {
+		ctx.Writer.Header().Set("Content-Type", `video/mp4`)
+
+		err := mp4ToWriter(&fmp4.Init{
+			Tracks: []*fmp4.InitTrack{
+				{
+					ID:        1,
+					TimeScale: 90000,
+					Codec: &fmp4.CodecH264{
+						SPS: testSPS,
+						PPS: testPPS,
+					},
+				},
+			},
+		}, ctx.Writer)
+		require.NoError(t, err)
+	})
+
+	router.GET("/init_audio.mp4", func(ctx *gin.Context) {
+		ctx.Writer.Header().Set("Content-Type", `video/mp4`)
+
+		err := mp4ToWriter(&fmp4.Init{
+			Tracks: []*fmp4.InitTrack{
+				{
+					ID:        1,
+					TimeScale: 44100,
+					Codec: &fmp4.CodecMPEG4Audio{
+						Config: testConfig,
+					},
+				},
+			},
+		}, ctx.Writer)
+		require.NoError(t, err)
+	})
+
+	router.GET("/segment_video.mp4", func(ctx *gin.Context) {
+		ctx.Writer.Header().Set("Content-Type", `video/mp4`)
+
+		payload, _ := h264.AVCCMarshal([][]byte{
+			{7, 1, 2, 3}, // SPS
+			{8},          // PPS
+			{5},          // IDR
+		})
+
+		err := mp4ToWriter(&fmp4.Part{
+			Tracks: []*fmp4.PartTrack{
+				{
+					ID: 1,
+					Samples: []*fmp4.PartSample{{
+						Duration:  90000,
+						PTSOffset: 90000 * 3,
+						Payload:   payload,
+					}},
+				},
+			},
+		}, ctx.Writer)
+		require.NoError(t, err)
+	})
+
+	router.GET("/segment_audio.mp4", func(ctx *gin.Context) {
+		ctx.Writer.Header().Set("Content-Type", `video/mp4`)
+
+		err := mp4ToWriter(&fmp4.Part{
+			Tracks: []*fmp4.PartTrack{
+				{
+					ID: 1,
+					Samples: []*fmp4.PartSample{{
+						Duration: 44100,
+						Payload:  []byte{1, 2, 3, 4},
+					}},
+				},
+			},
+		}, ctx.Writer)
+		require.NoError(t, err)
+	})
+
+	ln, err := net.Listen("tcp", "localhost:5780")
+	require.NoError(t, err)
+
+	s := &http.Server{Handler: router}
+	go s.Serve(ln)
+	defer s.Shutdown(context.Background())
+
+	packetRecv := make(chan struct{}, 2)
+	tracksRecv := make(chan struct{}, 1)
+
+	var c *Client
+	c = &Client{
+		URI: "http://localhost:5780/index.m3u8",
+		OnTracks: func(tracks []*Track) error {
+			close(tracksRecv)
+
+			require.Equal(t, []*Track{
+				{
+					Codec: &codecs.H264{
+						SPS: testSPS,
+						PPS: testPPS,
+					},
+				},
+				{
+					Codec: &codecs.MPEG4Audio{
+						Config: testConfig,
+					},
+				},
+			}, tracks)
+
+			c.OnDataH26x(tracks[0], func(pts time.Duration, dts time.Duration, au [][]byte) {
+				require.Equal(t, 3*time.Second, pts)
+				require.Equal(t, time.Duration(0), dts)
+				require.Equal(t, [][]byte{
+					{7, 1, 2, 3},
+					{8},
+					{5},
+				}, au)
+				packetRecv <- struct{}{}
+			})
+
+			c.OnDataMPEG4Audio(tracks[1], func(pts time.Duration, aus [][]byte) {
+				require.Equal(t, 0*time.Second, pts)
+				require.Equal(t, [][]byte{
+					{1, 2, 3, 4},
+				}, aus)
+				packetRecv <- struct{}{}
+			})
+
+			return nil
+		},
+	}
+
+	err = c.Start()
+	require.NoError(t, err)
+
+	for i := 0; i < 2; i++ {
+		<-packetRecv
+	}
+
+	c.Close()
+	<-c.Wait()
+}
+
+func TestClientErrorInvalidSequenceID(t *testing.T) {
 	router := gin.New()
 	firstPlaylist := true
 
@@ -426,9 +620,12 @@ segment1.ts
 		mpegtsSegment(t, ctx.Writer)
 	})
 
-	s, err := newTestHLSServer(router, false)
+	ln, err := net.Listen("tcp", "localhost:5780")
 	require.NoError(t, err)
-	defer s.close()
+
+	s := &http.Server{Handler: router}
+	go s.Serve(ln)
+	defer s.Shutdown(context.Background())
 
 	c := &Client{
 		URI: "http://localhost:5780/stream.m3u8",

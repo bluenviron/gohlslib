@@ -96,8 +96,6 @@ func pickAudioPlaylist(alternatives []*playlist.MultivariantRendition, groupID s
 	return candidates[0]
 }
 
-type clientTimeSync interface{}
-
 type clientDownloaderPrimary struct {
 	primaryPlaylistURL        *url.URL
 	httpClient                *http.Client
@@ -112,7 +110,7 @@ type clientDownloaderPrimary struct {
 	leadingTimeSync clientTimeSync
 
 	// in
-	streamTracks chan []*Track
+	chStreamTracks chan clientStreamProcessor
 
 	// out
 	startStreaming       chan struct{}
@@ -120,7 +118,7 @@ type clientDownloaderPrimary struct {
 }
 
 func (d *clientDownloaderPrimary) initialize() {
-	d.streamTracks = make(chan []*Track)
+	d.chStreamTracks = make(chan clientStreamProcessor)
 	d.startStreaming = make(chan struct{})
 	d.leadingTimeSyncReady = make(chan struct{})
 }
@@ -221,8 +219,14 @@ func (d *clientDownloaderPrimary) run(ctx context.Context) error {
 
 	for i := 0; i < streamCount; i++ {
 		select {
-		case streamTracks := <-d.streamTracks:
-			tracks = append(tracks, streamTracks...)
+		case streamProc := <-d.chStreamTracks:
+			if streamProc.getIsLeading() {
+				prevTracks := tracks
+				tracks = append([]*Track(nil), streamProc.getTracks()...)
+				tracks = append(tracks, prevTracks...)
+			} else {
+				tracks = append(tracks, streamProc.getTracks()...)
+			}
 		case <-ctx.Done():
 			return fmt.Errorf("terminated")
 		}
@@ -242,9 +246,9 @@ func (d *clientDownloaderPrimary) run(ctx context.Context) error {
 	return nil
 }
 
-func (d *clientDownloaderPrimary) onStreamTracks(ctx context.Context, tracks []*Track) bool {
+func (d *clientDownloaderPrimary) onStreamTracks(ctx context.Context, streamProc clientStreamProcessor) bool {
 	select {
-	case d.streamTracks <- tracks:
+	case d.chStreamTracks <- streamProc:
 	case <-ctx.Done():
 		return false
 	}

@@ -23,13 +23,33 @@ func fmp4PickLeadingTrack(init *fmp4.Init) int {
 	return init.Tracks[0].ID
 }
 
-type clientProcessorFMP4 struct {
+func findPartTrackOfLeadingTrack(parts []*fmp4.Part, leadingTrackID int) *fmp4.PartTrack {
+	for _, part := range parts {
+		for _, partTrack := range part.Tracks {
+			if partTrack.ID == leadingTrackID {
+				return partTrack
+			}
+		}
+	}
+	return nil
+}
+
+func findTimeScaleOfLeadingTrack(tracks []*fmp4.InitTrack, leadingTrackID int) uint32 {
+	for _, track := range tracks {
+		if track.ID == leadingTrackID {
+			return track.TimeScale
+		}
+	}
+	return 0
+}
+
+type clientStreamProcessorFMP4 struct {
 	ctx                  context.Context
 	isLeading            bool
 	initFile             []byte
 	segmentQueue         *clientSegmentQueue
 	rp                   *clientRoutinePool
-	onStreamTracks       func(context.Context, []*Track) bool
+	onStreamTracks       clientOnStreamTracksFunc
 	onSetLeadingTimeSync func(clientTimeSync)
 	onGetLeadingTimeSync func(context.Context) (clientTimeSync, bool)
 	onData               map[*Track]interface{}
@@ -40,11 +60,11 @@ type clientProcessorFMP4 struct {
 	prePreProcessFuncs map[int]func(context.Context, *fmp4.PartTrack) error
 
 	// in
-	subpartProcessed chan struct{}
+	chPartTrackProcessed chan struct{}
 }
 
-func (p *clientProcessorFMP4) initialize() error {
-	p.subpartProcessed = make(chan struct{}, clientFMP4MaxPartTracksPerSegment)
+func (p *clientStreamProcessorFMP4) initialize() error {
+	p.chPartTrackProcessed = make(chan struct{}, clientFMP4MaxPartTracksPerSegment)
 
 	err := p.init.Unmarshal(bytes.NewReader(p.initFile))
 	if err != nil {
@@ -60,7 +80,7 @@ func (p *clientProcessorFMP4) initialize() error {
 		}
 	}
 
-	ok := p.onStreamTracks(p.ctx, p.tracks)
+	ok := p.onStreamTracks(p.ctx, p)
 	if !ok {
 		return fmt.Errorf("terminated")
 	}
@@ -68,7 +88,15 @@ func (p *clientProcessorFMP4) initialize() error {
 	return nil
 }
 
-func (p *clientProcessorFMP4) run(ctx context.Context) error {
+func (p *clientStreamProcessorFMP4) getIsLeading() bool {
+	return p.isLeading
+}
+
+func (p *clientStreamProcessorFMP4) getTracks() []*Track {
+	return p.tracks
+}
+
+func (p *clientStreamProcessorFMP4) run(ctx context.Context) error {
 	for {
 		seg, ok := p.segmentQueue.pull(ctx)
 		if !ok {
@@ -82,32 +110,31 @@ func (p *clientProcessorFMP4) run(ctx context.Context) error {
 	}
 }
 
-func (p *clientProcessorFMP4) processSegment(ctx context.Context, byts []byte) error {
+func (p *clientStreamProcessorFMP4) processSegment(ctx context.Context, byts []byte) error {
 	var parts fmp4.Parts
 	err := parts.Unmarshal(byts)
 	if err != nil {
 		return err
 	}
 
+	if p.prePreProcessFuncs == nil {
+		err := p.initializeTrackProcessors(ctx, parts)
+		if err != nil {
+			return err
+		}
+	}
+
 	processingCount := 0
 
 	for _, part := range parts {
 		for _, partTrack := range part.Tracks {
-			err := p.initializeTrackProcs(ctx, partTrack)
-			if err != nil {
-				if err == errSkipSilently {
-					continue
-				}
-				return err
+			if processingCount >= (clientFMP4MaxPartTracksPerSegment - 1) {
+				return fmt.Errorf("too many part tracks at once")
 			}
 
 			prePreProcess, ok := p.prePreProcessFuncs[partTrack.ID]
 			if !ok {
 				continue
-			}
-
-			if processingCount >= (clientFMP4MaxPartTracksPerSegment - 1) {
-				return fmt.Errorf("too many part tracks at once")
 			}
 
 			err = prePreProcess(ctx, partTrack)
@@ -121,7 +148,7 @@ func (p *clientProcessorFMP4) processSegment(ctx context.Context, byts []byte) e
 
 	for i := 0; i < processingCount; i++ {
 		select {
-		case <-p.subpartProcessed:
+		case <-p.chPartTrackProcessed:
 		case <-ctx.Done():
 			return fmt.Errorf("terminated")
 		}
@@ -130,38 +157,30 @@ func (p *clientProcessorFMP4) processSegment(ctx context.Context, byts []byte) e
 	return nil
 }
 
-func (p *clientProcessorFMP4) onPartTrackProcessed(ctx context.Context) {
+func (p *clientStreamProcessorFMP4) onPartTrackProcessed(ctx context.Context) {
 	select {
-	case p.subpartProcessed <- struct{}{}:
+	case p.chPartTrackProcessed <- struct{}{}:
 	case <-ctx.Done():
 	}
 }
 
-func (p *clientProcessorFMP4) initializeTrackProcs(ctx context.Context, track *fmp4.PartTrack) error {
-	if p.prePreProcessFuncs != nil {
-		return nil
-	}
-
+func (p *clientStreamProcessorFMP4) initializeTrackProcessors(
+	ctx context.Context,
+	parts []*fmp4.Part,
+) error {
 	var timeSync *clientTimeSyncFMP4
-	isLeadingTrack := (track.ID == p.leadingTrackID)
 
 	if p.isLeading {
-		if !isLeadingTrack {
-			return errSkipSilently
+		trackPart := findPartTrackOfLeadingTrack(parts, p.leadingTrackID)
+		if trackPart == nil {
+			return nil
 		}
 
-		timeScale := func() uint32 {
-			for _, track := range p.init.Tracks {
-				if isLeadingTrack {
-					return track.TimeScale
-				}
-			}
-			return 0
-		}()
+		timeScale := findTimeScaleOfLeadingTrack(p.init.Tracks, p.leadingTrackID)
 
 		timeSync = &clientTimeSyncFMP4{
 			timeScale: timeScale,
-			baseTime:  track.BaseTime,
+			baseTime:  trackPart.BaseTime,
 		}
 		timeSync.initialize()
 

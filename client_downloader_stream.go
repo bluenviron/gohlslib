@@ -38,7 +38,7 @@ type clientDownloaderStream struct {
 	playlistURL              *url.URL
 	initialPlaylist          *playlist.Media
 	rp                       *clientRoutinePool
-	onStreamTracks           func(context.Context, []*Track) bool
+	onStreamTracks           clientOnStreamTracksFunc
 	onSetLeadingTimeSync     func(clientTimeSync)
 	onGetLeadingTimeSync     func(context.Context) (clientTimeSync, bool)
 	onData                   map[*Track]interface{}
@@ -70,7 +70,7 @@ func (d *clientDownloaderStream) run(ctx context.Context) error {
 			return err
 		}
 
-		proc := &clientProcessorFMP4{
+		proc := &clientStreamProcessorFMP4{
 			ctx:                  ctx,
 			isLeading:            d.isLeading,
 			initFile:             byts,
@@ -88,7 +88,7 @@ func (d *clientDownloaderStream) run(ctx context.Context) error {
 
 		d.rp.add(proc)
 	} else {
-		proc := &clientProcessorMPEGTS{
+		proc := &clientStreamProcessorMPEGTS{
 			onDecodeError:        d.onDecodeError,
 			isLeading:            d.isLeading,
 			segmentQueue:         segmentQueue,

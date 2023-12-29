@@ -29,6 +29,14 @@ var testSPS = []byte{
 	0x20,
 }
 
+var testPPS = []byte{0x01, 0x02, 0x03, 0x04}
+
+var testConfig = mpeg4audio.Config{
+	Type:         2,
+	SampleRate:   44100,
+	ChannelCount: 2,
+}
+
 var testVideoTrack = &Track{
 	Codec: &codecs.H264{
 		SPS: testSPS,

@@ -33,8 +33,11 @@ func (ts *clientTimeSyncFMP4) initialize() {
 	ts.startDTS = durationMp4ToGo(ts.baseTime, ts.timeScale)
 }
 
-func (ts *clientTimeSyncFMP4) convertAndSync(ctx context.Context, timeScale uint32,
-	rawDTS uint64, ptsOffset int32,
+func (ts *clientTimeSyncFMP4) convertAndSync(
+	ctx context.Context,
+	timeScale uint32,
+	rawDTS uint64,
+	ptsOffset int32,
 ) (time.Duration, time.Duration, error) {
 	pts := durationMp4ToGo(rawDTS+uint64(ptsOffset), timeScale)
 	dts := durationMp4ToGo(rawDTS, timeScale)
