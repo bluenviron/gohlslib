@@ -15,7 +15,8 @@ import (
 )
 
 const (
-	clientMPEGTSEntryQueueSize        = 100
+	clientMPEGTSSampleQueueSize       = 100
+	clientFMP4PartTrackQueueSize      = 10
 	clientFMP4MaxPartTracksPerSegment = 200
 	clientLiveInitialDistance         = 3
 	clientLiveMaxDistanceFromEnd      = 5
@@ -190,7 +191,7 @@ func (c *Client) runInner() error {
 	rp := &clientRoutinePool{}
 	rp.initialize()
 
-	dl := &clientDownloaderPrimary{
+	dl := &clientPrimaryDownloader{
 		primaryPlaylistURL:        c.playlistURL,
 		httpClient:                c.HTTPClient,
 		onDownloadPrimaryPlaylist: c.OnDownloadPrimaryPlaylist,

@@ -96,7 +96,7 @@ func pickAudioPlaylist(alternatives []*playlist.MultivariantRendition, groupID s
 	return candidates[0]
 }
 
-type clientDownloaderPrimary struct {
+type clientPrimaryDownloader struct {
 	primaryPlaylistURL        *url.URL
 	httpClient                *http.Client
 	onDownloadPrimaryPlaylist ClientOnDownloadPrimaryPlaylistFunc
@@ -117,13 +117,13 @@ type clientDownloaderPrimary struct {
 	leadingTimeSyncReady chan struct{}
 }
 
-func (d *clientDownloaderPrimary) initialize() {
+func (d *clientPrimaryDownloader) initialize() {
 	d.chStreamTracks = make(chan clientStreamProcessor)
 	d.startStreaming = make(chan struct{})
 	d.leadingTimeSyncReady = make(chan struct{})
 }
 
-func (d *clientDownloaderPrimary) run(ctx context.Context) error {
+func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 	d.onDownloadPrimaryPlaylist(d.primaryPlaylistURL.String())
 
 	pl, err := clientDownloadPlaylist(ctx, d.httpClient, d.primaryPlaylistURL)
@@ -135,7 +135,7 @@ func (d *clientDownloaderPrimary) run(ctx context.Context) error {
 
 	switch plt := pl.(type) {
 	case *playlist.Media:
-		ds := &clientDownloaderStream{
+		ds := &clientStreamDownloader{
 			isLeading:                true,
 			httpClient:               d.httpClient,
 			onDownloadStreamPlaylist: d.onDownloadStreamPlaylist,
@@ -163,7 +163,7 @@ func (d *clientDownloaderPrimary) run(ctx context.Context) error {
 			return err
 		}
 
-		ds := &clientDownloaderStream{
+		ds := &clientStreamDownloader{
 			isLeading:                true,
 			httpClient:               d.httpClient,
 			onDownloadStreamPlaylist: d.onDownloadStreamPlaylist,
@@ -192,7 +192,7 @@ func (d *clientDownloaderPrimary) run(ctx context.Context) error {
 					return err
 				}
 
-				ds := &clientDownloaderStream{
+				ds := &clientStreamDownloader{
 					isLeading:                false,
 					httpClient:               d.httpClient,
 					onDownloadStreamPlaylist: d.onDownloadStreamPlaylist,
@@ -246,7 +246,7 @@ func (d *clientDownloaderPrimary) run(ctx context.Context) error {
 	return nil
 }
 
-func (d *clientDownloaderPrimary) onStreamTracks(ctx context.Context, streamProc clientStreamProcessor) bool {
+func (d *clientPrimaryDownloader) onStreamTracks(ctx context.Context, streamProc clientStreamProcessor) bool {
 	select {
 	case d.chStreamTracks <- streamProc:
 	case <-ctx.Done():
@@ -262,12 +262,12 @@ func (d *clientDownloaderPrimary) onStreamTracks(ctx context.Context, streamProc
 	return true
 }
 
-func (d *clientDownloaderPrimary) onSetLeadingTimeSync(ts clientTimeSync) {
+func (d *clientPrimaryDownloader) onSetLeadingTimeSync(ts clientTimeSync) {
 	d.leadingTimeSync = ts
 	close(d.leadingTimeSyncReady)
 }
 
-func (d *clientDownloaderPrimary) onGetLeadingTimeSync(ctx context.Context) (clientTimeSync, bool) {
+func (d *clientPrimaryDownloader) onGetLeadingTimeSync(ctx context.Context) (clientTimeSync, bool) {
 	select {
 	case <-d.leadingTimeSyncReady:
 	case <-ctx.Done():

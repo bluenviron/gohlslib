@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"time"
 
 	"github.com/asticode/go-astits"
 
@@ -50,8 +49,7 @@ type clientStreamProcessorMPEGTS struct {
 	switchableReader *switchableReader
 	reader           *mpegts.Reader
 	tracks           []*Track
-	trackProcs       map[*Track]*clientTrackProcessor
-	timeSync         *clientTimeSyncMPEGTS
+	trackProcessors  map[*Track]*clientTrackProcessorMPEGTS
 }
 
 func (p *clientStreamProcessorMPEGTS) getIsLeading() bool {
@@ -78,110 +76,9 @@ func (p *clientStreamProcessorMPEGTS) run(ctx context.Context) error {
 
 func (p *clientStreamProcessorMPEGTS) processSegment(ctx context.Context, byts []byte) error {
 	if p.switchableReader == nil {
-		p.switchableReader = &switchableReader{bytes.NewReader(byts)}
-
-		var err error
-		p.reader, err = mpegts.NewReader(p.switchableReader)
+		err := p.initializeReader(ctx, byts)
 		if err != nil {
 			return err
-		}
-
-		p.reader.OnDecodeError(func(err error) {
-			p.onDecodeError(err)
-		})
-
-		for _, track := range p.reader.Tracks() {
-			switch track.Codec.(type) {
-			case *mpegts.CodecH264, *mpegts.CodecMPEG4Audio:
-			default:
-				return fmt.Errorf("unsupported track type: %T", track)
-			}
-		}
-
-		leadingTrack := mpegtsPickLeadingTrack(p.reader.Tracks())
-		p.tracks = make([]*Track, len(p.reader.Tracks()))
-
-		for i, mpegtsTrack := range p.reader.Tracks() {
-			p.tracks[i] = &Track{
-				Codec: codecs.FromMPEGTS(mpegtsTrack.Codec),
-			}
-		}
-
-		ok := p.onStreamTracks(ctx, p)
-		if !ok {
-			return fmt.Errorf("terminated")
-		}
-
-		for i, mpegtsTrack := range p.reader.Tracks() {
-			track := p.tracks[i]
-			isLeadingTrack := (leadingTrack == mpegtsTrack)
-			var trackProc *clientTrackProcessor
-			onData := p.onData[track]
-
-			preProcess := func(ctx context.Context, rawPTS int64,
-				rawDTS int64, postProcess func(time.Duration, time.Duration),
-			) error {
-				pts, dts, err := p.timeSync.convertAndSync(ctx, rawPTS, rawDTS)
-				if err != nil {
-					return err
-				}
-
-				// silently discard packets prior to the first packet of the leading track
-				if pts < 0 {
-					return nil
-				}
-
-				postProcess(pts, dts)
-				return nil
-			}
-
-			prePreProcess := func(pts int64, dts int64, postProcess func(time.Duration, time.Duration)) error {
-				err := p.initializeTrackProcessors(ctx, isLeadingTrack, dts)
-				if err != nil {
-					if err == errSkipSilently {
-						return nil
-					}
-					return err
-				}
-
-				if trackProc == nil {
-					trackProc = p.trackProcs[track]
-				}
-
-				return trackProc.push(ctx, func() error {
-					return preProcess(ctx, pts, dts, postProcess)
-				})
-			}
-
-			switch track.Codec.(type) {
-			case *codecs.H264:
-				var onDataCasted ClientOnDataH26xFunc = func(pts time.Duration, dts time.Duration, au [][]byte) {}
-				if onData != nil {
-					onDataCasted = onData.(ClientOnDataH26xFunc)
-				}
-
-				p.reader.OnDataH26x(mpegtsTrack, func(pts int64, dts int64, au [][]byte) error {
-					return prePreProcess(
-						pts, dts,
-						func(pts time.Duration, dts time.Duration) {
-							onDataCasted(pts, dts, au)
-						})
-				})
-
-			case *codecs.MPEG4Audio:
-				var onDataCasted ClientOnDataMPEG4AudioFunc = func(pts time.Duration, aus [][]byte) {}
-				if onData != nil {
-					onDataCasted = onData.(ClientOnDataMPEG4AudioFunc)
-				}
-
-				p.reader.OnDataMPEG4Audio(mpegtsTrack, func(pts int64, aus [][]byte) error {
-					return prePreProcess(
-						pts, pts,
-						func(pts time.Duration, dts time.Duration) {
-							onDataCasted(pts, aus)
-						})
-				})
-			}
 		}
 	} else {
 		p.switchableReader.r = bytes.NewReader(byts)
@@ -198,45 +95,132 @@ func (p *clientStreamProcessorMPEGTS) processSegment(ctx context.Context, byts [
 	}
 }
 
+func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, byts []byte) error {
+	p.switchableReader = &switchableReader{bytes.NewReader(byts)}
+
+	var err error
+	p.reader, err = mpegts.NewReader(p.switchableReader)
+	if err != nil {
+		return err
+	}
+
+	p.reader.OnDecodeError(func(err error) {
+		p.onDecodeError(err)
+	})
+
+	for _, track := range p.reader.Tracks() {
+		switch track.Codec.(type) {
+		case *mpegts.CodecH264, *mpegts.CodecMPEG4Audio:
+		default:
+			return fmt.Errorf("unsupported track type: %T", track)
+		}
+	}
+
+	leadingTrack := mpegtsPickLeadingTrack(p.reader.Tracks())
+	p.tracks = make([]*Track, len(p.reader.Tracks()))
+
+	for i, mpegtsTrack := range p.reader.Tracks() {
+		p.tracks[i] = &Track{
+			Codec: codecs.FromMPEGTS(mpegtsTrack.Codec),
+		}
+	}
+
+	ok := p.onStreamTracks(ctx, p)
+	if !ok {
+		return fmt.Errorf("terminated")
+	}
+
+	for i, mpegtsTrack := range p.reader.Tracks() {
+		track := p.tracks[i]
+		isLeadingTrack := (leadingTrack == mpegtsTrack)
+		var trackProc *clientTrackProcessorMPEGTS
+
+		processSample := func(pts int64, dts int64, sample *mpegtsSample) error {
+			if p.trackProcessors == nil {
+				err := p.initializeTrackProcessors(ctx, isLeadingTrack, dts)
+				if err != nil {
+					if err == errSkipSilently {
+						return nil
+					}
+					return err
+				}
+			}
+
+			if trackProc == nil {
+				trackProc = p.trackProcessors[track]
+			}
+
+			return trackProc.push(ctx, sample)
+		}
+
+		switch track.Codec.(type) {
+		case *codecs.H264:
+			p.reader.OnDataH26x(mpegtsTrack, func(pts int64, dts int64, au [][]byte) error {
+				sample := &mpegtsSample{
+					pts:  pts,
+					dts:  dts,
+					data: au,
+				}
+				return processSample(pts, dts, sample)
+			})
+
+		case *codecs.MPEG4Audio:
+			p.reader.OnDataMPEG4Audio(mpegtsTrack, func(pts int64, aus [][]byte) error {
+				sample := &mpegtsSample{
+					pts:  pts,
+					dts:  pts,
+					data: aus,
+				}
+
+				return processSample(pts, pts, sample)
+			})
+		}
+	}
+
+	return nil
+}
+
 func (p *clientStreamProcessorMPEGTS) initializeTrackProcessors(
 	ctx context.Context,
 	isLeadingTrack bool,
 	dts int64,
 ) error {
-	if p.trackProcs != nil {
-		return nil
-	}
+	var timeSync *clientTimeSyncMPEGTS
 
 	if p.isLeading {
 		if !isLeadingTrack {
 			return errSkipSilently
 		}
 
-		p.timeSync = &clientTimeSyncMPEGTS{
+		timeSync = &clientTimeSyncMPEGTS{
 			startDTS: dts,
 		}
-		p.timeSync.initialize()
+		timeSync.initialize()
 
-		p.onSetLeadingTimeSync(p.timeSync)
+		p.onSetLeadingTimeSync(timeSync)
 	} else {
 		rawTS, ok := p.onGetLeadingTimeSync(ctx)
 		if !ok {
 			return fmt.Errorf("terminated")
 		}
 
-		p.timeSync, ok = rawTS.(*clientTimeSyncMPEGTS)
+		timeSync, ok = rawTS.(*clientTimeSyncMPEGTS)
 		if !ok {
 			return fmt.Errorf("stream playlists are mixed MPEGTS/FMP4")
 		}
 	}
 
-	p.trackProcs = make(map[*Track]*clientTrackProcessor)
+	p.trackProcessors = make(map[*Track]*clientTrackProcessorMPEGTS)
 
 	for _, track := range p.tracks {
-		proc := &clientTrackProcessor{}
+		proc := &clientTrackProcessorMPEGTS{
+			track:    track,
+			onData:   p.onData[track],
+			timeSync: timeSync,
+		}
 		proc.initialize()
 		p.rp.add(proc)
-		p.trackProcs[track] = proc
+		p.trackProcessors[track] = proc
 	}
 
 	return nil
