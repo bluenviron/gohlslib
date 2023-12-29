@@ -37,12 +37,12 @@ func (r *switchableReader) Read(p []byte) (int, error) {
 	return r.r.Read(p)
 }
 
-type clientProcessorMPEGTS struct {
+type clientStreamProcessorMPEGTS struct {
 	onDecodeError        ClientOnDecodeErrorFunc
 	isLeading            bool
 	segmentQueue         *clientSegmentQueue
 	rp                   *clientRoutinePool
-	onStreamTracks       func(context.Context, []*Track) bool
+	onStreamTracks       clientOnStreamTracksFunc
 	onSetLeadingTimeSync func(clientTimeSync)
 	onGetLeadingTimeSync func(context.Context) (clientTimeSync, bool)
 	onData               map[*Track]interface{}
@@ -54,7 +54,15 @@ type clientProcessorMPEGTS struct {
 	timeSync         *clientTimeSyncMPEGTS
 }
 
-func (p *clientProcessorMPEGTS) run(ctx context.Context) error {
+func (p *clientStreamProcessorMPEGTS) getIsLeading() bool {
+	return p.isLeading
+}
+
+func (p *clientStreamProcessorMPEGTS) getTracks() []*Track {
+	return p.tracks
+}
+
+func (p *clientStreamProcessorMPEGTS) run(ctx context.Context) error {
 	for {
 		seg, ok := p.segmentQueue.pull(ctx)
 		if !ok {
@@ -68,7 +76,7 @@ func (p *clientProcessorMPEGTS) run(ctx context.Context) error {
 	}
 }
 
-func (p *clientProcessorMPEGTS) processSegment(ctx context.Context, byts []byte) error {
+func (p *clientStreamProcessorMPEGTS) processSegment(ctx context.Context, byts []byte) error {
 	if p.switchableReader == nil {
 		p.switchableReader = &switchableReader{bytes.NewReader(byts)}
 
@@ -99,7 +107,7 @@ func (p *clientProcessorMPEGTS) processSegment(ctx context.Context, byts []byte)
 			}
 		}
 
-		ok := p.onStreamTracks(ctx, p.tracks)
+		ok := p.onStreamTracks(ctx, p)
 		if !ok {
 			return fmt.Errorf("terminated")
 		}
@@ -128,7 +136,7 @@ func (p *clientProcessorMPEGTS) processSegment(ctx context.Context, byts []byte)
 			}
 
 			prePreProcess := func(pts int64, dts int64, postProcess func(time.Duration, time.Duration)) error {
-				err := p.initializeTrackProcs(ctx, isLeadingTrack, dts)
+				err := p.initializeTrackProcessors(ctx, isLeadingTrack, dts)
 				if err != nil {
 					if err == errSkipSilently {
 						return nil
@@ -190,7 +198,11 @@ func (p *clientProcessorMPEGTS) processSegment(ctx context.Context, byts []byte)
 	}
 }
 
-func (p *clientProcessorMPEGTS) initializeTrackProcs(ctx context.Context, isLeadingTrack bool, dts int64) error {
+func (p *clientStreamProcessorMPEGTS) initializeTrackProcessors(
+	ctx context.Context,
+	isLeadingTrack bool,
+	dts int64,
+) error {
 	if p.trackProcs != nil {
 		return nil
 	}

@@ -52,6 +52,8 @@ type ClientOnDataMPEG4AudioFunc func(pts time.Duration, aus [][]byte)
 // ClientOnDataOpusFunc is the prototype of the function passed to OnDataOpus().
 type ClientOnDataOpusFunc func(pts time.Duration, packets [][]byte)
 
+type clientOnStreamTracksFunc func(context.Context, clientStreamProcessor) bool
+
 func clientAbsoluteURL(base *url.URL, relative string) (*url.URL, error) {
 	u, err := url.Parse(relative)
 	if err != nil {
