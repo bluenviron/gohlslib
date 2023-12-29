@@ -29,7 +29,7 @@ func findSegmentWithID(seqNo int, segments []*playlist.MediaSegment, id int) (*p
 	return segments[index], index, len(segments) - index
 }
 
-type clientDownloaderStream struct {
+type clientStreamDownloader struct {
 	isLeading                bool
 	httpClient               *http.Client
 	onDownloadStreamPlaylist ClientOnDownloadStreamPlaylistFunc
@@ -46,7 +46,7 @@ type clientDownloaderStream struct {
 	curSegmentID *int
 }
 
-func (d *clientDownloaderStream) run(ctx context.Context) error {
+func (d *clientStreamDownloader) run(ctx context.Context) error {
 	initialPlaylist := d.initialPlaylist
 	d.initialPlaylist = nil
 	if initialPlaylist == nil {
@@ -124,7 +124,7 @@ func (d *clientDownloaderStream) run(ctx context.Context) error {
 	}
 }
 
-func (d *clientDownloaderStream) downloadPlaylist(ctx context.Context) (*playlist.Media, error) {
+func (d *clientStreamDownloader) downloadPlaylist(ctx context.Context) (*playlist.Media, error) {
 	d.onDownloadStreamPlaylist(d.playlistURL.String())
 
 	pl, err := clientDownloadPlaylist(ctx, d.httpClient, d.playlistURL)
@@ -140,7 +140,7 @@ func (d *clientDownloaderStream) downloadPlaylist(ctx context.Context) (*playlis
 	return plt, nil
 }
 
-func (d *clientDownloaderStream) downloadSegment(
+func (d *clientStreamDownloader) downloadSegment(
 	ctx context.Context,
 	uri string,
 	start *uint64,
@@ -184,7 +184,7 @@ func (d *clientDownloaderStream) downloadSegment(
 	return byts, nil
 }
 
-func (d *clientDownloaderStream) fillSegmentQueue(
+func (d *clientStreamDownloader) fillSegmentQueue(
 	ctx context.Context,
 	pl *playlist.Media,
 	segmentQueue *clientSegmentQueue,

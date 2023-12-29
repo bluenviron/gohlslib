@@ -16,6 +16,7 @@ import (
 	"github.com/aler9/writerseeker"
 	"github.com/bluenviron/gohlslib/pkg/codecs"
 	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
+	"github.com/bluenviron/mediacommon/pkg/codecs/mpeg4audio"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 
@@ -146,7 +147,6 @@ func TestClientMPEGTS(t *testing.T) {
 	for _, ca := range []string{
 		"plain",
 		"tls",
-		"segment with query",
 	} {
 		t.Run(ca, func(t *testing.T) {
 			gin.SetMode(gin.ReleaseMode)
@@ -159,11 +159,6 @@ func TestClientMPEGTS(t *testing.T) {
 				}
 				sent = true
 
-				segment := "segment.ts"
-				if ca == "segment with query" {
-					segment = "segment.ts?key=val"
-				}
-
 				ctx.Writer.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
 				io.Copy(ctx.Writer, bytes.NewReader([]byte(`#EXTM3U
 #EXT-X-VERSION:3
@@ -171,17 +166,83 @@ func TestClientMPEGTS(t *testing.T) {
 #EXT-X-TARGETDURATION:2
 #EXT-X-MEDIA-SEQUENCE:0
 #EXTINF:2,
-`+segment+`
+segment.ts?key=val
 #EXT-X-ENDLIST
 `)))
 			})
 
 			router.GET("/segment.ts", func(ctx *gin.Context) {
-				if ca == "segment with query" {
-					require.Equal(t, "val", ctx.Query("key"))
-				}
+				require.Equal(t, "val", ctx.Query("key"))
 				ctx.Writer.Header().Set("Content-Type", `video/MP2T`)
-				mpegtsSegment(t, ctx.Writer)
+
+				mux := astits.NewMuxer(context.Background(), ctx.Writer)
+
+				err := mux.AddElementaryStream(astits.PMTElementaryStream{
+					ElementaryPID: 256,
+					StreamType:    astits.StreamTypeH264Video,
+				})
+				require.NoError(t, err)
+
+				err = mux.AddElementaryStream(astits.PMTElementaryStream{
+					ElementaryPID: 257,
+					StreamType:    astits.StreamTypeAACAudio,
+				})
+				require.NoError(t, err)
+
+				mux.SetPCRPID(256)
+
+				_, err = mux.WriteTables()
+				require.NoError(t, err)
+
+				enc, _ := h264.AnnexBMarshal([][]byte{
+					{7, 1, 2, 3}, // SPS
+					{8},          // PPS
+					{5},          // IDR
+				})
+
+				_, err = mux.WriteData(&astits.MuxerData{
+					PID: 256,
+					PES: &astits.PESData{
+						Header: &astits.PESHeader{
+							OptionalHeader: &astits.PESOptionalHeader{
+								MarkerBits:      2,
+								PTSDTSIndicator: astits.PTSDTSIndicatorBothPresent,
+								PTS:             &astits.ClockReference{Base: 90000},                   // +1 sec
+								DTS:             &astits.ClockReference{Base: 0x1FFFFFFFF - 90000 + 1}, // -1 sec
+							},
+							StreamID: 224, // = video
+						},
+						Data: enc,
+					},
+				})
+				require.NoError(t, err)
+
+				pkts := mpeg4audio.ADTSPackets{
+					{
+						Type:         2,
+						SampleRate:   44100,
+						ChannelCount: 2,
+						AU:           []byte{1, 2, 3, 4},
+					},
+				}
+				enc, err = pkts.Marshal()
+				require.NoError(t, err)
+
+				_, err = mux.WriteData(&astits.MuxerData{
+					PID: 257,
+					PES: &astits.PESData{
+						Header: &astits.PESHeader{
+							OptionalHeader: &astits.PESOptionalHeader{
+								MarkerBits:      2,
+								PTSDTSIndicator: astits.PTSDTSIndicatorOnlyPTS,
+								PTS:             &astits.ClockReference{Base: 0x1FFFFFFFF - 90000 + 1},
+							},
+							StreamID: 192, // = audio
+						},
+						Data: enc,
+					},
+				})
+				require.NoError(t, err)
 			})
 
 			ln, err := net.Listen("tcp", "localhost:5780")
@@ -211,7 +272,7 @@ func TestClientMPEGTS(t *testing.T) {
 
 			defer s.Shutdown(context.Background())
 
-			packetRecv := make(chan struct{})
+			packetRecv := make(chan struct{}, 2)
 
 			prefix := "http"
 			if ca == "tls" {
@@ -229,9 +290,20 @@ func TestClientMPEGTS(t *testing.T) {
 					},
 				},
 				OnTracks: func(tracks []*Track) error {
-					require.Equal(t, []*Track{{
-						Codec: &codecs.H264{},
-					}}, tracks)
+					require.Equal(t, []*Track{
+						{
+							Codec: &codecs.H264{},
+						},
+						{
+							Codec: &codecs.MPEG4Audio{
+								Config: mpeg4audio.AudioSpecificConfig{
+									Type:         2,
+									SampleRate:   44100,
+									ChannelCount: 2,
+								},
+							},
+						},
+					}, tracks)
 
 					c.OnDataH26x(tracks[0], func(pts time.Duration, dts time.Duration, au [][]byte) {
 						require.Equal(t, 2*time.Second, pts)
@@ -241,7 +313,15 @@ func TestClientMPEGTS(t *testing.T) {
 							{8},
 							{5},
 						}, au)
-						close(packetRecv)
+						packetRecv <- struct{}{}
+					})
+
+					c.OnDataMPEG4Audio(tracks[1], func(pts time.Duration, aus [][]byte) {
+						require.Equal(t, 0*time.Second, pts)
+						require.Equal(t, [][]byte{
+							{1, 2, 3, 4},
+						}, aus)
+						packetRecv <- struct{}{}
 					})
 
 					return nil
@@ -251,7 +331,9 @@ func TestClientMPEGTS(t *testing.T) {
 			err = c.Start()
 			require.NoError(t, err)
 
-			<-packetRecv
+			for i := 0; i < 2; i++ {
+				<-packetRecv
+			}
 
 			c.Close()
 			<-c.Wait()
@@ -270,14 +352,15 @@ func TestClientFMP4(t *testing.T) {
 #EXT-X-MEDIA-SEQUENCE:20
 #EXT-X-INDEPENDENT-SEGMENTS
 #EXT-X-TARGETDURATION:2
-#EXT-X-MAP:URI="init.mp4"
+#EXT-X-MAP:URI="init.mp4?key=val"
 #EXTINF:2,
-segment.mp4
+segment.mp4?key=val
 #EXT-X-ENDLIST
 `)))
 	})
 
 	router.GET("/init.mp4", func(ctx *gin.Context) {
+		require.Equal(t, "val", ctx.Query("key"))
 		ctx.Writer.Header().Set("Content-Type", `video/mp4`)
 		err := mp4ToWriter(&fmp4.Init{
 			Tracks: []*fmp4.InitTrack{
@@ -302,6 +385,7 @@ segment.mp4
 	})
 
 	router.GET("/segment.mp4", func(ctx *gin.Context) {
+		require.Equal(t, "val", ctx.Query("key"))
 		ctx.Writer.Header().Set("Content-Type", `video/mp4`)
 
 		payload, _ := h264.AVCCMarshal([][]byte{
