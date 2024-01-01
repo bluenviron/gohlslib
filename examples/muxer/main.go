@@ -15,7 +15,7 @@ import (
 
 // This example shows how to:
 // 1. generate a MPEG-TS/H264 stream with GStreamer
-// 2. re-encode the stream into HLS and serve it with an HTTP server.
+// 2. re-encode the stream into HLS and serve it with an HTTP server
 
 //go:embed index.html
 var index []byte

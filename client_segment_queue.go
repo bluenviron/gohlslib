@@ -3,11 +3,17 @@ package gohlslib
 import (
 	"context"
 	"sync"
+	"time"
 )
+
+type segmentData struct {
+	dateTime *time.Time
+	payload  []byte
+}
 
 type clientSegmentQueue struct {
 	mutex   sync.Mutex
-	queue   [][]byte
+	queue   []*segmentData
 	didPush chan struct{}
 	didPull chan struct{}
 }
@@ -17,7 +23,7 @@ func (q *clientSegmentQueue) initialize() {
 	q.didPull = make(chan struct{})
 }
 
-func (q *clientSegmentQueue) push(seg []byte) {
+func (q *clientSegmentQueue) push(seg *segmentData) {
 	q.mutex.Lock()
 
 	queueWasEmpty := (len(q.queue) == 0)
@@ -50,7 +56,7 @@ func (q *clientSegmentQueue) waitUntilSizeIsBelow(ctx context.Context, n int) bo
 	return true
 }
 
-func (q *clientSegmentQueue) pull(ctx context.Context) ([]byte, bool) {
+func (q *clientSegmentQueue) pull(ctx context.Context) (*segmentData, bool) {
 	q.mutex.Lock()
 
 	for len(q.queue) == 0 {
@@ -66,7 +72,7 @@ func (q *clientSegmentQueue) pull(ctx context.Context) ([]byte, bool) {
 		q.mutex.Lock()
 	}
 
-	var seg []byte
+	var seg *segmentData
 	seg, q.queue = q.queue[0], q.queue[1:]
 
 	close(q.didPull)

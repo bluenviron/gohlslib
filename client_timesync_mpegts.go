@@ -22,12 +22,18 @@ func (ts *clientTimeSyncMPEGTS) initialize() {
 	ts.td = mpegts.NewTimeDecoder(ts.startDTS)
 }
 
-func (ts *clientTimeSyncMPEGTS) convertAndSync(ctx context.Context,
-	rawPTS int64, rawDTS int64,
+func (ts *clientTimeSyncMPEGTS) convert(v int64) time.Duration {
+	return ts.td.Decode(v)
+}
+
+func (ts *clientTimeSyncMPEGTS) convertAndSync(
+	ctx context.Context,
+	rawPTS int64,
+	rawDTS int64,
 ) (time.Duration, time.Duration, error) {
 	ts.mutex.Lock()
-	pts := ts.td.Decode(rawPTS)
-	dts := ts.td.Decode(rawDTS)
+	pts := ts.convert(rawPTS)
+	dts := ts.convert(rawDTS)
 	ts.mutex.Unlock()
 
 	elapsed := time.Since(ts.startRTC)

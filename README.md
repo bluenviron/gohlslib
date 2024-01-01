@@ -14,12 +14,13 @@ Features:
 
 * Client
 
-  * Read MPEG-TS or fMP4 streams
+  * Read streams in MPEG-TS or fMP4 format
   * Read tracks encoded with AV1, VP9, H265, H264, Opus, MPEG-4 Audio (AAC)
+  * Get NTP timestamp (absolute timestamp) of incoming data
 
 * Muxer
 
-  * Generate MPEG-TS, fMP4, Low-latency streams
+  * Generate streams in MPEG-TS, fMP4 or Low-latency format
   * Write tracks encoded with AV1, VP9, H265, H264, Opus, MPEG-4 audio (AAC)
   * Save generated segments on disk
 
@@ -39,6 +40,7 @@ Features:
 
 * [playlist-parser](examples/playlist-parser/main.go)
 * [client](examples/client/main.go)
+* [client-ntp-timestamp](examples/client-ntp-timestamp/main.go)
 * [muxer](examples/muxer/main.go)
 
 ## API Documentation

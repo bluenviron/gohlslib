@@ -98,6 +98,7 @@ func (d *clientStreamDownloader) run(ctx context.Context) error {
 			onGetLeadingTimeSync: d.onGetLeadingTimeSync,
 			onData:               d.onData,
 		}
+		proc.initialize()
 		d.rp.add(proc)
 	}
 
@@ -224,7 +225,10 @@ func (d *clientStreamDownloader) fillSegmentQueue(
 		return err
 	}
 
-	segmentQueue.push(byts)
+	segmentQueue.push(&segmentData{
+		dateTime: seg.DateTime,
+		payload:  byts,
+	})
 
 	if pl.Endlist && pl.Segments[len(pl.Segments)-1] == seg {
 		<-ctx.Done()
