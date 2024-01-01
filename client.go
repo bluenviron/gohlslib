@@ -183,8 +183,8 @@ func (c *Client) OnDataOpus(track *Track, cb ClientOnDataOpusFunc) {
 	c.onData[track] = cb
 }
 
-// NTP returns the NTP timestamp (absolute timestamp) of a packet with given track and DTS.
-func (c *Client) NTP(track *Track, dts time.Duration) (time.Time, bool) {
+// AbsoluteTime returns the absolute timestamp of a packet with given track and DTS.
+func (c *Client) AbsoluteTime(track *Track, dts time.Duration) (time.Time, bool) {
 	return c.primaryDownloader.ntp(track, dts)
 }
 

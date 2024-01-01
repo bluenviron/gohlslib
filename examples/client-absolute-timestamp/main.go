@@ -10,7 +10,7 @@ import (
 
 // This example shows how to
 // 1. read a HLS stream
-// 2. get NTP timestamp (absolute timestamp) of incoming data
+// 2. get absolute timestamp of incoming data
 
 func main() {
 	// setup client
@@ -29,25 +29,25 @@ func main() {
 			switch track.Codec.(type) {
 			case *codecs.AV1:
 				c.OnDataAV1(track, func(pts time.Duration, tu [][]byte) {
-					ntp, ntpAvailable := c.NTP(ttrack, pts)
+					ntp, ntpAvailable := c.AbsoluteTime(ttrack, pts)
 					log.Printf("received data from track %T, pts = %v, ntp available = %v, ntp = %v\n", ttrack, pts, ntpAvailable, ntp)
 				})
 
 			case *codecs.H264, *codecs.H265:
 				c.OnDataH26x(track, func(pts time.Duration, dts time.Duration, au [][]byte) {
-					ntp, ntpAvailable := c.NTP(ttrack, pts)
+					ntp, ntpAvailable := c.AbsoluteTime(ttrack, pts)
 					log.Printf("received data from track %T, pts = %v, ntp available = %v, ntp = %v\n", ttrack, pts, ntpAvailable, ntp)
 				})
 
 			case *codecs.MPEG4Audio:
 				c.OnDataMPEG4Audio(track, func(pts time.Duration, aus [][]byte) {
-					ntp, ntpAvailable := c.NTP(ttrack, pts)
+					ntp, ntpAvailable := c.AbsoluteTime(ttrack, pts)
 					log.Printf("received data from track %T, pts = %v, ntp available = %v, ntp = %v\n", ttrack, pts, ntpAvailable, ntp)
 				})
 
 			case *codecs.Opus:
 				c.OnDataOpus(track, func(pts time.Duration, packets [][]byte) {
-					ntp, ntpAvailable := c.NTP(ttrack, pts)
+					ntp, ntpAvailable := c.AbsoluteTime(ttrack, pts)
 					log.Printf("received data from track %T, pts = %v, ntp available = %v, ntp = %v\n", ttrack, pts, ntpAvailable, ntp)
 				})
 			}

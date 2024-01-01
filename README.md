@@ -16,7 +16,7 @@ Features:
 
   * Read streams in MPEG-TS or fMP4 format
   * Read tracks encoded with AV1, VP9, H265, H264, Opus, MPEG-4 Audio (AAC)
-  * Get NTP timestamp (absolute timestamp) of incoming data
+  * Get absolute timestamp of incoming data
 
 * Muxer
 
@@ -40,7 +40,7 @@ Features:
 
 * [playlist-parser](examples/playlist-parser/main.go)
 * [client](examples/client/main.go)
-* [client-ntp-timestamp](examples/client-ntp-timestamp/main.go)
+* [client-absolute-timestamp](examples/client-absolute-timestamp/main.go)
 * [client-codec-h264-save-to-disk](examples/client-codec-h264-save-to-disk/main.go)
 * [client-codec-h264-convert-to-jpeg](examples/client-codec-h264-convert-to-jpeg/main.go)
 * [client-codec-mpeg4audio-save-to-disk](examples/client-codec-mpeg4audio-save-to-disk/main.go)
