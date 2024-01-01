@@ -25,7 +25,27 @@ func checkSupport(codecs []string) bool {
 	return true
 }
 
-func clientDownloadPlaylist(ctx context.Context, httpClient *http.Client, ur *url.URL) (playlist.Playlist, error) {
+func cloneURL(ur *url.URL) *url.URL {
+	return &url.URL{
+		Scheme:      ur.Scheme,
+		Opaque:      ur.Opaque,
+		User:        ur.User,
+		Host:        ur.Host,
+		Path:        ur.Path,
+		RawPath:     ur.RawPath,
+		OmitHost:    ur.OmitHost,
+		ForceQuery:  ur.ForceQuery,
+		RawQuery:    ur.RawQuery,
+		Fragment:    ur.Fragment,
+		RawFragment: ur.RawFragment,
+	}
+}
+
+func clientDownloadPlaylist(
+	ctx context.Context,
+	httpClient *http.Client,
+	ur *url.URL,
+) (playlist.Playlist, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ur.String(), nil)
 	if err != nil {
 		return nil, err
@@ -103,6 +123,7 @@ type clientPrimaryDownloader struct {
 	onDownloadPrimaryPlaylist ClientOnDownloadPrimaryPlaylistFunc
 	onDownloadStreamPlaylist  ClientOnDownloadStreamPlaylistFunc
 	onDownloadSegment         ClientOnDownloadSegmentFunc
+	onDownloadPart            ClientOnDownloadPartFunc
 	onDecodeError             ClientOnDecodeErrorFunc
 	rp                        *clientRoutinePool
 	onTracks                  ClientOnTracksFunc
@@ -145,9 +166,10 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 			httpClient:               d.httpClient,
 			onDownloadStreamPlaylist: d.onDownloadStreamPlaylist,
 			onDownloadSegment:        d.onDownloadSegment,
+			onDownloadPart:           d.onDownloadPart,
 			onDecodeError:            d.onDecodeError,
 			playlistURL:              d.primaryPlaylistURL,
-			initialPlaylist:          plt,
+			firstPlaylist:            plt,
 			rp:                       d.rp,
 			onStreamTracks:           d.onStreamTracks,
 			onStreamEnded:            d.onStreamEnded,
@@ -174,9 +196,10 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 			httpClient:               d.httpClient,
 			onDownloadStreamPlaylist: d.onDownloadStreamPlaylist,
 			onDownloadSegment:        d.onDownloadSegment,
+			onDownloadPart:           d.onDownloadPart,
 			onDecodeError:            d.onDecodeError,
 			playlistURL:              u,
-			initialPlaylist:          nil,
+			firstPlaylist:            nil,
 			rp:                       d.rp,
 			onStreamTracks:           d.onStreamTracks,
 			onStreamEnded:            d.onStreamEnded,
@@ -204,9 +227,10 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 					httpClient:               d.httpClient,
 					onDownloadStreamPlaylist: d.onDownloadStreamPlaylist,
 					onDownloadSegment:        d.onDownloadSegment,
+					onDownloadPart:           d.onDownloadPart,
 					onDecodeError:            d.onDecodeError,
 					playlistURL:              u,
-					initialPlaylist:          nil,
+					firstPlaylist:            nil,
 					rp:                       d.rp,
 					onStreamTracks:           d.onStreamTracks,
 					onSetLeadingTimeSync:     d.onSetLeadingTimeSync,

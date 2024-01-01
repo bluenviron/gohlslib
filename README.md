@@ -14,7 +14,7 @@ Features:
 
 * Client
 
-  * Read streams in MPEG-TS or fMP4 format
+  * Read streams in MPEG-TS, fMP4 or Low-latency format
   * Read tracks encoded with AV1, VP9, H265, H264, Opus, MPEG-4 Audio (AAC)
   * Get absolute timestamp of incoming data
 

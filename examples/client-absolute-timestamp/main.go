@@ -15,7 +15,7 @@ import (
 func main() {
 	// setup client
 	c := &gohlslib.Client{
-		URI: "https://myserver/mystream/index.m3u8",
+		URI: "http://myserver/mystream/index.m3u8",
 	}
 
 	// called when tracks are parsed
@@ -30,25 +30,29 @@ func main() {
 			case *codecs.AV1:
 				c.OnDataAV1(track, func(pts time.Duration, tu [][]byte) {
 					ntp, ntpAvailable := c.AbsoluteTime(ttrack, pts)
-					log.Printf("received data from track %T, pts = %v, ntp available = %v, ntp = %v\n", ttrack, pts, ntpAvailable, ntp)
+					log.Printf("received data from track %T, pts = %v, ntp available = %v, ntp = %v\n",
+						ttrack.Codec, pts, ntpAvailable, ntp)
 				})
 
 			case *codecs.H264, *codecs.H265:
 				c.OnDataH26x(track, func(pts time.Duration, dts time.Duration, au [][]byte) {
 					ntp, ntpAvailable := c.AbsoluteTime(ttrack, pts)
-					log.Printf("received data from track %T, pts = %v, ntp available = %v, ntp = %v\n", ttrack, pts, ntpAvailable, ntp)
+					log.Printf("received data from track %T, pts = %v, ntp available = %v, ntp = %v\n",
+						ttrack.Codec, pts, ntpAvailable, ntp)
 				})
 
 			case *codecs.MPEG4Audio:
 				c.OnDataMPEG4Audio(track, func(pts time.Duration, aus [][]byte) {
 					ntp, ntpAvailable := c.AbsoluteTime(ttrack, pts)
-					log.Printf("received data from track %T, pts = %v, ntp available = %v, ntp = %v\n", ttrack, pts, ntpAvailable, ntp)
+					log.Printf("received data from track %T, pts = %v, ntp available = %v, ntp = %v\n",
+						ttrack.Codec, pts, ntpAvailable, ntp)
 				})
 
 			case *codecs.Opus:
 				c.OnDataOpus(track, func(pts time.Duration, packets [][]byte) {
 					ntp, ntpAvailable := c.AbsoluteTime(ttrack, pts)
-					log.Printf("received data from track %T, pts = %v, ntp available = %v, ntp = %v\n", ttrack, pts, ntpAvailable, ntp)
+					log.Printf("received data from track %T, pts = %v, ntp available = %v, ntp = %v\n",
+						ttrack.Codec, pts, ntpAvailable, ntp)
 				})
 			}
 		}

@@ -35,6 +35,9 @@ type ClientOnDownloadStreamPlaylistFunc func(url string)
 // ClientOnDownloadSegmentFunc is the prototype of Client.OnDownloadSegment.
 type ClientOnDownloadSegmentFunc func(url string)
 
+// ClientOnDownloadPartFunc is the prototype of Client.OnDownloadPart.
+type ClientOnDownloadPartFunc func(url string)
+
 // ClientOnDecodeErrorFunc is the prototype of Client.OnDecodeError.
 type ClientOnDecodeErrorFunc func(err error)
 
@@ -88,6 +91,8 @@ type Client struct {
 	OnDownloadStreamPlaylist ClientOnDownloadStreamPlaylistFunc
 	// called before downloading a segment.
 	OnDownloadSegment ClientOnDownloadSegmentFunc
+	// called before downloading a part.
+	OnDownloadPart ClientOnDownloadPartFunc
 	// called when a non-fatal decode error occurs.
 	OnDecodeError ClientOnDecodeErrorFunc
 
@@ -128,6 +133,11 @@ func (c *Client) Start() error {
 	if c.OnDownloadSegment == nil {
 		c.OnDownloadSegment = func(u string) {
 			log.Printf("downloading segment %v", u)
+		}
+	}
+	if c.OnDownloadPart == nil {
+		c.OnDownloadPart = func(u string) {
+			log.Printf("downloading part %v", u)
 		}
 	}
 	if c.OnDecodeError == nil {
@@ -206,6 +216,7 @@ func (c *Client) runInner() error {
 		onDownloadPrimaryPlaylist: c.OnDownloadPrimaryPlaylist,
 		onDownloadStreamPlaylist:  c.OnDownloadStreamPlaylist,
 		onDownloadSegment:         c.OnDownloadSegment,
+		onDownloadPart:            c.OnDownloadPart,
 		onDecodeError:             c.OnDecodeError,
 		rp:                        rp,
 		onTracks:                  c.OnTracks,

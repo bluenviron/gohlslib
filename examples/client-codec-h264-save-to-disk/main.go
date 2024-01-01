@@ -26,7 +26,7 @@ func findH264Track(tracks []*gohlslib.Track) *gohlslib.Track {
 func main() {
 	// setup client
 	c := &gohlslib.Client{
-		URI: "https://myserver/mystream/index.m3u8",
+		URI: "http://myserver/mystream/index.m3u8",
 	}
 
 	// called when tracks are parsed

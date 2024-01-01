@@ -51,7 +51,7 @@ func saveToFile(img image.Image) error {
 func main() {
 	// setup client
 	c := &gohlslib.Client{
-		URI: "https://myserver/mystream/index.m3u8",
+		URI: "http://myserver/mystream/index.m3u8",
 	}
 
 	// called when tracks are parsed
