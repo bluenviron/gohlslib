@@ -41,6 +41,9 @@ Features:
 * [playlist-parser](examples/playlist-parser/main.go)
 * [client](examples/client/main.go)
 * [client-ntp-timestamp](examples/client-ntp-timestamp/main.go)
+* [client-codec-h264-save-to-disk](examples/client-codec-h264-save-to-disk/main.go)
+* [client-codec-h264-convert-to-jpeg](examples/client-codec-h264-convert-to-jpeg/main.go)
+* [client-codec-mpeg4audio-save-to-disk](examples/client-codec-mpeg4audio-save-to-disk/main.go)
 * [muxer](examples/muxer/main.go)
 
 ## API Documentation

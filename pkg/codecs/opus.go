@@ -5,5 +5,5 @@ type Opus struct {
 	ChannelCount int
 }
 
-func (Opus) isCodec() {
+func (*Opus) isCodec() {
 }

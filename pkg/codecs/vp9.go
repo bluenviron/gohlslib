@@ -10,5 +10,5 @@ type VP9 struct {
 	ColorRange        bool
 }
 
-func (VP9) isCodec() {
+func (*VP9) isCodec() {
 }
