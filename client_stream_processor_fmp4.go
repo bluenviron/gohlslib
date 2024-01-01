@@ -68,9 +68,19 @@ type clientStreamProcessorFMP4 struct {
 	chPartTrackProcessed chan struct{}
 }
 
-func (p *clientStreamProcessorFMP4) initialize() error {
+func (p *clientStreamProcessorFMP4) initialize() {
 	p.chPartTrackProcessed = make(chan struct{}, clientMaxTracksPerStream)
+}
 
+func (p *clientStreamProcessorFMP4) getIsLeading() bool {
+	return p.isLeading
+}
+
+func (p *clientStreamProcessorFMP4) getTracks() []*Track {
+	return p.tracks
+}
+
+func (p *clientStreamProcessorFMP4) run(ctx context.Context) error {
 	err := p.init.Unmarshal(bytes.NewReader(p.initFile))
 	if err != nil {
 		return err
@@ -94,18 +104,6 @@ func (p *clientStreamProcessorFMP4) initialize() error {
 		return fmt.Errorf("terminated")
 	}
 
-	return nil
-}
-
-func (p *clientStreamProcessorFMP4) getIsLeading() bool {
-	return p.isLeading
-}
-
-func (p *clientStreamProcessorFMP4) getTracks() []*Track {
-	return p.tracks
-}
-
-func (p *clientStreamProcessorFMP4) run(ctx context.Context) error {
 	for {
 		seg, ok := p.segmentQueue.pull(ctx)
 		if !ok {

@@ -34,9 +34,10 @@ type clientStreamDownloader struct {
 	httpClient               *http.Client
 	onDownloadStreamPlaylist ClientOnDownloadStreamPlaylistFunc
 	onDownloadSegment        ClientOnDownloadSegmentFunc
+	onDownloadPart           ClientOnDownloadPartFunc
 	onDecodeError            ClientOnDecodeErrorFunc
 	playlistURL              *url.URL
-	initialPlaylist          *playlist.Media
+	firstPlaylist            *playlist.Media
 	rp                       *clientRoutinePool
 	onStreamTracks           clientOnStreamTracksFunc
 	onStreamEnded            func(context.Context)
@@ -44,29 +45,28 @@ type clientStreamDownloader struct {
 	onGetLeadingTimeSync     func(context.Context) (clientTimeSync, bool)
 	onData                   map[*Track]interface{}
 
+	segmentQueue *clientSegmentQueue
 	curSegmentID *int
 }
 
 func (d *clientStreamDownloader) run(ctx context.Context) error {
-	initialPlaylist := d.initialPlaylist
-	d.initialPlaylist = nil
-	if initialPlaylist == nil {
+	if d.firstPlaylist == nil {
 		var err error
-		initialPlaylist, err = d.downloadPlaylist(ctx)
+		d.firstPlaylist, err = d.downloadPlaylist(ctx, false)
 		if err != nil {
 			return err
 		}
 	}
 
-	segmentQueue := &clientSegmentQueue{}
-	segmentQueue.initialize()
+	d.segmentQueue = &clientSegmentQueue{}
+	d.segmentQueue.initialize()
 
-	if initialPlaylist.Map != nil && initialPlaylist.Map.URI != "" {
+	if d.firstPlaylist.Map != nil && d.firstPlaylist.Map.URI != "" {
 		byts, err := d.downloadSegment(
 			ctx,
-			initialPlaylist.Map.URI,
-			initialPlaylist.Map.ByteRangeStart,
-			initialPlaylist.Map.ByteRangeLength)
+			d.firstPlaylist.Map.URI,
+			d.firstPlaylist.Map.ByteRangeStart,
+			d.firstPlaylist.Map.ByteRangeLength)
 		if err != nil {
 			return err
 		}
@@ -75,7 +75,7 @@ func (d *clientStreamDownloader) run(ctx context.Context) error {
 			ctx:                  ctx,
 			isLeading:            d.isLeading,
 			initFile:             byts,
-			segmentQueue:         segmentQueue,
+			segmentQueue:         d.segmentQueue,
 			rp:                   d.rp,
 			onStreamTracks:       d.onStreamTracks,
 			onStreamEnded:        d.onStreamEnded,
@@ -83,17 +83,13 @@ func (d *clientStreamDownloader) run(ctx context.Context) error {
 			onGetLeadingTimeSync: d.onGetLeadingTimeSync,
 			onData:               d.onData,
 		}
-		err = proc.initialize()
-		if err != nil {
-			return err
-		}
-
+		proc.initialize()
 		d.rp.add(proc)
 	} else {
 		proc := &clientStreamProcessorMPEGTS{
 			onDecodeError:        d.onDecodeError,
 			isLeading:            d.isLeading,
-			segmentQueue:         segmentQueue,
+			segmentQueue:         d.segmentQueue,
 			rp:                   d.rp,
 			onStreamTracks:       d.onStreamTracks,
 			onStreamEnded:        d.onStreamEnded,
@@ -105,33 +101,78 @@ func (d *clientStreamDownloader) run(ctx context.Context) error {
 		d.rp.add(proc)
 	}
 
-	err := d.fillSegmentQueue(ctx, initialPlaylist, segmentQueue)
-	if err != nil {
-		return err
+	if d.firstPlaylist.ServerControl != nil &&
+		d.firstPlaylist.ServerControl.CanBlockReload &&
+		d.firstPlaylist.PreloadHint != nil {
+		return d.runLowLatency(ctx)
 	}
 
-	for {
-		ok := segmentQueue.waitUntilSizeIsBelow(ctx, 1)
-		if !ok {
-			return fmt.Errorf("terminated")
-		}
+	return d.runTraditional(ctx)
+}
 
-		pl, err := d.downloadPlaylist(ctx)
+func (d *clientStreamDownloader) runLowLatency(ctx context.Context) error {
+	pl := d.firstPlaylist
+
+	for {
+		byts, err := d.downloadPreloadHint(ctx, pl.PreloadHint)
 		if err != nil {
 			return err
 		}
 
-		err = d.fillSegmentQueue(ctx, pl, segmentQueue)
+		d.segmentQueue.push(&segmentData{
+			// dateTime: seg.DateTime,
+			payload: byts,
+		})
+
+		pl, err = d.downloadPlaylist(ctx, d.firstPlaylist.ServerControl.CanSkipUntil != nil)
+		if err != nil {
+			return err
+		}
+
+		if pl.PreloadHint == nil {
+			return fmt.Errorf("preload hint disappeared")
+		}
+	}
+}
+
+func (d *clientStreamDownloader) runTraditional(ctx context.Context) error {
+	pl := d.firstPlaylist
+
+	for {
+		err := d.fillSegmentQueue(ctx, pl)
+		if err != nil {
+			return err
+		}
+
+		ok := d.segmentQueue.waitUntilSizeIsBelow(ctx, 1)
+		if !ok {
+			return fmt.Errorf("terminated")
+		}
+
+		pl, err = d.downloadPlaylist(ctx, false)
 		if err != nil {
 			return err
 		}
 	}
 }
 
-func (d *clientStreamDownloader) downloadPlaylist(ctx context.Context) (*playlist.Media, error) {
-	d.onDownloadStreamPlaylist(d.playlistURL.String())
+func (d *clientStreamDownloader) downloadPlaylist(
+	ctx context.Context,
+	skipUntil bool,
+) (*playlist.Media, error) {
+	ur := d.playlistURL
 
-	pl, err := clientDownloadPlaylist(ctx, d.httpClient, d.playlistURL)
+	if skipUntil {
+		newUR := cloneURL(ur)
+		q := newUR.Query()
+		q.Add("_HLS_skip", "YES")
+		newUR.RawQuery = q.Encode()
+		ur = newUR
+	}
+
+	d.onDownloadStreamPlaylist(ur.String())
+
+	pl, err := clientDownloadPlaylist(ctx, d.httpClient, ur)
 	if err != nil {
 		return nil, err
 	}
@@ -142,6 +183,46 @@ func (d *clientStreamDownloader) downloadPlaylist(ctx context.Context) (*playlis
 	}
 
 	return plt, nil
+}
+
+func (d *clientStreamDownloader) downloadPreloadHint(
+	ctx context.Context,
+	preloadHint *playlist.MediaPreloadHint,
+) ([]byte, error) {
+	u, err := clientAbsoluteURL(d.playlistURL, preloadHint.URI)
+	if err != nil {
+		return nil, err
+	}
+
+	d.onDownloadPart(u.String())
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if preloadHint.ByteRangeLength != nil {
+		req.Header.Add("Range", "bytes="+
+			strconv.FormatUint(preloadHint.ByteRangeStart, 10)+"-"+
+			strconv.FormatUint(preloadHint.ByteRangeStart+*preloadHint.ByteRangeLength-1, 10))
+	}
+
+	res, err := d.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusPartialContent {
+		return nil, fmt.Errorf("bad status code: %d", res.StatusCode)
+	}
+
+	byts, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return byts, nil
 }
 
 func (d *clientStreamDownloader) downloadSegment(
@@ -167,7 +248,8 @@ func (d *clientStreamDownloader) downloadSegment(
 			v := uint64(0)
 			start = &v
 		}
-		req.Header.Add("Range", "bytes="+strconv.FormatUint(*start, 10)+"-"+strconv.FormatUint(*start+*length-1, 10))
+		req.Header.Add("Range", "bytes="+strconv.FormatUint(*start, 10)+
+			"-"+strconv.FormatUint(*start+*length-1, 10))
 	}
 
 	res, err := d.httpClient.Do(req)
@@ -191,22 +273,24 @@ func (d *clientStreamDownloader) downloadSegment(
 func (d *clientStreamDownloader) fillSegmentQueue(
 	ctx context.Context,
 	pl *playlist.Media,
-	segmentQueue *clientSegmentQueue,
 ) error {
 	var seg *playlist.MediaSegment
 	var segPos int
 
 	if d.curSegmentID == nil {
-		if !pl.Endlist { // live stream: start from clientLiveInitialDistance
-			seg, segPos = findSegmentWithInvPosition(pl.Segments, clientLiveInitialDistance)
-			if seg == nil {
-				return fmt.Errorf("there aren't enough segments to fill the buffer")
-			}
-		} else { // VOD stream: start from beginning
+		if d.firstPlaylist.PlaylistType != nil &&
+			*d.firstPlaylist.PlaylistType == playlist.MediaPlaylistTypeVOD {
+			// VOD stream: start from the beginning
 			if len(pl.Segments) == 0 {
 				return fmt.Errorf("no segments found")
 			}
 			seg = pl.Segments[0]
+		} else {
+			// live stream: start from clientLiveInitialDistance
+			seg, segPos = findSegmentWithInvPosition(pl.Segments, clientLiveInitialDistance)
+			if seg == nil {
+				return fmt.Errorf("there aren't enough segments to fill the buffer")
+			}
 		}
 	} else {
 		var invPos int
@@ -228,13 +312,13 @@ func (d *clientStreamDownloader) fillSegmentQueue(
 		return err
 	}
 
-	segmentQueue.push(&segmentData{
+	d.segmentQueue.push(&segmentData{
 		dateTime: seg.DateTime,
 		payload:  byts,
 	})
 
 	if pl.Endlist && pl.Segments[len(pl.Segments)-1] == seg {
-		segmentQueue.push(nil)
+		d.segmentQueue.push(nil)
 		<-ctx.Done()
 		return fmt.Errorf("terminated")
 	}

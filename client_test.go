@@ -126,6 +126,7 @@ func TestClient(t *testing.T) {
 							"#EXT-X-ALLOW-CACHE:NO\n" +
 							"#EXT-X-TARGETDURATION:2\n" +
 							"#EXT-X-MEDIA-SEQUENCE:0\n" +
+							"#EXT-X-PLAYLIST-TYPE:VOD\n" +
 							"#EXT-X-PROGRAM-DATE-TIME:2015-02-05T01:02:02Z\n" +
 							"#EXTINF:2,\n" +
 							"segment1.ts?key=val\n" +
@@ -194,6 +195,7 @@ func TestClient(t *testing.T) {
 						ctx.Writer.Write([]byte("#EXTM3U\n" +
 							"#EXT-X-VERSION:7\n" +
 							"#EXT-X-MEDIA-SEQUENCE:20\n" +
+							"#EXT-X-PLAYLIST-TYPE:VOD\n" +
 							"#EXT-X-INDEPENDENT-SEGMENTS\n" +
 							"#EXT-X-TARGETDURATION:2\n" +
 							"#EXT-X-MAP:URI=\"init.mp4?key=val\"\n" +
@@ -313,16 +315,17 @@ func TestClient(t *testing.T) {
 					prefix = "https"
 				}
 
+				tr := &http.Transport{
+					TLSClientConfig: &tls.Config{
+						InsecureSkipVerify: true,
+					},
+				}
+				defer tr.CloseIdleConnections()
+
 				var c *Client
 				c = &Client{
-					URI: prefix + "://localhost:5780/stream.m3u8",
-					HTTPClient: &http.Client{
-						Transport: &http.Transport{
-							TLSClientConfig: &tls.Config{
-								InsecureSkipVerify: true,
-							},
-						},
-					},
+					URI:        prefix + "://localhost:5780/stream.m3u8",
+					HTTPClient: &http.Client{Transport: tr},
 					OnTracks: func(tracks []*Track) error {
 						var sps []byte
 						var pps []byte
@@ -430,6 +433,7 @@ func TestClientFMP4MultiRenditions(t *testing.T) {
 		ctx.Writer.Write([]byte("#EXTM3U\n" +
 			"#EXT-X-VERSION:7\n" +
 			"#EXT-X-MEDIA-SEQUENCE:20\n" +
+			"#EXT-X-PLAYLIST-TYPE:VOD\n" +
 			"#EXT-X-INDEPENDENT-SEGMENTS\n" +
 			"#EXT-X-TARGETDURATION:2\n" +
 			"#EXT-X-MAP:URI=\"init_video.mp4\"\n" +
@@ -443,6 +447,7 @@ func TestClientFMP4MultiRenditions(t *testing.T) {
 		ctx.Writer.Write([]byte("#EXTM3U\n" +
 			"#EXT-X-VERSION:7\n" +
 			"#EXT-X-MEDIA-SEQUENCE:20\n" +
+			"#EXT-X-PLAYLIST-TYPE:VOD\n" +
 			"#EXT-X-INDEPENDENT-SEGMENTS\n" +
 			"#EXT-X-TARGETDURATION:2\n" +
 			"#EXT-X-MAP:URI=\"init_audio.mp4\"\n" +
@@ -535,9 +540,13 @@ func TestClientFMP4MultiRenditions(t *testing.T) {
 	packetRecv := make(chan struct{}, 2)
 	tracksRecv := make(chan struct{}, 1)
 
+	tr := &http.Transport{}
+	defer tr.CloseIdleConnections()
+
 	var c *Client
 	c = &Client{
-		URI: "http://localhost:5780/index.m3u8",
+		URI:        "http://localhost:5780/index.m3u8",
+		HTTPClient: &http.Client{Transport: tr},
 		OnTracks: func(tracks []*Track) error {
 			close(tracksRecv)
 
@@ -585,8 +594,206 @@ func TestClientFMP4MultiRenditions(t *testing.T) {
 		<-packetRecv
 	}
 
+	<-c.Wait()
+	c.Close()
+}
+
+func TestClientFMP4LowLatency(t *testing.T) {
+	gin.SetMode(gin.ReleaseMode)
+	router := gin.New()
+
+	count := 0
+
+	router.GET("/stream.m3u8", func(ctx *gin.Context) {
+		ctx.Writer.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
+
+		switch count {
+		case 0:
+			require.Equal(t, "", ctx.Query("_HLS_skip"))
+
+			ctx.Writer.Write([]byte("#EXTM3U\n" +
+				"#EXT-X-VERSION:9\n" +
+				"#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=5.00000,CAN-SKIP-UNTIL=24.00000\n" +
+				"#EXT-X-MEDIA-SEQUENCE:20\n" +
+				"#EXT-X-TARGETDURATION:2\n" +
+				"#EXT-X-MAP:URI=\"init.mp4\"\n" +
+				"#EXTINF:2,\n" +
+				"segment.mp4\n" +
+				"#EXT-X-PRELOAD-HINT:TYPE=PART,URI=part1.mp4\n"))
+
+		case 1:
+			require.Equal(t, "YES", ctx.Query("_HLS_skip"))
+
+			ctx.Writer.Write([]byte("#EXTM3U\n" +
+				"#EXT-X-VERSION:9\n" +
+				"#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=5.00000,CAN-SKIP-UNTIL=24.00000\n" +
+				"#EXT-X-MEDIA-SEQUENCE:20\n" +
+				"#EXT-X-TARGETDURATION:2\n" +
+				"#EXT-X-MAP:URI=\"init.mp4\"\n" +
+				"#EXTINF:2,\n" +
+				"segment.mp4\n" +
+				"#EXT-X-PART:DURATION=1.00000,URI=\"part1.mp4\",INDEPENDENT=YES\n" +
+				"#EXT-X-PRELOAD-HINT:TYPE=PART,URI=part2.mp4\n"))
+
+		case 2:
+			require.Equal(t, "YES", ctx.Query("_HLS_skip"))
+
+			ctx.Writer.Write([]byte("#EXTM3U\n" +
+				"#EXT-X-VERSION:9\n" +
+				"#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=5.00000,CAN-SKIP-UNTIL=24.00000\n" +
+				"#EXT-X-MEDIA-SEQUENCE:20\n" +
+				"#EXT-X-TARGETDURATION:2\n" +
+				"#EXT-X-MAP:URI=\"init.mp4\"\n" +
+				"#EXTINF:2,\n" +
+				"segment.mp4\n" +
+				"#EXT-X-PART:DURATION=1.00000,URI=\"part1.mp4\",INDEPENDENT=YES\n" +
+				"#EXT-X-PART:DURATION=1.00000,URI=\"part2.mp4\"\n" +
+				"#EXT-X-PRELOAD-HINT:TYPE=PART,URI=part3.mp4\n"))
+		}
+		count++
+	})
+
+	router.GET("/init.mp4", func(ctx *gin.Context) {
+		ctx.Writer.Header().Set("Content-Type", `video/mp4`)
+
+		err := mp4ToWriter(&fmp4.Init{
+			Tracks: []*fmp4.InitTrack{
+				{
+					ID:        1,
+					TimeScale: 90000,
+					Codec: &fmp4.CodecH264{
+						SPS: testSPS,
+						PPS: testPPS,
+					},
+				},
+			},
+		}, ctx.Writer)
+		require.NoError(t, err)
+	})
+
+	router.GET("/part1.mp4", func(ctx *gin.Context) {
+		ctx.Writer.Header().Set("Content-Type", `video/mp4`)
+		err := mp4ToWriter(&fmp4.Part{
+			Tracks: []*fmp4.PartTrack{
+				{
+					ID: 1,
+					Samples: []*fmp4.PartSample{
+						{
+							Duration: 90000 / 30,
+							Payload: mustMarshalAVCC([][]byte{
+								{7, 1, 2, 3}, // SPS
+								{8},          // PPS
+								{5},          // IDR
+							}),
+						},
+						{
+							Duration: 90000 / 30,
+							Payload: mustMarshalAVCC([][]byte{
+								{1, 4, 5, 6},
+							}),
+						},
+					},
+				},
+			},
+		}, ctx.Writer)
+		require.NoError(t, err)
+	})
+
+	router.GET("/part2.mp4", func(ctx *gin.Context) {
+		ctx.Writer.Header().Set("Content-Type", `video/mp4`)
+		err := mp4ToWriter(&fmp4.Part{
+			Tracks: []*fmp4.PartTrack{
+				{
+					ID:       1,
+					BaseTime: (90000 / 30) * 2,
+					Samples: []*fmp4.PartSample{{
+						Duration: 90000 / 30,
+						Payload: mustMarshalAVCC([][]byte{
+							{1, 7, 8, 9},
+						}),
+					}},
+				},
+			},
+		}, ctx.Writer)
+		require.NoError(t, err)
+	})
+
+	closeRequest := make(chan struct{})
+
+	router.GET("/part3.mp4", func(ctx *gin.Context) {
+		<-closeRequest
+	})
+
+	ln, err := net.Listen("tcp", "localhost:5780")
+	require.NoError(t, err)
+
+	s := &http.Server{Handler: router}
+	go s.Serve(ln)
+	defer s.Shutdown(context.Background())
+
+	packetRecv := make(chan struct{})
+	recvCount := 0
+
+	tr := &http.Transport{}
+	defer tr.CloseIdleConnections()
+
+	var c *Client
+	c = &Client{
+		URI:        "http://localhost:5780/stream.m3u8",
+		HTTPClient: &http.Client{Transport: tr},
+		OnTracks: func(tracks []*Track) error {
+			require.Equal(t, []*Track{
+				{
+					Codec: &codecs.H264{
+						SPS: testSPS,
+						PPS: testPPS,
+					},
+				},
+			}, tracks)
+
+			c.OnDataH26x(tracks[0], func(pts time.Duration, dts time.Duration, au [][]byte) {
+				switch recvCount {
+				case 0:
+					require.Equal(t, 0*time.Second, pts)
+					require.Equal(t, time.Duration(0), dts)
+					require.Equal(t, [][]byte{
+						{7, 1, 2, 3},
+						{8},
+						{5},
+					}, au)
+
+				case 1:
+					require.Equal(t, 33333333*time.Nanosecond, pts)
+					require.Equal(t, 33333333*time.Nanosecond, dts)
+					require.Equal(t, [][]byte{{1, 4, 5, 6}}, au)
+
+				case 2:
+					require.Equal(t, 66666666*time.Nanosecond, pts)
+					require.Equal(t, 66666666*time.Nanosecond, dts)
+					require.Equal(t, [][]byte{{1, 7, 8, 9}}, au)
+
+				default:
+					t.Errorf("should not happen")
+				}
+				recvCount++
+				packetRecv <- struct{}{}
+			})
+
+			return nil
+		},
+	}
+
+	err = c.Start()
+	require.NoError(t, err)
+
+	for i := 0; i < 3; i++ {
+		<-packetRecv
+	}
+
 	c.Close()
 	<-c.Wait()
+
+	close(closeRequest)
 }
 
 func TestClientErrorInvalidSequenceID(t *testing.T) {
@@ -653,8 +860,12 @@ func TestClientErrorInvalidSequenceID(t *testing.T) {
 	go s.Serve(ln)
 	defer s.Shutdown(context.Background())
 
+	tr := &http.Transport{}
+	defer tr.CloseIdleConnections()
+
 	c := &Client{
-		URI: "http://localhost:5780/stream.m3u8",
+		URI:        "http://localhost:5780/stream.m3u8",
+		HTTPClient: &http.Client{Transport: tr},
 	}
 	require.NoError(t, err)
 
