@@ -7,6 +7,7 @@ package gohlslib
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -21,6 +22,9 @@ const (
 	clientLiveMaxDistanceFromEnd = 5
 	clientMaxDTSRTCDiff          = 10 * time.Second
 )
+
+// ErrClientEOS is returned by Wait() when the stream has ended.
+var ErrClientEOS = errors.New("end of stream")
 
 // ClientOnDownloadPrimaryPlaylistFunc is the prototype of Client.OnDownloadPrimaryPlaylist.
 type ClientOnDownloadPrimaryPlaylistFunc func(url string)

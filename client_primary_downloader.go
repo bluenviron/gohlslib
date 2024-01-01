@@ -113,6 +113,7 @@ type clientPrimaryDownloader struct {
 
 	// in
 	chStreamTracks chan clientStreamProcessor
+	chStreamEnded  chan struct{}
 
 	// out
 	startStreaming       chan struct{}
@@ -122,6 +123,7 @@ type clientPrimaryDownloader struct {
 func (d *clientPrimaryDownloader) initialize() {
 	d.streamProcByTrack = make(map[*Track]clientStreamProcessor)
 	d.chStreamTracks = make(chan clientStreamProcessor)
+	d.chStreamEnded = make(chan struct{})
 	d.startStreaming = make(chan struct{})
 	d.leadingTimeSyncReady = make(chan struct{})
 }
@@ -148,6 +150,7 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 			initialPlaylist:          plt,
 			rp:                       d.rp,
 			onStreamTracks:           d.onStreamTracks,
+			onStreamEnded:            d.onStreamEnded,
 			onSetLeadingTimeSync:     d.onSetLeadingTimeSync,
 			onGetLeadingTimeSync:     d.onGetLeadingTimeSync,
 			onData:                   d.onData,
@@ -176,6 +179,7 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 			initialPlaylist:          nil,
 			rp:                       d.rp,
 			onStreamTracks:           d.onStreamTracks,
+			onStreamEnded:            d.onStreamEnded,
 			onSetLeadingTimeSync:     d.onSetLeadingTimeSync,
 			onGetLeadingTimeSync:     d.onGetLeadingTimeSync,
 			onData:                   d.onData,
@@ -208,6 +212,7 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 					onSetLeadingTimeSync:     d.onSetLeadingTimeSync,
 					onGetLeadingTimeSync:     d.onGetLeadingTimeSync,
 					onData:                   d.onData,
+					onStreamEnded:            d.onStreamEnded,
 				}
 				d.rp.add(ds)
 				streamCount++
@@ -251,7 +256,15 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 
 	close(d.startStreaming)
 
-	return nil
+	for i := 0; i < streamCount; i++ {
+		select {
+		case <-d.chStreamEnded:
+		case <-ctx.Done():
+			return fmt.Errorf("terminated")
+		}
+	}
+
+	return ErrClientEOS
 }
 
 func (d *clientPrimaryDownloader) onStreamTracks(ctx context.Context, streamProc clientStreamProcessor) bool {
@@ -268,6 +281,13 @@ func (d *clientPrimaryDownloader) onStreamTracks(ctx context.Context, streamProc
 	}
 
 	return true
+}
+
+func (d *clientPrimaryDownloader) onStreamEnded(ctx context.Context) {
+	select {
+	case d.chStreamEnded <- struct{}{}:
+	case <-ctx.Done():
+	}
 }
 
 func (d *clientPrimaryDownloader) onSetLeadingTimeSync(ts clientTimeSync) {

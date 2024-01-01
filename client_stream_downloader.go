@@ -39,6 +39,7 @@ type clientStreamDownloader struct {
 	initialPlaylist          *playlist.Media
 	rp                       *clientRoutinePool
 	onStreamTracks           clientOnStreamTracksFunc
+	onStreamEnded            func(context.Context)
 	onSetLeadingTimeSync     func(clientTimeSync)
 	onGetLeadingTimeSync     func(context.Context) (clientTimeSync, bool)
 	onData                   map[*Track]interface{}
@@ -77,6 +78,7 @@ func (d *clientStreamDownloader) run(ctx context.Context) error {
 			segmentQueue:         segmentQueue,
 			rp:                   d.rp,
 			onStreamTracks:       d.onStreamTracks,
+			onStreamEnded:        d.onStreamEnded,
 			onSetLeadingTimeSync: d.onSetLeadingTimeSync,
 			onGetLeadingTimeSync: d.onGetLeadingTimeSync,
 			onData:               d.onData,
@@ -94,6 +96,7 @@ func (d *clientStreamDownloader) run(ctx context.Context) error {
 			segmentQueue:         segmentQueue,
 			rp:                   d.rp,
 			onStreamTracks:       d.onStreamTracks,
+			onStreamEnded:        d.onStreamEnded,
 			onSetLeadingTimeSync: d.onSetLeadingTimeSync,
 			onGetLeadingTimeSync: d.onGetLeadingTimeSync,
 			onData:               d.onData,
@@ -231,8 +234,9 @@ func (d *clientStreamDownloader) fillSegmentQueue(
 	})
 
 	if pl.Endlist && pl.Segments[len(pl.Segments)-1] == seg {
+		segmentQueue.push(nil)
 		<-ctx.Done()
-		return fmt.Errorf("stream has ended")
+		return fmt.Errorf("terminated")
 	}
 
 	return nil
