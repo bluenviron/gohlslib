@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/bluenviron/gohlslib/pkg/playlist"
 )
@@ -27,6 +28,25 @@ func findSegmentWithID(seqNo int, segments []*playlist.MediaSegment, id int) (*p
 	}
 
 	return segments[index], index, len(segments) - index
+}
+
+func dateTimeOfPreloadHint(pl *playlist.Media) *time.Time {
+	if len(pl.Segments) == 0 {
+		return nil
+	}
+
+	lastSeg := pl.Segments[len(pl.Segments)-1]
+	if lastSeg.DateTime == nil {
+		return nil
+	}
+
+	d := lastSeg.DateTime.Add(lastSeg.Duration)
+
+	for _, part := range pl.Parts {
+		d = d.Add(part.Duration)
+	}
+
+	return &d
 }
 
 type clientStreamDownloader struct {
@@ -120,8 +140,8 @@ func (d *clientStreamDownloader) runLowLatency(ctx context.Context) error {
 		}
 
 		d.segmentQueue.push(&segmentData{
-			// dateTime: seg.DateTime,
-			payload: byts,
+			dateTime: dateTimeOfPreloadHint(pl),
+			payload:  byts,
 		})
 
 		pl, err = d.downloadPlaylist(ctx, d.firstPlaylist.ServerControl.CanSkipUntil != nil)
@@ -202,9 +222,8 @@ func (d *clientStreamDownloader) downloadPreloadHint(
 	}
 
 	if preloadHint.ByteRangeLength != nil {
-		req.Header.Add("Range", "bytes="+
-			strconv.FormatUint(preloadHint.ByteRangeStart, 10)+"-"+
-			strconv.FormatUint(preloadHint.ByteRangeStart+*preloadHint.ByteRangeLength-1, 10))
+		req.Header.Add("Range", "bytes="+strconv.FormatUint(preloadHint.ByteRangeStart, 10)+
+			"-"+strconv.FormatUint(preloadHint.ByteRangeStart+*preloadHint.ByteRangeLength-1, 10))
 	}
 
 	res, err := d.httpClient.Do(req)

@@ -610,44 +610,44 @@ func TestClientFMP4LowLatency(t *testing.T) {
 		switch count {
 		case 0:
 			require.Equal(t, "", ctx.Query("_HLS_skip"))
-
 			ctx.Writer.Write([]byte("#EXTM3U\n" +
 				"#EXT-X-VERSION:9\n" +
 				"#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=5.00000,CAN-SKIP-UNTIL=24.00000\n" +
 				"#EXT-X-MEDIA-SEQUENCE:20\n" +
 				"#EXT-X-TARGETDURATION:2\n" +
 				"#EXT-X-MAP:URI=\"init.mp4\"\n" +
+				"#EXT-X-PROGRAM-DATE-TIME:2015-02-05T01:02:02Z\n" +
 				"#EXTINF:2,\n" +
 				"segment.mp4\n" +
 				"#EXT-X-PRELOAD-HINT:TYPE=PART,URI=part1.mp4\n"))
 
 		case 1:
 			require.Equal(t, "YES", ctx.Query("_HLS_skip"))
-
 			ctx.Writer.Write([]byte("#EXTM3U\n" +
 				"#EXT-X-VERSION:9\n" +
 				"#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=5.00000,CAN-SKIP-UNTIL=24.00000\n" +
 				"#EXT-X-MEDIA-SEQUENCE:20\n" +
 				"#EXT-X-TARGETDURATION:2\n" +
 				"#EXT-X-MAP:URI=\"init.mp4\"\n" +
+				"#EXT-X-PROGRAM-DATE-TIME:2015-02-05T01:02:02Z\n" +
 				"#EXTINF:2,\n" +
 				"segment.mp4\n" +
-				"#EXT-X-PART:DURATION=1.00000,URI=\"part1.mp4\",INDEPENDENT=YES\n" +
+				"#EXT-X-PART:DURATION=0.066666666,URI=\"part1.mp4\",INDEPENDENT=YES\n" +
 				"#EXT-X-PRELOAD-HINT:TYPE=PART,URI=part2.mp4\n"))
 
 		case 2:
 			require.Equal(t, "YES", ctx.Query("_HLS_skip"))
-
 			ctx.Writer.Write([]byte("#EXTM3U\n" +
 				"#EXT-X-VERSION:9\n" +
 				"#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=5.00000,CAN-SKIP-UNTIL=24.00000\n" +
 				"#EXT-X-MEDIA-SEQUENCE:20\n" +
 				"#EXT-X-TARGETDURATION:2\n" +
 				"#EXT-X-MAP:URI=\"init.mp4\"\n" +
+				"#EXT-X-PROGRAM-DATE-TIME:2015-02-05T01:02:02Z\n" +
 				"#EXTINF:2,\n" +
 				"segment.mp4\n" +
-				"#EXT-X-PART:DURATION=1.00000,URI=\"part1.mp4\",INDEPENDENT=YES\n" +
-				"#EXT-X-PART:DURATION=1.00000,URI=\"part2.mp4\"\n" +
+				"#EXT-X-PART:DURATION=0.066666666,URI=\"part1.mp4\",INDEPENDENT=YES\n" +
+				"#EXT-X-PART:DURATION=0.033333333,URI=\"part2.mp4\"\n" +
 				"#EXT-X-PRELOAD-HINT:TYPE=PART,URI=part3.mp4\n"))
 		}
 		count++
@@ -754,6 +754,9 @@ func TestClientFMP4LowLatency(t *testing.T) {
 			c.OnDataH26x(tracks[0], func(pts time.Duration, dts time.Duration, au [][]byte) {
 				switch recvCount {
 				case 0:
+					ntp, ok := c.AbsoluteTime(tracks[0], dts)
+					require.Equal(t, true, ok)
+					require.Equal(t, time.Date(2015, time.February, 5, 1, 2, 4, 0, time.UTC), ntp)
 					require.Equal(t, 0*time.Second, pts)
 					require.Equal(t, time.Duration(0), dts)
 					require.Equal(t, [][]byte{
@@ -763,11 +766,17 @@ func TestClientFMP4LowLatency(t *testing.T) {
 					}, au)
 
 				case 1:
+					ntp, ok := c.AbsoluteTime(tracks[0], dts)
+					require.Equal(t, true, ok)
+					require.Equal(t, time.Date(2015, time.February, 5, 1, 2, 4, 33333333, time.UTC), ntp)
 					require.Equal(t, 33333333*time.Nanosecond, pts)
 					require.Equal(t, 33333333*time.Nanosecond, dts)
 					require.Equal(t, [][]byte{{1, 4, 5, 6}}, au)
 
 				case 2:
+					ntp, ok := c.AbsoluteTime(tracks[0], dts)
+					require.Equal(t, true, ok)
+					require.Equal(t, time.Date(2015, time.February, 5, 1, 2, 4, 66666666, time.UTC), ntp)
 					require.Equal(t, 66666666*time.Nanosecond, pts)
 					require.Equal(t, 66666666*time.Nanosecond, dts)
 					require.Equal(t, [][]byte{{1, 7, 8, 9}}, au)
