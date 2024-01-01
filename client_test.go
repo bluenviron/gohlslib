@@ -358,14 +358,14 @@ func TestClient(t *testing.T) {
 									{8},
 									{5},
 								}, au)
-								ntp, ok := c.NTP(tracks[0], dts)
+								ntp, ok := c.AbsoluteTime(tracks[0], dts)
 								require.Equal(t, true, ok)
 								require.Equal(t, time.Date(2015, time.February, 5, 1, 2, 2, 0, time.UTC), ntp)
 							} else {
 								require.Equal(t, 33333333*time.Nanosecond, dts)
 								require.Equal(t, 2*time.Second+33333333*time.Nanosecond, pts)
 								require.Equal(t, [][]byte{{1, 4, 5, 6}}, au)
-								ntp, ok := c.NTP(tracks[0], dts)
+								ntp, ok := c.AbsoluteTime(tracks[0], dts)
 								require.Equal(t, true, ok)
 								require.Equal(t, time.Date(2015, time.February, 5, 1, 2, 2, 33333333, time.UTC), ntp)
 							}
@@ -377,13 +377,13 @@ func TestClient(t *testing.T) {
 							if audioCount == 0 {
 								require.Equal(t, 0*time.Second, pts)
 								require.Equal(t, [][]byte{{1, 2, 3, 4}}, aus)
-								ntp, ok := c.NTP(tracks[1], pts)
+								ntp, ok := c.AbsoluteTime(tracks[1], pts)
 								require.Equal(t, true, ok)
 								require.Equal(t, time.Date(2015, time.February, 5, 1, 2, 2, 0, time.UTC), ntp)
 							} else {
 								require.Equal(t, 33333333*time.Nanosecond, pts)
 								require.Equal(t, [][]byte{{5, 6, 7, 8}}, aus)
-								ntp, ok := c.NTP(tracks[1], pts)
+								ntp, ok := c.AbsoluteTime(tracks[1], pts)
 								require.Equal(t, true, ok)
 								require.Equal(t, time.Date(2015, time.February, 5, 1, 2, 2, 33333333, time.UTC), ntp)
 							}
