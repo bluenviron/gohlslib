@@ -403,8 +403,10 @@ func TestClient(t *testing.T) {
 				<-audioRecv
 				<-audioRecv
 
+				err = <-c.Wait()
+				require.Equal(t, ErrClientEOS, err)
+
 				c.Close()
-				<-c.Wait()
 			})
 		}
 	}

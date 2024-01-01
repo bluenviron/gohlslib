@@ -40,6 +40,7 @@ type clientStreamProcessorMPEGTS struct {
 	segmentQueue         *clientSegmentQueue
 	rp                   *clientRoutinePool
 	onStreamTracks       clientOnStreamTracksFunc
+	onStreamEnded        func(context.Context)
 	onSetLeadingTimeSync func(clientTimeSync)
 	onGetLeadingTimeSync func(context.Context) (clientTimeSync, bool)
 	onData               map[*Track]interface{}
@@ -85,6 +86,12 @@ func (p *clientStreamProcessorMPEGTS) run(ctx context.Context) error {
 }
 
 func (p *clientStreamProcessorMPEGTS) processSegment(ctx context.Context, seg *segmentData) error {
+	if seg == nil {
+		p.onStreamEnded(ctx)
+		<-ctx.Done()
+		return fmt.Errorf("terminated")
+	}
+
 	if p.switchableReader == nil {
 		err := p.initializeReader(ctx, seg.payload)
 		if err != nil {
