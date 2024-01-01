@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/bluenviron/gohlslib/pkg/playlist"
 )
@@ -107,7 +108,8 @@ type clientPrimaryDownloader struct {
 	onTracks                  ClientOnTracksFunc
 	onData                    map[*Track]interface{}
 
-	leadingTimeSync clientTimeSync
+	streamProcByTrack map[*Track]clientStreamProcessor
+	leadingTimeSync   clientTimeSync
 
 	// in
 	chStreamTracks chan clientStreamProcessor
@@ -118,6 +120,7 @@ type clientPrimaryDownloader struct {
 }
 
 func (d *clientPrimaryDownloader) initialize() {
+	d.streamProcByTrack = make(map[*Track]clientStreamProcessor)
 	d.chStreamTracks = make(chan clientStreamProcessor)
 	d.startStreaming = make(chan struct{})
 	d.leadingTimeSyncReady = make(chan struct{})
@@ -227,6 +230,11 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 			} else {
 				tracks = append(tracks, streamProc.getTracks()...)
 			}
+
+			for _, track := range streamProc.getTracks() {
+				d.streamProcByTrack[track] = streamProc
+			}
+
 		case <-ctx.Done():
 			return fmt.Errorf("terminated")
 		}
@@ -274,4 +282,8 @@ func (d *clientPrimaryDownloader) onGetLeadingTimeSync(ctx context.Context) (cli
 		return nil, false
 	}
 	return d.leadingTimeSync, true
+}
+
+func (d *clientPrimaryDownloader) ntp(track *Track, dts time.Duration) (time.Time, bool) {
+	return d.streamProcByTrack[track].ntp(dts)
 }

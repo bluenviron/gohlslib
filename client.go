@@ -15,12 +15,11 @@ import (
 )
 
 const (
-	clientMPEGTSSampleQueueSize       = 100
-	clientFMP4PartTrackQueueSize      = 10
-	clientFMP4MaxPartTracksPerSegment = 200
-	clientLiveInitialDistance         = 3
-	clientLiveMaxDistanceFromEnd      = 5
-	clientMaxDTSRTCDiff               = 10 * time.Second
+	clientMaxTracksPerStream     = 10
+	clientMPEGTSSampleQueueSize  = 100
+	clientLiveInitialDistance    = 3
+	clientLiveMaxDistanceFromEnd = 5
+	clientMaxDTSRTCDiff          = 10 * time.Second
 )
 
 // ClientOnDownloadPrimaryPlaylistFunc is the prototype of Client.OnDownloadPrimaryPlaylist.
@@ -92,10 +91,11 @@ type Client struct {
 	// private
 	//
 
-	ctx         context.Context
-	ctxCancel   func()
-	onData      map[*Track]interface{}
-	playlistURL *url.URL
+	ctx               context.Context
+	ctxCancel         func()
+	onData            map[*Track]interface{}
+	playlistURL       *url.URL
+	primaryDownloader *clientPrimaryDownloader
 
 	// out
 	outErr chan error
@@ -159,28 +159,33 @@ func (c *Client) Wait() chan error {
 }
 
 // OnDataAV1 sets a callback that is called when data from an AV1 track is received.
-func (c *Client) OnDataAV1(forma *Track, cb ClientOnDataAV1Func) {
-	c.onData[forma] = cb
+func (c *Client) OnDataAV1(track *Track, cb ClientOnDataAV1Func) {
+	c.onData[track] = cb
 }
 
 // OnDataVP9 sets a callback that is called when data from a VP9 track is received.
-func (c *Client) OnDataVP9(forma *Track, cb ClientOnDataVP9Func) {
-	c.onData[forma] = cb
+func (c *Client) OnDataVP9(track *Track, cb ClientOnDataVP9Func) {
+	c.onData[track] = cb
 }
 
 // OnDataH26x sets a callback that is called when data from an H26x track is received.
-func (c *Client) OnDataH26x(forma *Track, cb ClientOnDataH26xFunc) {
-	c.onData[forma] = cb
+func (c *Client) OnDataH26x(track *Track, cb ClientOnDataH26xFunc) {
+	c.onData[track] = cb
 }
 
 // OnDataMPEG4Audio sets a callback that is called when data from a MPEG-4 Audio track is received.
-func (c *Client) OnDataMPEG4Audio(forma *Track, cb ClientOnDataMPEG4AudioFunc) {
-	c.onData[forma] = cb
+func (c *Client) OnDataMPEG4Audio(track *Track, cb ClientOnDataMPEG4AudioFunc) {
+	c.onData[track] = cb
 }
 
 // OnDataOpus sets a callback that is called when data from an Opus track is received.
-func (c *Client) OnDataOpus(forma *Track, cb ClientOnDataOpusFunc) {
-	c.onData[forma] = cb
+func (c *Client) OnDataOpus(track *Track, cb ClientOnDataOpusFunc) {
+	c.onData[track] = cb
+}
+
+// NTP returns the NTP timestamp (absolute timestamp) of a packet with given track and DTS.
+func (c *Client) NTP(track *Track, dts time.Duration) (time.Time, bool) {
+	return c.primaryDownloader.ntp(track, dts)
 }
 
 func (c *Client) run() {
@@ -191,7 +196,7 @@ func (c *Client) runInner() error {
 	rp := &clientRoutinePool{}
 	rp.initialize()
 
-	dl := &clientPrimaryDownloader{
+	c.primaryDownloader = &clientPrimaryDownloader{
 		primaryPlaylistURL:        c.playlistURL,
 		httpClient:                c.HTTPClient,
 		onDownloadPrimaryPlaylist: c.OnDownloadPrimaryPlaylist,
@@ -202,8 +207,8 @@ func (c *Client) runInner() error {
 		onTracks:                  c.OnTracks,
 		onData:                    c.onData,
 	}
-	dl.initialize()
-	rp.add(dl)
+	c.primaryDownloader.initialize()
+	rp.add(c.primaryDownloader)
 
 	select {
 	case err := <-rp.errorChan():

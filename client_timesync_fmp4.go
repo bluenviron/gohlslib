@@ -21,8 +21,8 @@ func durationMp4ToGo(v uint64, timeScale uint32) time.Duration {
 }
 
 type clientTimeSyncFMP4 struct {
-	timeScale uint32
-	baseTime  uint64
+	leadingTimeScale uint32
+	initialBaseTime  uint64
 
 	startRTC time.Time
 	startDTS time.Duration
@@ -30,7 +30,11 @@ type clientTimeSyncFMP4 struct {
 
 func (ts *clientTimeSyncFMP4) initialize() {
 	ts.startRTC = time.Now()
-	ts.startDTS = durationMp4ToGo(ts.baseTime, ts.timeScale)
+	ts.startDTS = durationMp4ToGo(ts.initialBaseTime, ts.leadingTimeScale)
+}
+
+func (ts *clientTimeSyncFMP4) convert(v uint64, timeScale uint32) time.Duration {
+	return durationMp4ToGo(v, timeScale) - ts.startDTS
 }
 
 func (ts *clientTimeSyncFMP4) convertAndSync(
@@ -39,11 +43,8 @@ func (ts *clientTimeSyncFMP4) convertAndSync(
 	rawDTS uint64,
 	ptsOffset int32,
 ) (time.Duration, time.Duration, error) {
-	pts := durationMp4ToGo(rawDTS+uint64(ptsOffset), timeScale)
-	dts := durationMp4ToGo(rawDTS, timeScale)
-
-	pts -= ts.startDTS
-	dts -= ts.startDTS
+	pts := ts.convert(rawDTS+uint64(ptsOffset), timeScale)
+	dts := ts.convert(rawDTS, timeScale)
 
 	elapsed := time.Since(ts.startRTC)
 	if dts > elapsed {

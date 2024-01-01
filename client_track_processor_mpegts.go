@@ -15,9 +15,10 @@ type mpegtsSample struct {
 }
 
 type clientTrackProcessorMPEGTS struct {
-	track    *Track
-	onData   interface{}
-	timeSync *clientTimeSyncMPEGTS
+	track               *Track
+	onData              interface{}
+	timeSync            *clientTimeSyncMPEGTS
+	onPartProcessorDone func(ctx context.Context)
 
 	postProcess func(pts time.Duration, dts time.Duration, data [][]byte)
 
@@ -66,6 +67,11 @@ func (t *clientTrackProcessorMPEGTS) run(ctx context.Context) error {
 }
 
 func (t *clientTrackProcessorMPEGTS) process(ctx context.Context, sample *mpegtsSample) error {
+	if sample == nil {
+		t.onPartProcessorDone(ctx)
+		return nil
+	}
+
 	pts, dts, err := t.timeSync.convertAndSync(ctx, sample.pts, sample.dts)
 	if err != nil {
 		return err

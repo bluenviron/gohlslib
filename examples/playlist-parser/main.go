@@ -11,7 +11,7 @@ import (
 // This example shows how to download and parse a HLS playlist.
 
 func main() {
-	// connect to the HTTP server of the playlist
+	// connect to the HTTP server that provides the playlist
 	req, err := http.Get("http://amssamples.streaming.mediaservices.windows.net/91492735-c523-432b-ba01-faba6c2206a2/AzureMediaServicesPromo.ism/manifest(format=m3u8-aapl)")
 	if err != nil {
 		panic(err)
