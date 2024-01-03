@@ -254,7 +254,7 @@ func (m *muxerSegmenterFMP4) writeH26x(
 	var err error
 	dts, err = m.videoDTSExtractor.Extract(au, pts)
 	if err != nil {
-		return fmt.Errorf("unable to extract DTS: %v", err)
+		return fmt.Errorf("unable to extract DTS: %w", err)
 	}
 
 	ps, err := fmp4.NewPartSampleH26x(
