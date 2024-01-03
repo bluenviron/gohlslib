@@ -82,7 +82,7 @@ func (m *Multivariant) Unmarshal(buf []byte) error {
 			var v MultivariantVariant
 			err = v.unmarshal(line)
 			if err != nil {
-				return fmt.Errorf("invalid variant: %s", err)
+				return fmt.Errorf("invalid variant: %w", err)
 			}
 
 			m.Variants = append(m.Variants, &v)
@@ -93,7 +93,7 @@ func (m *Multivariant) Unmarshal(buf []byte) error {
 			var r MultivariantRendition
 			err = r.unmarshal(line)
 			if err != nil {
-				return fmt.Errorf("invalid rendition: %s", err)
+				return fmt.Errorf("invalid rendition: %w", err)
 			}
 
 			m.Renditions = append(m.Renditions, &r)

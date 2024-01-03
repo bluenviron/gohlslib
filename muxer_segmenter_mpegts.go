@@ -117,7 +117,7 @@ func (m *muxerSegmenterMPEGTS) writeH26x(
 		var err error
 		dts, err = m.videoDTSExtractor.Extract(au, pts)
 		if err != nil {
-			return fmt.Errorf("unable to extract DTS: %v", err)
+			return fmt.Errorf("unable to extract DTS: %w", err)
 		}
 
 		// create first segment
@@ -140,7 +140,7 @@ func (m *muxerSegmenterMPEGTS) writeH26x(
 		var err error
 		dts, err = m.videoDTSExtractor.Extract(au, pts)
 		if err != nil {
-			return fmt.Errorf("unable to extract DTS: %v", err)
+			return fmt.Errorf("unable to extract DTS: %w", err)
 		}
 
 		// switch segment

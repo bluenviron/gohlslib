@@ -3,6 +3,7 @@ package gohlslib
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -107,7 +108,7 @@ func (p *clientStreamProcessorMPEGTS) processSegment(ctx context.Context, seg *s
 	for {
 		err := p.reader.Read()
 		if err != nil {
-			if err == astits.ErrNoMorePackets {
+			if errors.Is(err, astits.ErrNoMorePackets) {
 				break
 			}
 			return err
