@@ -197,7 +197,7 @@ func TestMuxerVideoAudio(t *testing.T) {
 					"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 					"\n"+
 					"#EXT-X-STREAM-INF:BANDWIDTH=4512,AVERAGE-BANDWIDTH=3008,"+
-					"CODECS=\"avc1.42c028,mp4a.40.2\",RESOLUTION=1920x1084,FRAME-RATE=30.000\n"+
+					"CODECS=\"avc1.42c028,mp4a.40.2\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
 					"stream.m3u8\n", string(byts))
 
 			case "fmp4":
@@ -206,7 +206,7 @@ func TestMuxerVideoAudio(t *testing.T) {
 					"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 					"\n"+
 					"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=558,"+
-					"CODECS=\"avc1.42c028,mp4a.40.2\",RESOLUTION=1920x1084,FRAME-RATE=30.000\n"+
+					"CODECS=\"avc1.42c028,mp4a.40.2\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
 					"stream.m3u8\n", string(byts))
 
 			case "lowLatency":
@@ -215,7 +215,7 @@ func TestMuxerVideoAudio(t *testing.T) {
 					"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 					"\n"+
 					"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=705,"+
-					"CODECS=\"avc1.42c028,mp4a.40.2\",RESOLUTION=1920x1084,FRAME-RATE=30.000\n"+
+					"CODECS=\"avc1.42c028,mp4a.40.2\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
 					"stream.m3u8\n", string(byts))
 			}
 
@@ -388,7 +388,7 @@ func TestMuxerVideoOnly(t *testing.T) {
 					"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 					"\n"+
 					"#EXT-X-STREAM-INF:BANDWIDTH=4512,AVERAGE-BANDWIDTH=1804,"+
-					"CODECS=\"avc1.42c028\",RESOLUTION=1920x1084,FRAME-RATE=30.000\n"+
+					"CODECS=\"avc1.42c028\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
 					"stream.m3u8\n", string(byts))
 			} else {
 				require.Equal(t, "#EXTM3U\n"+
@@ -396,7 +396,7 @@ func TestMuxerVideoOnly(t *testing.T) {
 					"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 					"\n"+
 					"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=403,"+
-					"CODECS=\"avc1.42c028\",RESOLUTION=1920x1084,FRAME-RATE=30.000\n"+
+					"CODECS=\"avc1.42c028\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
 					"stream.m3u8\n", string(byts))
 			}
 
@@ -785,7 +785,7 @@ func TestMuxerDynamicParams(t *testing.T) {
 		"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 		"\n"+
 		"#EXT-X-STREAM-INF:BANDWIDTH=1144,AVERAGE-BANDWIDTH=1028,"+
-		"CODECS=\"avc1.42c028\",RESOLUTION=1920x1084,FRAME-RATE=30.000\n"+
+		"CODECS=\"avc1.42c028\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
 		"stream.m3u8\n", string(bu))
 
 	bu, _, err = doRequest(m, m.prefix+"_init.mp4", "", "", "")
