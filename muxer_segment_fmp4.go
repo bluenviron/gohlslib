@@ -49,6 +49,7 @@ func (s *muxerSegmentFMP4) initialize() error {
 		prefix:         s.prefix,
 		id:             s.takePartID(),
 		storage:        s.storage.NewPart(),
+		factory:		s.factory,
 	}
 	s.currentPart.initialize()
 
@@ -139,6 +140,7 @@ func (s *muxerSegmentFMP4) writeVideo(
 			prefix:         s.prefix,
 			id:             s.takePartID(),
 			storage:        s.storage.NewPart(),
+			factory:		s.factory,
 		}
 		s.currentPart.initialize()
 	}
@@ -181,6 +183,7 @@ func (s *muxerSegmentFMP4) writeAudio(
 			prefix:         s.prefix,
 			id:             s.takePartID(),
 			storage:        s.storage.NewPart(),
+			factory:		s.factory,
 		}
 		s.currentPart.initialize()
 	}

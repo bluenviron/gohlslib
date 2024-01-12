@@ -40,6 +40,8 @@ func main() {
 		VideoTrack: &gohlslib.Track{
 			Codec: &codecs.H264{},
 		},
+		Directory: "/Users/karthik/Downloads/hls/",
+		SegmentCount: 999999,
 	}
 	err := mux.Start()
 	if err != nil {

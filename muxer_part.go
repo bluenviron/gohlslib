@@ -31,6 +31,7 @@ type muxerPart struct {
 	videoStartDTS       time.Duration
 	audioStartDTSFilled bool
 	audioStartDTS       time.Duration
+	factory				storage.Factory
 }
 
 func (p *muxerPart) initialize() {
@@ -78,6 +79,16 @@ func (p *muxerPart) finalize(nextDTS time.Duration) error {
 	if err != nil {
 		return err
 	}
+
+
+	f, err := p.factory.NewFile(p.name)
+	if err != nil {
+		return err
+	}
+	defer f.Finalize()
+	newPart := f.NewPart()
+	w := newPart.Writer()
+	err = part.Marshal(w)
 
 	p.finalDuration = p.computeDuration(nextDTS)
 
