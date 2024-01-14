@@ -1,13 +1,11 @@
 github.com/abema/go-mp4 v1.1.1 h1:OfzkdMO6SWTBR1ltNSVwlTHatrAK9I3iYLQfkdEMMuc=
 github.com/abema/go-mp4 v1.1.1/go.mod h1:vPl9t5ZK7K0x68jh12/+ECWBCXoWuIDtNgPtU2f04ws=
-github.com/aler9/writerseeker v1.1.0 h1:t+Sm3tjp8scNlqyoa8obpeqwciMNOvdvsxjxEb3Sx3g=
-github.com/aler9/writerseeker v1.1.0/go.mod h1:QNCcjSKnLsYoTfMmXkEEfgbz6nNXWxKSaBY+hGJGWDA=
 github.com/asticode/go-astikit v0.30.0 h1:DkBkRQRIxYcknlaU7W7ksNfn4gMFsB0tqMJflxkRsZA=
 github.com/asticode/go-astikit v0.30.0/go.mod h1:h4ly7idim1tNhaVkdVBeXQZEE3L0xblP7fCWbgwipF0=
 github.com/asticode/go-astits v1.13.0 h1:XOgkaadfZODnyZRR5Y0/DWkA9vrkLLPLeeOvDwfKZ1c=
 github.com/asticode/go-astits v1.13.0/go.mod h1:QSHmknZ51pf6KJdHKZHJTLlMegIrhega3LPWz3ND/iI=
-github.com/bluenviron/mediacommon v1.7.1 h1:7Lm2b8M9gUk3Ben1w+OPwadAeYseIBscwgdiL+aLtfw=
-github.com/bluenviron/mediacommon v1.7.1/go.mod h1:Ij/kE1LEucSjryNBVTyPL/gBI0d6/Css3f5PyrM957w=
+github.com/bluenviron/mediacommon v1.8.0 h1:z9ZxCkuivs1IN1NrD6lB7d9twqcRNaCTvlG39NL9Sa4=
+github.com/bluenviron/mediacommon v1.8.0/go.mod h1:TQIxPCXBfrWhagGeB9ajiUy6GlImTC8s1x2DOMVIrNw=
 github.com/bytedance/sonic v1.5.0/go.mod h1:ED5hyg4y6t3/9Ku1R6dU/4KyJ48DZ4jPhfY1O2AihPM=
 github.com/bytedance/sonic v1.9.1 h1:6iJ6NqdoxCDr6mbY8h18oSO+cShGSMRGCEo7F2h0x8s=
 github.com/bytedance/sonic v1.9.1/go.mod h1:i736AoUSYt75HyZLoJW9ERYxcy6eaN6h4BZXU064P/U=
