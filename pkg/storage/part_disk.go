@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"io"
 
-	"github.com/aler9/writerseeker"
+	"github.com/bluenviron/mediacommon/pkg/formats/fmp4/seekablebuffer"
 )
 
 type partDisk struct {
 	s      *fileDisk
-	buffer *writerseeker.WriterSeeker
+	buffer *seekablebuffer.Buffer
 	offset uint64
 	size   uint64
 }
@@ -17,7 +17,7 @@ type partDisk struct {
 func newPartDisk(s *fileDisk, offset uint64) *partDisk {
 	return &partDisk{
 		s:      s,
-		buffer: &writerseeker.WriterSeeker{},
+		buffer: &seekablebuffer.Buffer{},
 		offset: offset,
 	}
 }

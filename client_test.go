@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aler9/writerseeker"
 	"github.com/bluenviron/gohlslib/pkg/codecs"
 	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
 	"github.com/bluenviron/mediacommon/pkg/codecs/mpeg4audio"
@@ -18,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
+	"github.com/bluenviron/mediacommon/pkg/formats/fmp4/seekablebuffer"
 	"github.com/bluenviron/mediacommon/pkg/formats/mpegts"
 )
 
@@ -101,13 +101,13 @@ type marshaler interface {
 }
 
 func mp4ToWriter(i marshaler, w io.Writer) error {
-	ws := &writerseeker.WriterSeeker{}
-	err := i.Marshal(ws)
+	var buf seekablebuffer.Buffer
+	err := i.Marshal(&buf)
 	if err != nil {
 		return err
 	}
 
-	_, err = w.Write(ws.Bytes())
+	_, err = w.Write(buf.Bytes())
 	return err
 }
 

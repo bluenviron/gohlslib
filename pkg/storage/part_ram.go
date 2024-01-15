@@ -4,22 +4,20 @@ import (
 	"bytes"
 	"io"
 
-	"github.com/aler9/writerseeker"
+	"github.com/bluenviron/mediacommon/pkg/formats/fmp4/seekablebuffer"
 )
 
 type partRAM struct {
-	buffer *writerseeker.WriterSeeker
+	buffer seekablebuffer.Buffer
 }
 
 func newPartRAM() *partRAM {
-	return &partRAM{
-		buffer: &writerseeker.WriterSeeker{},
-	}
+	return &partRAM{}
 }
 
 // Writer implements Part.
 func (p *partRAM) Writer() io.WriteSeeker {
-	return p.buffer
+	return &p.buffer
 }
 
 // Reader implements Part.
