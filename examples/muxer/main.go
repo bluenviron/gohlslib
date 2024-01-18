@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"time"
+	"flag"
 
 	"github.com/bluenviron/mediacommon/pkg/formats/mpegts"
 
@@ -35,12 +36,18 @@ func handleIndex(wrapped http.HandlerFunc) http.HandlerFunc {
 }
 
 func main() {
+	directory := flag.String("dir", "", "Directory for HLS files")
+	udpAddress := flag.String("udp", "localhost:9000", "UDP address to listen for MPEG-TS packets")
+
+	flag.Parse()
+
+
 	// create the HLS muxer
 	mux := &gohlslib.Muxer{
 		VideoTrack: &gohlslib.Track{
 			Codec: &codecs.H264{},
 		},
-		Directory: "/Users/karthik/Downloads/hls/",
+		Directory: *directory,
 		SegmentCount: 999999,
 	}
 	err := mux.Start()
@@ -57,17 +64,13 @@ func main() {
 	go s.ListenAndServe()
 
 	// create a socket to receive MPEG-TS packets
-	pc, err := net.ListenPacket("udp", "localhost:9000")
+	pc, err := net.ListenPacket("udp", *udpAddress)
 	if err != nil {
 		panic(err)
 	}
 	defer pc.Close()
 
-	log.Println("Waiting for a MPEG-TS/H264 stream on UDP port 9000 - you can send one with GStreamer:\n" +
-		"gst-launch-1.0 videotestsrc ! video/x-raw,width=1920,height=1080" +
-		" ! x264enc speed-preset=ultrafast bitrate=3000 key-int-max=60" +
-		" ! video/x-h264,profile=high" +
-		" ! mpegtsmux alignment=6 ! udpsink host=127.0.0.1 port=9000")
+	log.Println("Waiting for a MPEG-TS/H264 stream on UDP port ", *udpAddress)
 
 	// create a MPEG-TS reader
 	r, err := mpegts.NewReader(mpegts.NewBufferedReader(newPacketConnReader(pc)))
