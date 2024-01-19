@@ -4,13 +4,13 @@ go 1.19
 
 require (
 	github.com/asticode/go-astits v1.13.0
-	github.com/bluenviron/mediacommon v1.8.0
+	github.com/bluenviron/mediacommon v1.9.0
 	github.com/gin-gonic/gin v1.9.1
 	github.com/stretchr/testify v1.8.4
 )
 
 require (
-	github.com/abema/go-mp4 v1.1.1 // indirect
+	github.com/abema/go-mp4 v1.2.0 // indirect
 	github.com/asticode/go-astikit v0.30.0 // indirect
 	github.com/bytedance/sonic v1.9.1 // indirect
 	github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311 // indirect
