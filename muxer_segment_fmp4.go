@@ -80,6 +80,10 @@ func (s *muxerSegmentFMP4) reader() (io.ReadCloser, error) {
 }
 
 func (s *muxerSegmentFMP4) finalize(nextDTS time.Duration) error {
+	if s.currentPart == nil {
+		return nil
+	}
+
 	if s.currentPart.videoSamples != nil || s.currentPart.audioSamples != nil {
 		err := s.currentPart.finalize(nextDTS)
 		if err != nil {
