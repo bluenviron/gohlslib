@@ -85,9 +85,11 @@ func (s *muxerSegmentFMP4) finalize(nextDTS time.Duration) error {
 		if err != nil {
 			return err
 		}
+		part := s.currentPart
+		s.currentPart = nil
 
-		s.parts = append(s.parts, s.currentPart)
-		err = s.publishPart(s.currentPart)
+		s.parts = append(s.parts, part)
+		err = s.publishPart(part)
 		if err != nil {
 			return err
 		}
@@ -124,9 +126,11 @@ func (s *muxerSegmentFMP4) writeVideo(
 		if err != nil {
 			return err
 		}
+		part := s.currentPart
+		s.currentPart = nil
 
-		s.parts = append(s.parts, s.currentPart)
-		err = s.publishPart(s.currentPart)
+		s.parts = append(s.parts, part)
+		err = s.publishPart(part)
 		if err != nil {
 			return err
 		}
@@ -166,9 +170,11 @@ func (s *muxerSegmentFMP4) writeAudio(
 		if err != nil {
 			return err
 		}
+		part := s.currentPart
+		s.currentPart = nil
 
-		s.parts = append(s.parts, s.currentPart)
-		err = s.publishPart(s.currentPart)
+		s.parts = append(s.parts, part)
+		err = s.publishPart(part)
 		if err != nil {
 			return err
 		}
