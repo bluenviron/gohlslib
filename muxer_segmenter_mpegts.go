@@ -121,7 +121,7 @@ func (m *muxerSegmenterMPEGTS) writeH26x(
 		}
 
 		// create first segment
-		m.currentSegment = &muxerSegmentMPEGTS{
+		seg := &muxerSegmentMPEGTS{
 			id:               m.takeSegmentID(),
 			startNTP:         ntp,
 			segmentMaxSize:   m.segmentMaxSize,
@@ -132,10 +132,11 @@ func (m *muxerSegmenterMPEGTS) writeH26x(
 			prefix:           m.prefix,
 			factory:          m.factory,
 		}
-		err = m.currentSegment.initialize()
+		err = seg.initialize()
 		if err != nil {
 			return err
 		}
+		m.currentSegment = seg
 	} else {
 		var err error
 		dts, err = m.videoDTSExtractor.Extract(au, pts)
@@ -151,13 +152,16 @@ func (m *muxerSegmenterMPEGTS) writeH26x(
 			if err != nil {
 				return err
 			}
+			seg := m.currentSegment
+			m.currentSegment = nil
 
-			err = m.publishSegment(m.currentSegment)
+			err = m.publishSegment(seg)
 			if err != nil {
+				seg.close()
 				return err
 			}
 
-			m.currentSegment = &muxerSegmentMPEGTS{
+			seg = &muxerSegmentMPEGTS{
 				id:               m.takeSegmentID(),
 				startNTP:         ntp,
 				segmentMaxSize:   m.segmentMaxSize,
@@ -168,10 +172,11 @@ func (m *muxerSegmenterMPEGTS) writeH26x(
 				prefix:           m.prefix,
 				factory:          m.factory,
 			}
-			err = m.currentSegment.initialize()
+			err = seg.initialize()
 			if err != nil {
 				return err
 			}
+			m.currentSegment = seg
 		}
 	}
 
@@ -195,7 +200,7 @@ func (m *muxerSegmenterMPEGTS) writeMPEG4Audio(ntp time.Time, pts time.Duration,
 	if m.videoTrack == nil {
 		if m.currentSegment == nil {
 			// create first segment
-			m.currentSegment = &muxerSegmentMPEGTS{
+			seg := &muxerSegmentMPEGTS{
 				id:               m.takeSegmentID(),
 				startNTP:         ntp,
 				segmentMaxSize:   m.segmentMaxSize,
@@ -206,23 +211,27 @@ func (m *muxerSegmenterMPEGTS) writeMPEG4Audio(ntp time.Time, pts time.Duration,
 				prefix:           m.prefix,
 				factory:          m.factory,
 			}
-			err := m.currentSegment.initialize()
+			err := seg.initialize()
 			if err != nil {
 				return err
 			}
+			m.currentSegment = seg
 		} else if m.currentSegment.audioAUCount >= mpegtsSegmentMinAUCount && // switch segment
 			(pts-*m.currentSegment.startDTS) >= m.segmentMinDuration {
 			err := m.currentSegment.finalize(pts)
 			if err != nil {
 				return err
 			}
+			seg := m.currentSegment
+			m.currentSegment = nil
 
-			err = m.publishSegment(m.currentSegment)
+			err = m.publishSegment(seg)
 			if err != nil {
+				seg.close()
 				return err
 			}
 
-			m.currentSegment = &muxerSegmentMPEGTS{
+			seg = &muxerSegmentMPEGTS{
 				id:               m.takeSegmentID(),
 				startNTP:         ntp,
 				segmentMaxSize:   m.segmentMaxSize,
@@ -233,10 +242,11 @@ func (m *muxerSegmenterMPEGTS) writeMPEG4Audio(ntp time.Time, pts time.Duration,
 				prefix:           m.prefix,
 				factory:          m.factory,
 			}
-			err = m.currentSegment.initialize()
+			err = seg.initialize()
 			if err != nil {
 				return err
 			}
+			m.currentSegment = seg
 		}
 	} else {
 		// wait for the video track

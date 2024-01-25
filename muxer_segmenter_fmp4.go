@@ -347,7 +347,7 @@ func (m *muxerSegmenterFMP4) writeVideo(
 	if m.currentSegment == nil {
 		m.startDTS = sample.dts
 
-		m.currentSegment = &muxerSegmentFMP4{
+		seg := &muxerSegmentFMP4{
 			lowLatency:     m.lowLatency,
 			id:             m.takeSegmentID(),
 			startNTP:       sample.ntp,
@@ -363,10 +363,11 @@ func (m *muxerSegmenterFMP4) writeVideo(
 			givePartID:     m.givePartID,
 			publishPart:    m.publishPart,
 		}
-		err := m.currentSegment.initialize()
+		err := seg.initialize()
 		if err != nil {
 			return err
 		}
+		m.currentSegment = seg
 	}
 
 	m.adjustPartDuration(duration)
@@ -384,15 +385,18 @@ func (m *muxerSegmenterFMP4) writeVideo(
 		if err != nil {
 			return err
 		}
+		seg := m.currentSegment
+		m.currentSegment = nil
 
-		err = m.publishSegment(m.currentSegment)
+		err = m.publishSegment(seg)
 		if err != nil {
+			seg.close()
 			return err
 		}
 
 		m.firstSegmentFinalized = true
 
-		m.currentSegment = &muxerSegmentFMP4{
+		seg = &muxerSegmentFMP4{
 			lowLatency:     m.lowLatency,
 			id:             m.takeSegmentID(),
 			startNTP:       m.nextVideoSample.ntp,
@@ -408,10 +412,11 @@ func (m *muxerSegmenterFMP4) writeVideo(
 			givePartID:     m.givePartID,
 			publishPart:    m.publishPart,
 		}
-		err = m.currentSegment.initialize()
+		err = seg.initialize()
 		if err != nil {
 			return err
 		}
+		m.currentSegment = seg
 
 		if forceSwitch {
 			m.firstSegmentFinalized = false
@@ -446,7 +451,7 @@ func (m *muxerSegmenterFMP4) writeAudio(sample *augmentedSample) error {
 		if m.currentSegment == nil {
 			m.startDTS = sample.dts
 
-			m.currentSegment = &muxerSegmentFMP4{
+			seg := &muxerSegmentFMP4{
 				lowLatency:     m.lowLatency,
 				id:             m.takeSegmentID(),
 				startNTP:       sample.ntp,
@@ -462,10 +467,11 @@ func (m *muxerSegmenterFMP4) writeAudio(sample *augmentedSample) error {
 				givePartID:     m.givePartID,
 				publishPart:    m.publishPart,
 			}
-			err := m.currentSegment.initialize()
+			err := seg.initialize()
 			if err != nil {
 				return err
 			}
+			m.currentSegment = seg
 		}
 	} else {
 		// wait for the video track
@@ -486,15 +492,18 @@ func (m *muxerSegmenterFMP4) writeAudio(sample *augmentedSample) error {
 		if err != nil {
 			return err
 		}
+		seg := m.currentSegment
+		m.currentSegment = nil
 
-		err = m.publishSegment(m.currentSegment)
+		err = m.publishSegment(seg)
 		if err != nil {
+			seg.close()
 			return err
 		}
 
 		m.firstSegmentFinalized = true
 
-		m.currentSegment = &muxerSegmentFMP4{
+		seg = &muxerSegmentFMP4{
 			lowLatency:     m.lowLatency,
 			id:             m.takeSegmentID(),
 			startNTP:       m.nextAudioSample.ntp,
@@ -510,10 +519,11 @@ func (m *muxerSegmenterFMP4) writeAudio(sample *augmentedSample) error {
 			givePartID:     m.givePartID,
 			publishPart:    m.publishPart,
 		}
-		err = m.currentSegment.initialize()
+		err = seg.initialize()
 		if err != nil {
 			return err
 		}
+		m.currentSegment = seg
 	}
 
 	return nil

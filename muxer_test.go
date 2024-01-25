@@ -1012,3 +1012,45 @@ func TestMuxerFMP4SequenceNumber(t *testing.T) {
 		require.Equal(t, uint32(i), parts[0].SequenceNumber)
 	}
 }
+
+func TestMuxerInvalidFolder(t *testing.T) {
+	for _, ca := range []string{
+		"mpegts",
+		"fmp4",
+	} {
+		t.Run(ca, func(t *testing.T) {
+			var v MuxerVariant
+			if ca == "mpegts" {
+				v = MuxerVariantMPEGTS
+			} else {
+				v = MuxerVariantFMP4
+			}
+
+			m := &Muxer{
+				Variant:         v,
+				SegmentCount:    7,
+				SegmentDuration: 1 * time.Second,
+				VideoTrack:      testVideoTrack,
+				Directory:       "/nonexisting",
+			}
+
+			err := m.Start()
+			require.NoError(t, err)
+			defer m.Close()
+
+			for i := 0; i < 2; i++ {
+				err := m.WriteH26x(testTime, time.Duration(i)*time.Second, [][]byte{
+					testSPS, // SPS
+					{8},     // PPS
+					{5},     // IDR
+				})
+
+				if ca == "mpegts" || i == 1 {
+					require.Error(t, err)
+				} else {
+					require.NoError(t, err)
+				}
+			}
+		})
+	}
+}
