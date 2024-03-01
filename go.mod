@@ -6,7 +6,7 @@ require (
 	github.com/asticode/go-astits v1.13.0
 	github.com/bluenviron/mediacommon v1.9.2
 	github.com/gin-gonic/gin v1.9.1
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 )
 
 require (
