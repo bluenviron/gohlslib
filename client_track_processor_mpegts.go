@@ -9,8 +9,8 @@ import (
 )
 
 type mpegtsSample struct {
-	pts  int64
-	dts  int64
+	pts  time.Duration
+	dts  time.Duration
 	data [][]byte
 }
 
@@ -20,7 +20,7 @@ type clientTrackProcessorMPEGTS struct {
 	timeSync            *clientTimeSyncMPEGTS
 	onPartProcessorDone func(ctx context.Context)
 
-	postProcess func(pts time.Duration, dts time.Duration, data [][]byte)
+	postProcess func(sample *mpegtsSample)
 
 	queue chan *mpegtsSample
 }
@@ -33,8 +33,8 @@ func (t *clientTrackProcessorMPEGTS) initialize() {
 			onDataCasted = t.onData.(ClientOnDataH26xFunc)
 		}
 
-		t.postProcess = func(pts time.Duration, dts time.Duration, data [][]byte) {
-			onDataCasted(pts, dts, data)
+		t.postProcess = func(sample *mpegtsSample) {
+			onDataCasted(sample.pts, sample.dts, sample.data)
 		}
 
 	case *codecs.MPEG4Audio:
@@ -43,8 +43,8 @@ func (t *clientTrackProcessorMPEGTS) initialize() {
 			onDataCasted = t.onData.(ClientOnDataMPEG4AudioFunc)
 		}
 
-		t.postProcess = func(pts time.Duration, dts time.Duration, data [][]byte) {
-			onDataCasted(pts, data)
+		t.postProcess = func(sample *mpegtsSample) {
+			onDataCasted(sample.pts, sample.data)
 		}
 	}
 
@@ -72,17 +72,17 @@ func (t *clientTrackProcessorMPEGTS) process(ctx context.Context, sample *mpegts
 		return nil
 	}
 
-	pts, dts, err := t.timeSync.convertAndSync(ctx, sample.pts, sample.dts)
+	// silently discard packets prior to the first packet of the leading track
+	if sample.pts < 0 {
+		return nil
+	}
+
+	err := t.timeSync.sync(ctx, sample.dts)
 	if err != nil {
 		return err
 	}
 
-	// silently discard packets prior to the first packet of the leading track
-	if pts < 0 {
-		return nil
-	}
-
-	t.postProcess(pts, dts, sample.data)
+	t.postProcess(sample)
 	return nil
 }
 

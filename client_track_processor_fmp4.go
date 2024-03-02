@@ -114,16 +114,18 @@ func (t *clientTrackProcessorFMP4) process(ctx context.Context, partTrack *fmp4.
 	rawDTS := partTrack.BaseTime
 
 	for _, sample := range partTrack.Samples {
-		pts, dts, err := t.timeSync.convertAndSync(ctx, t.timeScale, rawDTS, sample.PTSOffset)
-		if err != nil {
-			return err
-		}
-
+		pts := t.timeSync.convert(rawDTS+uint64(sample.PTSOffset), t.timeScale)
+		dts := t.timeSync.convert(rawDTS, t.timeScale)
 		rawDTS += uint64(sample.Duration)
 
 		// silently discard packets prior to the first packet of the leading track
 		if pts < 0 {
 			continue
+		}
+
+		err := t.timeSync.sync(ctx, dts)
+		if err != nil {
+			return err
 		}
 
 		err = t.postProcess(pts, dts, sample)
