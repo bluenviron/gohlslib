@@ -59,7 +59,9 @@ type ClientOnDataMPEG4AudioFunc func(pts time.Duration, aus [][]byte)
 // ClientOnDataOpusFunc is the prototype of the function passed to OnDataOpus().
 type ClientOnDataOpusFunc func(pts time.Duration, packets [][]byte)
 
-type clientOnStreamTracksFunc func(context.Context, clientStreamProcessor) bool
+type clientOnStreamTracksFunc func(ctx context.Context, isLeading bool, tracks []*Track) ([]*clientTrack, bool)
+
+type clientOnDataFunc func(pts time.Duration, dts time.Duration, data [][]byte)
 
 func clientAbsoluteURL(base *url.URL, relative string) (*url.URL, error) {
 	u, err := url.Parse(relative)
@@ -102,12 +104,14 @@ type Client struct {
 
 	ctx               context.Context
 	ctxCancel         func()
-	onData            map[*Track]interface{}
 	playlistURL       *url.URL
 	primaryDownloader *clientPrimaryDownloader
+	leadingTimeConv   clientTimeConv
+	tracks            map[*Track]*clientTrack
 
 	// out
-	outErr chan error
+	outErr               chan error
+	leadingTimeConvReady chan struct{}
 }
 
 // Start starts the client.
@@ -154,8 +158,8 @@ func (c *Client) Start() error {
 
 	c.ctx, c.ctxCancel = context.WithCancel(context.Background())
 
-	c.onData = make(map[*Track]interface{})
 	c.outErr = make(chan error, 1)
+	c.leadingTimeConvReady = make(chan struct{})
 
 	go c.run()
 
@@ -174,32 +178,44 @@ func (c *Client) Wait() chan error {
 
 // OnDataAV1 sets a callback that is called when data from an AV1 track is received.
 func (c *Client) OnDataAV1(track *Track, cb ClientOnDataAV1Func) {
-	c.onData[track] = cb
+	c.tracks[track].onData = func(pts time.Duration, dts time.Duration, data [][]byte) {
+		cb(pts, data)
+	}
 }
 
 // OnDataVP9 sets a callback that is called when data from a VP9 track is received.
 func (c *Client) OnDataVP9(track *Track, cb ClientOnDataVP9Func) {
-	c.onData[track] = cb
+	c.tracks[track].onData = func(pts time.Duration, dts time.Duration, data [][]byte) {
+		cb(pts, data[0])
+	}
 }
 
 // OnDataH26x sets a callback that is called when data from an H26x track is received.
 func (c *Client) OnDataH26x(track *Track, cb ClientOnDataH26xFunc) {
-	c.onData[track] = cb
+	c.tracks[track].onData = func(pts time.Duration, dts time.Duration, data [][]byte) {
+		cb(pts, dts, data)
+	}
 }
 
 // OnDataMPEG4Audio sets a callback that is called when data from a MPEG-4 Audio track is received.
 func (c *Client) OnDataMPEG4Audio(track *Track, cb ClientOnDataMPEG4AudioFunc) {
-	c.onData[track] = cb
+	c.tracks[track].onData = func(pts time.Duration, dts time.Duration, data [][]byte) {
+		cb(pts, data)
+	}
 }
 
 // OnDataOpus sets a callback that is called when data from an Opus track is received.
 func (c *Client) OnDataOpus(track *Track, cb ClientOnDataOpusFunc) {
-	c.onData[track] = cb
+	c.tracks[track].onData = func(pts time.Duration, dts time.Duration, data [][]byte) {
+		cb(pts, data)
+	}
 }
 
-// AbsoluteTime returns the absolute timestamp of a packet with given track and DTS.
-func (c *Client) AbsoluteTime(track *Track, dts time.Duration) (time.Time, bool) {
-	return c.primaryDownloader.ntp(track, dts)
+var zero time.Time
+
+// AbsoluteTime returns the absolute timestamp of the last sample.
+func (c *Client) AbsoluteTime(track *Track) (time.Time, bool) {
+	return c.tracks[track].absoluteTime()
 }
 
 func (c *Client) run() {
@@ -219,8 +235,9 @@ func (c *Client) runInner() error {
 		onDownloadPart:            c.OnDownloadPart,
 		onDecodeError:             c.OnDecodeError,
 		rp:                        rp,
-		onTracks:                  c.OnTracks,
-		onData:                    c.onData,
+		setTracks:                 c.setTracks,
+		setLeadingTimeConv:        c.setLeadingTimeConv,
+		getLeadingTimeConv:        c.getLeadingTimeConv,
 	}
 	c.primaryDownloader.initialize()
 	rp.add(c.primaryDownloader)
@@ -234,4 +251,42 @@ func (c *Client) runInner() error {
 		rp.close()
 		return fmt.Errorf("terminated")
 	}
+}
+
+func (c *Client) setTracks(tracks []*Track) (map[*Track]*clientTrack, error) {
+	c.tracks = make(map[*Track]*clientTrack)
+	for _, track := range tracks {
+		c.tracks[track] = &clientTrack{
+			track:  track,
+			onData: func(pts, dts time.Duration, data [][]byte) {},
+		}
+	}
+
+	err := c.OnTracks(tracks)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.tracks, nil
+}
+
+func (c *Client) setLeadingTimeConv(ts clientTimeConv) {
+	c.leadingTimeConv = ts
+
+	startRTC := time.Now()
+
+	for _, track := range c.tracks {
+		track.startRTC = startRTC
+	}
+
+	close(c.leadingTimeConvReady)
+}
+
+func (c *Client) getLeadingTimeConv(ctx context.Context) (clientTimeConv, bool) {
+	select {
+	case <-c.leadingTimeConvReady:
+	case <-ctx.Done():
+		return nil, false
+	}
+	return c.leadingTimeConv, true
 }
