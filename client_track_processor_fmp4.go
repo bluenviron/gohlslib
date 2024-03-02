@@ -9,88 +9,54 @@ import (
 	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
 )
 
+type procEntryFMP4 struct {
+	ntpAvailable bool
+	ntpAbsolute  time.Time
+	ntpRelative  time.Duration
+	partTrack    *fmp4.PartTrack
+}
+
 type clientTrackProcessorFMP4 struct {
-	track                *Track
-	onData               interface{}
+	track                *clientTrack
 	timeScale            uint32
-	timeSync             *clientTimeSyncFMP4
+	timeConv             *clientTimeConvFMP4
 	onPartTrackProcessed func(ctx context.Context)
 
-	postProcess func(pts time.Duration, dts time.Duration, sample *fmp4.PartSample) error
+	decodePayload func(sample *fmp4.PartSample) ([][]byte, error)
 
 	// in
-	queue chan *fmp4.PartTrack
+	queue chan *procEntryFMP4
 }
 
 func (t *clientTrackProcessorFMP4) initialize() error {
-	switch t.track.Codec.(type) {
+	switch t.track.track.Codec.(type) {
 	case *codecs.AV1:
-		var onDataCasted ClientOnDataAV1Func = func(_ time.Duration, _ [][]byte) {}
-		if t.onData != nil {
-			onDataCasted = t.onData.(ClientOnDataAV1Func)
-		}
-
-		t.postProcess = func(pts time.Duration, dts time.Duration, sample *fmp4.PartSample) error {
-			tu, err := sample.GetAV1()
-			if err != nil {
-				return err
-			}
-
-			onDataCasted(pts, tu)
-			return nil
+		t.decodePayload = func(sample *fmp4.PartSample) ([][]byte, error) {
+			return sample.GetAV1()
 		}
 
 	case *codecs.VP9:
-		var onDataCasted ClientOnDataVP9Func = func(_ time.Duration, _ []byte) {}
-		if t.onData != nil {
-			onDataCasted = t.onData.(ClientOnDataVP9Func)
-		}
-
-		t.postProcess = func(pts time.Duration, dts time.Duration, sample *fmp4.PartSample) error {
-			onDataCasted(pts, sample.Payload)
-			return nil
+		t.decodePayload = func(sample *fmp4.PartSample) ([][]byte, error) {
+			return [][]byte{sample.Payload}, nil
 		}
 
 	case *codecs.H265, *codecs.H264:
-		var onDataCasted ClientOnDataH26xFunc = func(_ time.Duration, _ time.Duration, _ [][]byte) {}
-		if t.onData != nil {
-			onDataCasted = t.onData.(ClientOnDataH26xFunc)
-		}
-
-		t.postProcess = func(pts time.Duration, dts time.Duration, sample *fmp4.PartSample) error {
-			au, err := sample.GetH26x()
-			if err != nil {
-				return err
-			}
-
-			onDataCasted(pts, dts, au)
-			return nil
+		t.decodePayload = func(sample *fmp4.PartSample) ([][]byte, error) {
+			return sample.GetH26x()
 		}
 
 	case *codecs.Opus:
-		var onDataCasted ClientOnDataOpusFunc = func(_ time.Duration, _ [][]byte) {}
-		if t.onData != nil {
-			onDataCasted = t.onData.(ClientOnDataOpusFunc)
-		}
-
-		t.postProcess = func(pts time.Duration, dts time.Duration, sample *fmp4.PartSample) error {
-			onDataCasted(pts, [][]byte{sample.Payload})
-			return nil
+		t.decodePayload = func(sample *fmp4.PartSample) ([][]byte, error) {
+			return [][]byte{sample.Payload}, nil
 		}
 
 	case *codecs.MPEG4Audio:
-		var onDataCasted ClientOnDataMPEG4AudioFunc = func(_ time.Duration, _ [][]byte) {}
-		if t.onData != nil {
-			onDataCasted = t.onData.(ClientOnDataMPEG4AudioFunc)
-		}
-
-		t.postProcess = func(pts time.Duration, dts time.Duration, sample *fmp4.PartSample) error {
-			onDataCasted(pts, [][]byte{sample.Payload})
-			return nil
+		t.decodePayload = func(sample *fmp4.PartSample) ([][]byte, error) {
+			return [][]byte{sample.Payload}, nil
 		}
 	}
 
-	t.queue = make(chan *fmp4.PartTrack)
+	t.queue = make(chan *procEntryFMP4)
 
 	return nil
 }
@@ -98,8 +64,8 @@ func (t *clientTrackProcessorFMP4) initialize() error {
 func (t *clientTrackProcessorFMP4) run(ctx context.Context) error {
 	for {
 		select {
-		case partTrack := <-t.queue:
-			err := t.process(ctx, partTrack)
+		case entry := <-t.queue:
+			err := t.process(ctx, entry)
 			if err != nil {
 				return err
 			}
@@ -110,25 +76,25 @@ func (t *clientTrackProcessorFMP4) run(ctx context.Context) error {
 	}
 }
 
-func (t *clientTrackProcessorFMP4) process(ctx context.Context, partTrack *fmp4.PartTrack) error {
-	rawDTS := partTrack.BaseTime
+func (t *clientTrackProcessorFMP4) process(ctx context.Context, entry *procEntryFMP4) error {
+	rawDTS := entry.partTrack.BaseTime
 
-	for _, sample := range partTrack.Samples {
-		pts := t.timeSync.convert(rawDTS+uint64(sample.PTSOffset), t.timeScale)
-		dts := t.timeSync.convert(rawDTS, t.timeScale)
-		rawDTS += uint64(sample.Duration)
-
-		// silently discard packets prior to the first packet of the leading track
-		if pts < 0 {
-			continue
-		}
-
-		err := t.timeSync.sync(ctx, dts)
+	for _, sample := range entry.partTrack.Samples {
+		data, err := t.decodePayload(sample)
 		if err != nil {
 			return err
 		}
 
-		err = t.postProcess(pts, dts, sample)
+		pts := t.timeConv.convert(rawDTS+uint64(sample.PTSOffset), t.timeScale)
+		dts := t.timeConv.convert(rawDTS, t.timeScale)
+		rawDTS += uint64(sample.Duration)
+
+		ntp := time.Time{}
+		if entry.ntpAvailable {
+			ntp = entry.ntpAbsolute.Add(dts - entry.ntpRelative)
+		}
+
+		err = t.track.handleData(ctx, pts, dts, ntp, data)
 		if err != nil {
 			return err
 		}
@@ -138,9 +104,9 @@ func (t *clientTrackProcessorFMP4) process(ctx context.Context, partTrack *fmp4.
 	return nil
 }
 
-func (t *clientTrackProcessorFMP4) push(ctx context.Context, partTrack *fmp4.PartTrack) error {
+func (t *clientTrackProcessorFMP4) push(ctx context.Context, entry *procEntryFMP4) error {
 	select {
-	case t.queue <- partTrack:
+	case t.queue <- entry:
 		return nil
 
 	case <-ctx.Done():

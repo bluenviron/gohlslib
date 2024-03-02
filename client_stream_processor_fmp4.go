@@ -44,25 +44,21 @@ func findTimeScaleOfLeadingTrack(tracks []*fmp4.InitTrack, leadingTrackID int) u
 }
 
 type clientStreamProcessorFMP4 struct {
-	ctx                  context.Context
-	isLeading            bool
-	initFile             []byte
-	segmentQueue         *clientSegmentQueue
-	rp                   *clientRoutinePool
-	onStreamTracks       clientOnStreamTracksFunc
-	onStreamEnded        func(context.Context)
-	onSetLeadingTimeSync func(clientTimeSync)
-	onGetLeadingTimeSync func(context.Context) (clientTimeSync, bool)
-	onData               map[*Track]interface{}
+	ctx                context.Context
+	isLeading          bool
+	initFile           []byte
+	segmentQueue       *clientSegmentQueue
+	rp                 *clientRoutinePool
+	setStreamTracks    clientOnStreamTracksFunc
+	setStreamEnded     func(context.Context)
+	setLeadingTimeConv func(clientTimeConv)
+	getLeadingTimeConv func(context.Context) (clientTimeConv, bool)
 
-	tracks          []*Track
-	init            fmp4.Init
-	leadingTrackID  int
-	trackProcessors map[int]*clientTrackProcessorFMP4
-	timeSync        *clientTimeSyncFMP4
-	ntpAvailable    bool
-	ntpAbsolute     time.Time
-	ntpRelative     time.Duration
+	init               fmp4.Init
+	leadingTrackID     int
+	trackProcessors    map[int]*clientTrackProcessorFMP4
+	timeConv           *clientTimeConvFMP4
+	clientStreamTracks []*clientTrack
 
 	// in
 	chPartTrackProcessed chan struct{}
@@ -70,14 +66,6 @@ type clientStreamProcessorFMP4 struct {
 
 func (p *clientStreamProcessorFMP4) initialize() {
 	p.chPartTrackProcessed = make(chan struct{}, clientMaxTracksPerStream)
-}
-
-func (p *clientStreamProcessorFMP4) getIsLeading() bool {
-	return p.isLeading
-}
-
-func (p *clientStreamProcessorFMP4) getTracks() []*Track {
-	return p.tracks
 }
 
 func (p *clientStreamProcessorFMP4) run(ctx context.Context) error {
@@ -88,18 +76,19 @@ func (p *clientStreamProcessorFMP4) run(ctx context.Context) error {
 
 	p.leadingTrackID = fmp4PickLeadingTrack(&p.init)
 
-	p.tracks = make([]*Track, len(p.init.Tracks))
+	tracks := make([]*Track, len(p.init.Tracks))
 	for i, track := range p.init.Tracks {
-		p.tracks[i] = &Track{
+		tracks[i] = &Track{
 			Codec: codecs.FromFMP4(track.Codec),
 		}
 	}
 
-	if len(p.tracks) > clientMaxTracksPerStream {
+	if len(tracks) > clientMaxTracksPerStream {
 		return fmt.Errorf("too many tracks per stream")
 	}
 
-	ok := p.onStreamTracks(p.ctx, p)
+	var ok bool
+	p.clientStreamTracks, ok = p.setStreamTracks(p.ctx, p.isLeading, tracks)
 	if !ok {
 		return fmt.Errorf("terminated")
 	}
@@ -119,7 +108,7 @@ func (p *clientStreamProcessorFMP4) run(ctx context.Context) error {
 
 func (p *clientStreamProcessorFMP4) processSegment(ctx context.Context, seg *segmentData) error {
 	if seg == nil {
-		p.onStreamEnded(ctx)
+		p.setStreamEnded(ctx)
 		<-ctx.Done()
 		return fmt.Errorf("terminated")
 	}
@@ -129,6 +118,10 @@ func (p *clientStreamProcessorFMP4) processSegment(ctx context.Context, seg *seg
 	if err != nil {
 		return err
 	}
+
+	ntpAvailable := false
+	var ntpAbsolute time.Time
+	var ntpRelative time.Duration
 
 	if p.trackProcessors == nil || seg.dateTime != nil {
 		partTrack := findFirstPartTrackOfLeadingTrack(parts, p.leadingTrackID)
@@ -144,11 +137,9 @@ func (p *clientStreamProcessorFMP4) processSegment(ctx context.Context, seg *seg
 		}
 
 		if seg.dateTime != nil {
-			p.ntpAvailable = true
-			p.ntpAbsolute = *seg.dateTime
-			p.ntpRelative = p.timeSync.convert(partTrack.BaseTime, p.timeSync.leadingTimeScale)
-		} else {
-			p.ntpAvailable = false
+			ntpAvailable = true
+			ntpAbsolute = *seg.dateTime
+			ntpRelative = p.timeConv.convert(partTrack.BaseTime, p.timeConv.leadingTimeScale)
 		}
 	}
 
@@ -161,7 +152,12 @@ func (p *clientStreamProcessorFMP4) processSegment(ctx context.Context, seg *seg
 				continue
 			}
 
-			err := trackProc.push(ctx, partTrack)
+			err := trackProc.push(ctx, &procEntryFMP4{
+				ntpAvailable: ntpAvailable,
+				ntpAbsolute:  ntpAbsolute,
+				ntpRelative:  ntpRelative,
+				partTrack:    partTrack,
+			})
 			if err != nil {
 				return err
 			}
@@ -199,20 +195,20 @@ func (p *clientStreamProcessorFMP4) initializeTrackProcessors(
 	if p.isLeading {
 		timeScale := findTimeScaleOfLeadingTrack(p.init.Tracks, p.leadingTrackID)
 
-		p.timeSync = &clientTimeSyncFMP4{
+		p.timeConv = &clientTimeConvFMP4{
 			leadingTimeScale: timeScale,
 			initialBaseTime:  partTrack.BaseTime,
 		}
-		p.timeSync.initialize()
+		p.timeConv.initialize()
 
-		p.onSetLeadingTimeSync(p.timeSync)
+		p.setLeadingTimeConv(p.timeConv)
 	} else {
-		rawTS, ok := p.onGetLeadingTimeSync(ctx)
+		rawTS, ok := p.getLeadingTimeConv(ctx)
 		if !ok {
 			return fmt.Errorf("terminated")
 		}
 
-		p.timeSync, ok = rawTS.(*clientTimeSyncFMP4)
+		p.timeConv, ok = rawTS.(*clientTimeConvFMP4)
 		if !ok {
 			return fmt.Errorf("stream playlists are mixed MPEG-TS/fMP4")
 		}
@@ -220,12 +216,11 @@ func (p *clientStreamProcessorFMP4) initializeTrackProcessors(
 
 	p.trackProcessors = make(map[int]*clientTrackProcessorFMP4)
 
-	for i, track := range p.tracks {
+	for i, track := range p.clientStreamTracks {
 		trackProc := &clientTrackProcessorFMP4{
 			track:                track,
-			onData:               p.onData[track],
 			timeScale:            p.init.Tracks[i].TimeScale,
-			timeSync:             p.timeSync,
+			timeConv:             p.timeConv,
 			onPartTrackProcessed: p.onPartTrackProcessed,
 		}
 		err := trackProc.initialize()
@@ -238,11 +233,4 @@ func (p *clientStreamProcessorFMP4) initializeTrackProcessors(
 	}
 
 	return nil
-}
-
-func (p *clientStreamProcessorFMP4) ntp(dts time.Duration) (time.Time, bool) {
-	if !p.ntpAvailable {
-		return time.Time{}, false
-	}
-	return p.ntpAbsolute.Add(dts - p.ntpRelative), true
 }

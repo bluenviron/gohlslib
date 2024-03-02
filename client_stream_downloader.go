@@ -59,11 +59,10 @@ type clientStreamDownloader struct {
 	playlistURL              *url.URL
 	firstPlaylist            *playlist.Media
 	rp                       *clientRoutinePool
-	onStreamTracks           clientOnStreamTracksFunc
-	onStreamEnded            func(context.Context)
-	onSetLeadingTimeSync     func(clientTimeSync)
-	onGetLeadingTimeSync     func(context.Context) (clientTimeSync, bool)
-	onData                   map[*Track]interface{}
+	setStreamTracks          clientOnStreamTracksFunc
+	setStreamEnded           func(context.Context)
+	setLeadingTimeConv       func(clientTimeConv)
+	getLeadingTimeConv       func(context.Context) (clientTimeConv, bool)
 
 	segmentQueue *clientSegmentQueue
 	curSegmentID *int
@@ -92,30 +91,28 @@ func (d *clientStreamDownloader) run(ctx context.Context) error {
 		}
 
 		proc := &clientStreamProcessorFMP4{
-			ctx:                  ctx,
-			isLeading:            d.isLeading,
-			initFile:             byts,
-			segmentQueue:         d.segmentQueue,
-			rp:                   d.rp,
-			onStreamTracks:       d.onStreamTracks,
-			onStreamEnded:        d.onStreamEnded,
-			onSetLeadingTimeSync: d.onSetLeadingTimeSync,
-			onGetLeadingTimeSync: d.onGetLeadingTimeSync,
-			onData:               d.onData,
+			ctx:                ctx,
+			isLeading:          d.isLeading,
+			initFile:           byts,
+			segmentQueue:       d.segmentQueue,
+			rp:                 d.rp,
+			setStreamTracks:    d.setStreamTracks,
+			setStreamEnded:     d.setStreamEnded,
+			setLeadingTimeConv: d.setLeadingTimeConv,
+			getLeadingTimeConv: d.getLeadingTimeConv,
 		}
 		proc.initialize()
 		d.rp.add(proc)
 	} else {
 		proc := &clientStreamProcessorMPEGTS{
-			onDecodeError:        d.onDecodeError,
-			isLeading:            d.isLeading,
-			segmentQueue:         d.segmentQueue,
-			rp:                   d.rp,
-			onStreamTracks:       d.onStreamTracks,
-			onStreamEnded:        d.onStreamEnded,
-			onSetLeadingTimeSync: d.onSetLeadingTimeSync,
-			onGetLeadingTimeSync: d.onGetLeadingTimeSync,
-			onData:               d.onData,
+			onDecodeError:      d.onDecodeError,
+			isLeading:          d.isLeading,
+			segmentQueue:       d.segmentQueue,
+			rp:                 d.rp,
+			setStreamTracks:    d.setStreamTracks,
+			setStreamEnded:     d.setStreamEnded,
+			setLeadingTimeConv: d.setLeadingTimeConv,
+			getLeadingTimeConv: d.getLeadingTimeConv,
 		}
 		proc.initialize()
 		d.rp.add(proc)

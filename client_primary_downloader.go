@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/bluenviron/gohlslib/pkg/playlist"
 )
@@ -117,6 +116,11 @@ func pickAudioPlaylist(alternatives []*playlist.MultivariantRendition, groupID s
 	return candidates[0]
 }
 
+type streamTracksEntry struct {
+	isLeading bool
+	tracks    []*Track
+}
+
 type clientPrimaryDownloader struct {
 	primaryPlaylistURL        *url.URL
 	httpClient                *http.Client
@@ -126,27 +130,24 @@ type clientPrimaryDownloader struct {
 	onDownloadPart            ClientOnDownloadPartFunc
 	onDecodeError             ClientOnDecodeErrorFunc
 	rp                        *clientRoutinePool
-	onTracks                  ClientOnTracksFunc
-	onData                    map[*Track]interface{}
+	setTracks                 func([]*Track) (map[*Track]*clientTrack, error)
+	setLeadingTimeConv        func(ts clientTimeConv)
+	getLeadingTimeConv        func(ctx context.Context) (clientTimeConv, bool)
 
-	streamProcByTrack map[*Track]clientStreamProcessor
-	leadingTimeSync   clientTimeSync
+	clientTracks map[*Track]*clientTrack
 
 	// in
-	chStreamTracks chan clientStreamProcessor
+	chStreamTracks chan streamTracksEntry
 	chStreamEnded  chan struct{}
 
 	// out
-	startStreaming       chan struct{}
-	leadingTimeSyncReady chan struct{}
+	startStreaming chan struct{}
 }
 
 func (d *clientPrimaryDownloader) initialize() {
-	d.streamProcByTrack = make(map[*Track]clientStreamProcessor)
-	d.chStreamTracks = make(chan clientStreamProcessor)
+	d.chStreamTracks = make(chan streamTracksEntry)
 	d.chStreamEnded = make(chan struct{})
 	d.startStreaming = make(chan struct{})
-	d.leadingTimeSyncReady = make(chan struct{})
 }
 
 func (d *clientPrimaryDownloader) run(ctx context.Context) error {
@@ -171,11 +172,10 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 			playlistURL:              d.primaryPlaylistURL,
 			firstPlaylist:            plt,
 			rp:                       d.rp,
-			onStreamTracks:           d.onStreamTracks,
-			onStreamEnded:            d.onStreamEnded,
-			onSetLeadingTimeSync:     d.onSetLeadingTimeSync,
-			onGetLeadingTimeSync:     d.onGetLeadingTimeSync,
-			onData:                   d.onData,
+			setStreamTracks:          d.setStreamTracks,
+			setStreamEnded:           d.setStreamEnded,
+			setLeadingTimeConv:       d.setLeadingTimeConv,
+			getLeadingTimeConv:       d.getLeadingTimeConv,
 		}
 		d.rp.add(ds)
 		streamCount++
@@ -201,11 +201,10 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 			playlistURL:              u,
 			firstPlaylist:            nil,
 			rp:                       d.rp,
-			onStreamTracks:           d.onStreamTracks,
-			onStreamEnded:            d.onStreamEnded,
-			onSetLeadingTimeSync:     d.onSetLeadingTimeSync,
-			onGetLeadingTimeSync:     d.onGetLeadingTimeSync,
-			onData:                   d.onData,
+			setStreamTracks:          d.setStreamTracks,
+			setStreamEnded:           d.setStreamEnded,
+			setLeadingTimeConv:       d.setLeadingTimeConv,
+			getLeadingTimeConv:       d.getLeadingTimeConv,
 		}
 		d.rp.add(ds)
 		streamCount++
@@ -232,11 +231,10 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 					playlistURL:              u,
 					firstPlaylist:            nil,
 					rp:                       d.rp,
-					onStreamTracks:           d.onStreamTracks,
-					onSetLeadingTimeSync:     d.onSetLeadingTimeSync,
-					onGetLeadingTimeSync:     d.onGetLeadingTimeSync,
-					onData:                   d.onData,
-					onStreamEnded:            d.onStreamEnded,
+					setStreamTracks:          d.setStreamTracks,
+					setLeadingTimeConv:       d.setLeadingTimeConv,
+					getLeadingTimeConv:       d.getLeadingTimeConv,
+					setStreamEnded:           d.setStreamEnded,
 				}
 				d.rp.add(ds)
 				streamCount++
@@ -251,17 +249,11 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 
 	for i := 0; i < streamCount; i++ {
 		select {
-		case streamProc := <-d.chStreamTracks:
-			if streamProc.getIsLeading() {
-				prevTracks := tracks
-				tracks = append([]*Track(nil), streamProc.getTracks()...)
-				tracks = append(tracks, prevTracks...)
+		case entry := <-d.chStreamTracks:
+			if entry.isLeading {
+				tracks = append(append([]*Track(nil), entry.tracks...), tracks...)
 			} else {
-				tracks = append(tracks, streamProc.getTracks()...)
-			}
-
-			for _, track := range streamProc.getTracks() {
-				d.streamProcByTrack[track] = streamProc
+				tracks = append(tracks, entry.tracks...)
 			}
 
 		case <-ctx.Done():
@@ -273,7 +265,7 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 		return fmt.Errorf("no supported tracks found")
 	}
 
-	err = d.onTracks(tracks)
+	d.clientTracks, err = d.setTracks(tracks)
 	if err != nil {
 		return err
 	}
@@ -291,43 +283,37 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 	return ErrClientEOS
 }
 
-func (d *clientPrimaryDownloader) onStreamTracks(ctx context.Context, streamProc clientStreamProcessor) bool {
+func (d *clientPrimaryDownloader) setStreamTracks(
+	ctx context.Context,
+	isLeading bool,
+	tracks []*Track,
+) ([]*clientTrack, bool) {
 	select {
-	case d.chStreamTracks <- streamProc:
+	case d.chStreamTracks <- streamTracksEntry{
+		isLeading: isLeading,
+		tracks:    tracks,
+	}:
 	case <-ctx.Done():
-		return false
+		return nil, false
 	}
 
 	select {
 	case <-d.startStreaming:
 	case <-ctx.Done():
-		return false
+		return nil, false
 	}
 
-	return true
+	streamClientTracks := make([]*clientTrack, len(tracks))
+	for i, track := range tracks {
+		streamClientTracks[i] = d.clientTracks[track]
+	}
+
+	return streamClientTracks, true
 }
 
-func (d *clientPrimaryDownloader) onStreamEnded(ctx context.Context) {
+func (d *clientPrimaryDownloader) setStreamEnded(ctx context.Context) {
 	select {
 	case d.chStreamEnded <- struct{}{}:
 	case <-ctx.Done():
 	}
-}
-
-func (d *clientPrimaryDownloader) onSetLeadingTimeSync(ts clientTimeSync) {
-	d.leadingTimeSync = ts
-	close(d.leadingTimeSyncReady)
-}
-
-func (d *clientPrimaryDownloader) onGetLeadingTimeSync(ctx context.Context) (clientTimeSync, bool) {
-	select {
-	case <-d.leadingTimeSyncReady:
-	case <-ctx.Done():
-		return nil, false
-	}
-	return d.leadingTimeSync, true
-}
-
-func (d *clientPrimaryDownloader) ntp(track *Track, dts time.Duration) (time.Time, bool) {
-	return d.streamProcByTrack[track].ntp(dts)
 }

@@ -4,58 +4,31 @@ import (
 	"context"
 	"fmt"
 	"time"
-
-	"github.com/bluenviron/gohlslib/pkg/codecs"
 )
 
-type mpegtsSample struct {
+type procEntryMPEGTS struct {
 	pts  time.Duration
 	dts  time.Duration
+	ntp  time.Time
 	data [][]byte
 }
 
 type clientTrackProcessorMPEGTS struct {
-	track               *Track
-	onData              interface{}
-	timeSync            *clientTimeSyncMPEGTS
+	track               *clientTrack
 	onPartProcessorDone func(ctx context.Context)
 
-	postProcess func(sample *mpegtsSample)
-
-	queue chan *mpegtsSample
+	queue chan *procEntryMPEGTS
 }
 
 func (t *clientTrackProcessorMPEGTS) initialize() {
-	switch t.track.Codec.(type) {
-	case *codecs.H264:
-		var onDataCasted ClientOnDataH26xFunc = func(pts time.Duration, dts time.Duration, au [][]byte) {}
-		if t.onData != nil {
-			onDataCasted = t.onData.(ClientOnDataH26xFunc)
-		}
-
-		t.postProcess = func(sample *mpegtsSample) {
-			onDataCasted(sample.pts, sample.dts, sample.data)
-		}
-
-	case *codecs.MPEG4Audio:
-		var onDataCasted ClientOnDataMPEG4AudioFunc = func(pts time.Duration, aus [][]byte) {}
-		if t.onData != nil {
-			onDataCasted = t.onData.(ClientOnDataMPEG4AudioFunc)
-		}
-
-		t.postProcess = func(sample *mpegtsSample) {
-			onDataCasted(sample.pts, sample.data)
-		}
-	}
-
-	t.queue = make(chan *mpegtsSample, clientMPEGTSSampleQueueSize)
+	t.queue = make(chan *procEntryMPEGTS, clientMPEGTSSampleQueueSize)
 }
 
 func (t *clientTrackProcessorMPEGTS) run(ctx context.Context) error {
 	for {
 		select {
-		case sample := <-t.queue:
-			err := t.process(ctx, sample)
+		case entry := <-t.queue:
+			err := t.process(ctx, entry)
 			if err != nil {
 				return err
 			}
@@ -66,29 +39,18 @@ func (t *clientTrackProcessorMPEGTS) run(ctx context.Context) error {
 	}
 }
 
-func (t *clientTrackProcessorMPEGTS) process(ctx context.Context, sample *mpegtsSample) error {
-	if sample == nil {
+func (t *clientTrackProcessorMPEGTS) process(ctx context.Context, entry *procEntryMPEGTS) error {
+	if entry == nil {
 		t.onPartProcessorDone(ctx)
 		return nil
 	}
 
-	// silently discard packets prior to the first packet of the leading track
-	if sample.pts < 0 {
-		return nil
-	}
-
-	err := t.timeSync.sync(ctx, sample.dts)
-	if err != nil {
-		return err
-	}
-
-	t.postProcess(sample)
-	return nil
+	return t.track.handleData(ctx, entry.pts, entry.dts, entry.ntp, entry.data)
 }
 
-func (t *clientTrackProcessorMPEGTS) push(ctx context.Context, sample *mpegtsSample) error {
+func (t *clientTrackProcessorMPEGTS) push(ctx context.Context, entry *procEntryMPEGTS) error {
 	select {
-	case t.queue <- sample:
+	case t.queue <- entry:
 		return nil
 
 	case <-ctx.Done():

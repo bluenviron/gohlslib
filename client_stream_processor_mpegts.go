@@ -36,39 +36,29 @@ func (r *switchableReader) Read(p []byte) (int, error) {
 }
 
 type clientStreamProcessorMPEGTS struct {
-	onDecodeError        ClientOnDecodeErrorFunc
-	isLeading            bool
-	segmentQueue         *clientSegmentQueue
-	rp                   *clientRoutinePool
-	onStreamTracks       clientOnStreamTracksFunc
-	onStreamEnded        func(context.Context)
-	onSetLeadingTimeSync func(clientTimeSync)
-	onGetLeadingTimeSync func(context.Context) (clientTimeSync, bool)
-	onData               map[*Track]interface{}
+	onDecodeError      ClientOnDecodeErrorFunc
+	isLeading          bool
+	segmentQueue       *clientSegmentQueue
+	rp                 *clientRoutinePool
+	setStreamTracks    clientOnStreamTracksFunc
+	setStreamEnded     func(context.Context)
+	setLeadingTimeConv func(clientTimeConv)
+	getLeadingTimeConv func(context.Context) (clientTimeConv, bool)
 
-	switchableReader  *switchableReader
-	reader            *mpegts.Reader
-	tracks            []*Track
-	trackProcessors   map[*Track]*clientTrackProcessorMPEGTS
-	timeSync          *clientTimeSyncMPEGTS
-	leadingTrackFound bool
-	ntpAvailable      bool
-	ntpAbsolute       time.Time
-	ntpRelative       time.Duration
+	switchableReader   *switchableReader
+	reader             *mpegts.Reader
+	trackProcessors    map[*Track]*clientTrackProcessorMPEGTS
+	timeConv           *clientTimeConvMPEGTS
+	curSegment         *segmentData
+	leadingTrackFound  bool
+	dateTimeProcessed  bool
+	clientStreamTracks []*clientTrack
 
 	chTrackProcessorDone chan struct{}
 }
 
 func (p *clientStreamProcessorMPEGTS) initialize() {
 	p.chTrackProcessorDone = make(chan struct{}, clientMaxTracksPerStream)
-}
-
-func (p *clientStreamProcessorMPEGTS) getIsLeading() bool {
-	return p.isLeading
-}
-
-func (p *clientStreamProcessorMPEGTS) getTracks() []*Track {
-	return p.tracks
 }
 
 func (p *clientStreamProcessorMPEGTS) run(ctx context.Context) error {
@@ -87,13 +77,13 @@ func (p *clientStreamProcessorMPEGTS) run(ctx context.Context) error {
 
 func (p *clientStreamProcessorMPEGTS) processSegment(ctx context.Context, seg *segmentData) error {
 	if seg == nil {
-		p.onStreamEnded(ctx)
+		p.setStreamEnded(ctx)
 		<-ctx.Done()
 		return fmt.Errorf("terminated")
 	}
 
 	if p.switchableReader == nil {
-		err := p.initializeReader(ctx, seg)
+		err := p.initializeReader(ctx, seg.payload)
 		if err != nil {
 			return err
 		}
@@ -101,7 +91,9 @@ func (p *clientStreamProcessorMPEGTS) processSegment(ctx context.Context, seg *s
 		p.switchableReader.r = bytes.NewReader(seg.payload)
 	}
 
+	p.curSegment = seg
 	p.leadingTrackFound = false
+	p.dateTimeProcessed = false
 
 	for {
 		err := p.reader.Read()
@@ -121,14 +113,14 @@ func (p *clientStreamProcessorMPEGTS) processSegment(ctx context.Context, seg *s
 }
 
 func (p *clientStreamProcessorMPEGTS) joinTrackProcessors(ctx context.Context) error {
-	for _, track := range p.tracks {
-		err := p.trackProcessors[track].push(ctx, nil)
+	for _, proc := range p.trackProcessors {
+		err := proc.push(ctx, nil)
 		if err != nil {
 			return err
 		}
 	}
 
-	for range p.tracks {
+	for range p.trackProcessors {
 		select {
 		case <-p.chTrackProcessorDone:
 		case <-ctx.Done():
@@ -146,8 +138,8 @@ func (p *clientStreamProcessorMPEGTS) onPartProcessorDone(ctx context.Context) {
 	}
 }
 
-func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, segment *segmentData) error {
-	p.switchableReader = &switchableReader{bytes.NewReader(segment.payload)}
+func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, firstPayload []byte) error {
+	p.switchableReader = &switchableReader{bytes.NewReader(firstPayload)}
 
 	var err error
 	p.reader, err = mpegts.NewReader(p.switchableReader)
@@ -168,27 +160,30 @@ func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, segm
 	}
 
 	leadingTrackID := mpegtsPickLeadingTrack(p.reader.Tracks())
-	p.tracks = make([]*Track, len(p.reader.Tracks()))
 
+	tracks := make([]*Track, len(p.reader.Tracks()))
 	for i, mpegtsTrack := range p.reader.Tracks() {
-		p.tracks[i] = &Track{
+		tracks[i] = &Track{
 			Codec: codecs.FromMPEGTS(mpegtsTrack.Codec),
 		}
 	}
 
-	if len(p.tracks) > clientMaxTracksPerStream {
+	if len(tracks) > clientMaxTracksPerStream {
 		return fmt.Errorf("too many tracks per stream")
 	}
 
-	ok := p.onStreamTracks(ctx, p)
+	var ok bool
+	p.clientStreamTracks, ok = p.setStreamTracks(ctx, p.isLeading, tracks)
 	if !ok {
 		return fmt.Errorf("terminated")
 	}
 
-	dateTimeProcessed := false
+	ntpAvailable := false
+	var ntpAbsolute time.Time
+	var ntpRelative time.Duration
 
 	for i, mpegtsTrack := range p.reader.Tracks() {
-		track := p.tracks[i]
+		track := p.clientStreamTracks[i]
 		isLeadingTrack := (i == leadingTrackID)
 		var trackProc *clientTrackProcessorMPEGTS
 
@@ -205,7 +200,7 @@ func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, segm
 			}
 
 			if trackProc == nil {
-				trackProc = p.trackProcessors[track]
+				trackProc = p.trackProcessors[track.track]
 
 				// wait leading track before proceeding
 				if trackProc == nil {
@@ -213,29 +208,35 @@ func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, segm
 				}
 			}
 
-			pts := p.timeSync.convert(rawPTS)
-			dts := p.timeSync.convert(rawDTS)
+			pts := p.timeConv.convert(rawPTS)
+			dts := p.timeConv.convert(rawDTS)
 
-			if isLeadingTrack && !dateTimeProcessed {
-				dateTimeProcessed = true
+			if isLeadingTrack && !p.dateTimeProcessed {
+				p.dateTimeProcessed = true
 
-				if segment.dateTime != nil {
-					p.ntpAvailable = true
-					p.ntpAbsolute = *segment.dateTime
-					p.ntpRelative = dts
+				if p.curSegment.dateTime != nil {
+					ntpAvailable = true
+					ntpAbsolute = *p.curSegment.dateTime
+					ntpRelative = dts
 				} else {
-					p.ntpAvailable = false
+					ntpAvailable = false
 				}
 			}
 
-			return trackProc.push(ctx, &mpegtsSample{
+			ntp := time.Time{}
+			if ntpAvailable {
+				ntp = ntpAbsolute.Add(dts - ntpRelative)
+			}
+
+			return trackProc.push(ctx, &procEntryMPEGTS{
 				pts:  pts,
 				dts:  dts,
+				ntp:  ntp,
 				data: data,
 			})
 		}
 
-		switch track.Codec.(type) {
+		switch track.track.Codec.(type) {
 		case *codecs.H264:
 			p.reader.OnDataH26x(mpegtsTrack, func(pts int64, dts int64, au [][]byte) error {
 				return processSample(pts, dts, au)
@@ -256,19 +257,19 @@ func (p *clientStreamProcessorMPEGTS) initializeTrackProcessors(
 	dts int64,
 ) error {
 	if p.isLeading {
-		p.timeSync = &clientTimeSyncMPEGTS{
+		p.timeConv = &clientTimeConvMPEGTS{
 			startDTS: dts,
 		}
-		p.timeSync.initialize()
+		p.timeConv.initialize()
 
-		p.onSetLeadingTimeSync(p.timeSync)
+		p.setLeadingTimeConv(p.timeConv)
 	} else {
-		rawTS, ok := p.onGetLeadingTimeSync(ctx)
+		rawTS, ok := p.getLeadingTimeConv(ctx)
 		if !ok {
 			return fmt.Errorf("terminated")
 		}
 
-		p.timeSync, ok = rawTS.(*clientTimeSyncMPEGTS)
+		p.timeConv, ok = rawTS.(*clientTimeConvMPEGTS)
 		if !ok {
 			return fmt.Errorf("stream playlists are mixed MPEGTS/FMP4")
 		}
@@ -276,24 +277,15 @@ func (p *clientStreamProcessorMPEGTS) initializeTrackProcessors(
 
 	p.trackProcessors = make(map[*Track]*clientTrackProcessorMPEGTS)
 
-	for _, track := range p.tracks {
+	for _, track := range p.clientStreamTracks {
 		proc := &clientTrackProcessorMPEGTS{
 			track:               track,
-			onData:              p.onData[track],
-			timeSync:            p.timeSync,
 			onPartProcessorDone: p.onPartProcessorDone,
 		}
 		proc.initialize()
 		p.rp.add(proc)
-		p.trackProcessors[track] = proc
+		p.trackProcessors[track.track] = proc
 	}
 
 	return nil
-}
-
-func (p *clientStreamProcessorMPEGTS) ntp(dts time.Duration) (time.Time, bool) {
-	if !p.ntpAvailable {
-		return time.Time{}, false
-	}
-	return p.ntpAbsolute.Add(dts - p.ntpRelative), true
 }

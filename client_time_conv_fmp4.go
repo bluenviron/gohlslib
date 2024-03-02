@@ -1,8 +1,6 @@
 package gohlslib
 
 import (
-	"context"
-	"fmt"
 	"time"
 )
 
@@ -20,41 +18,17 @@ func durationMp4ToGo(v uint64, timeScale uint32) time.Duration {
 	return time.Duration(secs)*time.Second + time.Duration(dec)*time.Second/time.Duration(timeScale64)
 }
 
-type clientTimeSyncFMP4 struct {
+type clientTimeConvFMP4 struct {
 	leadingTimeScale uint32
 	initialBaseTime  uint64
 
-	startRTC time.Time
 	startDTS time.Duration
 }
 
-func (ts *clientTimeSyncFMP4) initialize() {
-	ts.startRTC = time.Now()
+func (ts *clientTimeConvFMP4) initialize() {
 	ts.startDTS = durationMp4ToGo(ts.initialBaseTime, ts.leadingTimeScale)
 }
 
-func (ts *clientTimeSyncFMP4) convert(v uint64, timeScale uint32) time.Duration {
+func (ts *clientTimeConvFMP4) convert(v uint64, timeScale uint32) time.Duration {
 	return durationMp4ToGo(v, timeScale) - ts.startDTS
-}
-
-func (ts *clientTimeSyncFMP4) sync(
-	ctx context.Context,
-	dts time.Duration,
-) error {
-	elapsed := time.Since(ts.startRTC)
-
-	if dts > elapsed {
-		diff := dts - elapsed
-		if diff > clientMaxDTSRTCDiff {
-			return fmt.Errorf("difference between DTS and RTC is too big")
-		}
-
-		select {
-		case <-time.After(diff):
-		case <-ctx.Done():
-			return fmt.Errorf("terminated")
-		}
-	}
-
-	return nil
 }
