@@ -23,32 +23,29 @@ func (ts *clientTimeSyncMPEGTS) initialize() {
 }
 
 func (ts *clientTimeSyncMPEGTS) convert(v int64) time.Duration {
+	ts.mutex.Lock()
+	defer ts.mutex.Unlock()
 	return ts.td.Decode(v)
 }
 
-func (ts *clientTimeSyncMPEGTS) convertAndSync(
+func (ts *clientTimeSyncMPEGTS) sync(
 	ctx context.Context,
-	rawPTS int64,
-	rawDTS int64,
-) (time.Duration, time.Duration, error) {
-	ts.mutex.Lock()
-	pts := ts.convert(rawPTS)
-	dts := ts.convert(rawDTS)
-	ts.mutex.Unlock()
-
+	dts time.Duration,
+) error {
 	elapsed := time.Since(ts.startRTC)
+
 	if dts > elapsed {
 		diff := dts - elapsed
 		if diff > clientMaxDTSRTCDiff {
-			return 0, 0, fmt.Errorf("difference between DTS and RTC is too big")
+			return fmt.Errorf("difference between DTS and RTC is too big")
 		}
 
 		select {
 		case <-time.After(diff):
 		case <-ctx.Done():
-			return 0, 0, fmt.Errorf("terminated")
+			return fmt.Errorf("terminated")
 		}
 	}
 
-	return pts, dts, nil
+	return nil
 }

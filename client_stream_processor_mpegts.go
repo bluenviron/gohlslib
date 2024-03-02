@@ -51,7 +51,6 @@ type clientStreamProcessorMPEGTS struct {
 	tracks            []*Track
 	trackProcessors   map[*Track]*clientTrackProcessorMPEGTS
 	timeSync          *clientTimeSyncMPEGTS
-	curSegment        *segmentData
 	leadingTrackFound bool
 	ntpAvailable      bool
 	ntpAbsolute       time.Time
@@ -94,7 +93,7 @@ func (p *clientStreamProcessorMPEGTS) processSegment(ctx context.Context, seg *s
 	}
 
 	if p.switchableReader == nil {
-		err := p.initializeReader(ctx, seg.payload)
+		err := p.initializeReader(ctx, seg)
 		if err != nil {
 			return err
 		}
@@ -102,7 +101,6 @@ func (p *clientStreamProcessorMPEGTS) processSegment(ctx context.Context, seg *s
 		p.switchableReader.r = bytes.NewReader(seg.payload)
 	}
 
-	p.curSegment = seg
 	p.leadingTrackFound = false
 
 	for {
@@ -148,8 +146,8 @@ func (p *clientStreamProcessorMPEGTS) onPartProcessorDone(ctx context.Context) {
 	}
 }
 
-func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, byts []byte) error {
-	p.switchableReader = &switchableReader{bytes.NewReader(byts)}
+func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, segment *segmentData) error {
+	p.switchableReader = &switchableReader{bytes.NewReader(segment.payload)}
 
 	var err error
 	p.reader, err = mpegts.NewReader(p.switchableReader)
@@ -187,59 +185,65 @@ func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, byts
 		return fmt.Errorf("terminated")
 	}
 
+	dateTimeProcessed := false
+
 	for i, mpegtsTrack := range p.reader.Tracks() {
 		track := p.tracks[i]
 		isLeadingTrack := (i == leadingTrackID)
 		var trackProc *clientTrackProcessorMPEGTS
 
-		processSample := func(pts int64, dts int64, sample *mpegtsSample) error {
-			if !p.leadingTrackFound && isLeadingTrack {
+		processSample := func(rawPTS int64, rawDTS int64, data [][]byte) error {
+			if isLeadingTrack {
 				p.leadingTrackFound = true
 
 				if p.trackProcessors == nil {
-					err := p.initializeTrackProcessors(ctx, dts)
+					err := p.initializeTrackProcessors(ctx, rawDTS)
 					if err != nil {
 						return err
 					}
-				}
-
-				if p.curSegment.dateTime != nil {
-					p.ntpAvailable = true
-					p.ntpAbsolute = *p.curSegment.dateTime
-					p.ntpRelative = p.timeSync.convert(dts)
-				} else {
-					p.ntpAvailable = false
 				}
 			}
 
 			if trackProc == nil {
 				trackProc = p.trackProcessors[track]
 
+				// wait leading track before proceeding
 				if trackProc == nil {
 					return nil
 				}
 			}
 
-			return trackProc.push(ctx, sample)
+			pts := p.timeSync.convert(rawPTS)
+			dts := p.timeSync.convert(rawDTS)
+
+			if isLeadingTrack && !dateTimeProcessed {
+				dateTimeProcessed = true
+
+				if segment.dateTime != nil {
+					p.ntpAvailable = true
+					p.ntpAbsolute = *segment.dateTime
+					p.ntpRelative = dts
+				} else {
+					p.ntpAvailable = false
+				}
+			}
+
+			return trackProc.push(ctx, &mpegtsSample{
+				pts:  pts,
+				dts:  dts,
+				data: data,
+			})
 		}
 
 		switch track.Codec.(type) {
 		case *codecs.H264:
 			p.reader.OnDataH26x(mpegtsTrack, func(pts int64, dts int64, au [][]byte) error {
-				return processSample(pts, dts, &mpegtsSample{
-					pts:  pts,
-					dts:  dts,
-					data: au,
-				})
+				return processSample(pts, dts, au)
 			})
 
 		case *codecs.MPEG4Audio:
 			p.reader.OnDataMPEG4Audio(mpegtsTrack, func(pts int64, aus [][]byte) error {
-				return processSample(pts, pts, &mpegtsSample{
-					pts:  pts,
-					dts:  pts,
-					data: aus,
-				})
+				return processSample(pts, pts, aus)
 			})
 		}
 	}
