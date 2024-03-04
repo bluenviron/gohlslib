@@ -157,12 +157,11 @@ func (m *Muxer) Start() error {
 	}
 
 	m.server = &muxerServer{
-		variant:        m.Variant,
-		segmentCount:   m.SegmentCount,
-		videoTrack:     m.VideoTrack,
-		audioTrack:     m.AudioTrack,
-		prefix:         m.prefix,
-		storageFactory: m.storageFactory,
+		variant:      m.Variant,
+		segmentCount: m.SegmentCount,
+		videoTrack:   m.VideoTrack,
+		audioTrack:   m.AudioTrack,
+		prefix:       m.prefix,
 	}
 	m.server.initialize()
 

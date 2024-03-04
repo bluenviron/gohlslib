@@ -18,8 +18,8 @@ import (
 	"github.com/bluenviron/gohlslib/pkg/codecparams"
 	"github.com/bluenviron/gohlslib/pkg/codecs"
 	"github.com/bluenviron/gohlslib/pkg/playlist"
-	"github.com/bluenviron/gohlslib/pkg/storage"
 	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
+	"github.com/bluenviron/mediacommon/pkg/formats/fmp4/seekablebuffer"
 )
 
 func boolPtr(v bool) *bool {
@@ -207,9 +207,7 @@ func generateMultivariantPlaylist(
 func generateInitFile(
 	videoTrack *Track,
 	audioTrack *Track,
-	storageFactory storage.Factory,
-	prefix string,
-) (storage.File, error) {
+) ([]byte, error) {
 	var init fmp4.Init
 	trackID := 1
 
@@ -230,21 +228,13 @@ func generateInitFile(
 		})
 	}
 
-	f, err := storageFactory.NewFile(prefix + "_init.mp4")
-	if err != nil {
-		return nil, err
-	}
-	defer f.Finalize()
-
-	part := f.NewPart()
-	w := part.Writer()
-
-	err = init.Marshal(w)
+	var w seekablebuffer.Buffer
+	err := init.Marshal(&w)
 	if err != nil {
 		return nil, err
 	}
 
-	return f, nil
+	return w.Bytes(), nil
 }
 
 func generateMediaPlaylistMPEGTS(
@@ -411,12 +401,11 @@ func generateMediaPlaylist(
 }
 
 type muxerServer struct {
-	variant        MuxerVariant
-	segmentCount   int
-	videoTrack     *Track
-	audioTrack     *Track
-	prefix         string
-	storageFactory storage.Factory
+	variant      MuxerVariant
+	segmentCount int
+	videoTrack   *Track
+	audioTrack   *Track
+	prefix       string
 
 	mutex                sync.Mutex
 	cond                 *sync.Cond
@@ -429,7 +418,7 @@ type muxerServer struct {
 	nextSegmentParts     []*muxerPart
 	nextPartID           uint64
 	multivariantPlaylist []byte
-	init                 storage.File
+	init                 []byte
 }
 
 func (s *muxerServer) initialize() {
@@ -449,10 +438,6 @@ func (s *muxerServer) close() {
 
 	for _, segment := range s.segments {
 		segment.close()
-	}
-
-	if s.init != nil {
-		s.init.Remove()
 	}
 }
 
@@ -651,7 +636,7 @@ func (s *muxerServer) handleMediaPlaylist(msn string, part string, skip string, 
 }
 
 func (s *muxerServer) handleInitFile(w http.ResponseWriter) {
-	init := func() storage.File {
+	init := func() []byte {
 		s.mutex.Lock()
 		defer s.mutex.Unlock()
 
@@ -667,19 +652,12 @@ func (s *muxerServer) handleInitFile(w http.ResponseWriter) {
 		return
 	}
 
-	r, err := init.Reader()
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	defer r.Close()
-
 	// allow caching but use a small period in order to
 	// allow a stream to change track parameters
 	w.Header().Set("Cache-Control", "max-age=30")
 	w.Header().Set("Content-Type", "video/mp4")
 	w.WriteHeader(http.StatusOK)
-	io.Copy(w, r)
+	w.Write(init)
 }
 
 func (s *muxerServer) handleSegmentOrPart(fname string, w http.ResponseWriter) {
@@ -813,16 +791,11 @@ func (s *muxerServer) publishSegmentInner(segment muxerSegment) error {
 
 	// regenerate init.mp4 only if missing or codec parameters have changed
 	if s.variant != MuxerVariantMPEGTS && (s.init == nil || segment.isForceSwitched()) {
-		if s.init != nil {
-			s.init.Remove()
-			s.init = nil
-		}
-
-		f, err := generateInitFile(s.videoTrack, s.audioTrack, s.storageFactory, s.prefix)
+		byts, err := generateInitFile(s.videoTrack, s.audioTrack)
 		if err != nil {
 			return err
 		}
-		s.init = f
+		s.init = byts
 	}
 
 	// do not pregenerate media playlist since it's too dynamic.
