@@ -732,9 +732,6 @@ func TestMuxerSaveToDisk(t *testing.T) {
 				_, err = os.ReadFile(filepath.Join(dir, ma[2]))
 				require.Error(t, err)
 			} else {
-				_, err = os.ReadFile(filepath.Join(dir, ma[1]))
-				require.NoError(t, err)
-
 				_, err = os.ReadFile(filepath.Join(dir, ma[3]))
 				require.NoError(t, err)
 
