@@ -29,9 +29,10 @@ func boolPtr(v bool) *bool {
 func targetDuration(segments []muxerSegment) int {
 	ret := int(0)
 
-	// EXTINF, when rounded to the nearest integer, must be <= EXT-X-TARGETDURATION
+	// The EXTINF duration of each Media Segment in the Playlist file MUST be less than or equal to the target duration;
+	// So, the target duration is the integer greater than or equal to the largest EXTINF duration in the Playlist file.
 	for _, sog := range segments {
-		v := int(math.Round(sog.getDuration().Seconds()))
+		v := int(math.Ceil(sog.getDuration().Seconds()))
 		if v > ret {
 			ret = v
 		}
