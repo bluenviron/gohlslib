@@ -178,14 +178,14 @@ func (c *Client) Wait() chan error {
 
 // OnDataAV1 sets a callback that is called when data from an AV1 track is received.
 func (c *Client) OnDataAV1(track *Track, cb ClientOnDataAV1Func) {
-	c.tracks[track].onData = func(pts time.Duration, dts time.Duration, data [][]byte) {
+	c.tracks[track].onData = func(pts time.Duration, _ time.Duration, data [][]byte) {
 		cb(pts, data)
 	}
 }
 
 // OnDataVP9 sets a callback that is called when data from a VP9 track is received.
 func (c *Client) OnDataVP9(track *Track, cb ClientOnDataVP9Func) {
-	c.tracks[track].onData = func(pts time.Duration, dts time.Duration, data [][]byte) {
+	c.tracks[track].onData = func(pts time.Duration, _ time.Duration, data [][]byte) {
 		cb(pts, data[0])
 	}
 }
@@ -199,14 +199,14 @@ func (c *Client) OnDataH26x(track *Track, cb ClientOnDataH26xFunc) {
 
 // OnDataMPEG4Audio sets a callback that is called when data from a MPEG-4 Audio track is received.
 func (c *Client) OnDataMPEG4Audio(track *Track, cb ClientOnDataMPEG4AudioFunc) {
-	c.tracks[track].onData = func(pts time.Duration, dts time.Duration, data [][]byte) {
+	c.tracks[track].onData = func(pts time.Duration, _ time.Duration, data [][]byte) {
 		cb(pts, data)
 	}
 }
 
 // OnDataOpus sets a callback that is called when data from an Opus track is received.
 func (c *Client) OnDataOpus(track *Track, cb ClientOnDataOpusFunc) {
-	c.tracks[track].onData = func(pts time.Duration, dts time.Duration, data [][]byte) {
+	c.tracks[track].onData = func(pts time.Duration, _ time.Duration, data [][]byte) {
 		cb(pts, data)
 	}
 }
@@ -258,7 +258,7 @@ func (c *Client) setTracks(tracks []*Track) (map[*Track]*clientTrack, error) {
 	for _, track := range tracks {
 		c.tracks[track] = &clientTrack{
 			track:  track,
-			onData: func(pts, dts time.Duration, data [][]byte) {},
+			onData: func(_, _ time.Duration, _ [][]byte) {},
 		}
 	}
 

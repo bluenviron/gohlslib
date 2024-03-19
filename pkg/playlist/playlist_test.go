@@ -27,7 +27,7 @@ func TestUnmarshal(t *testing.T) {
 func FuzzPlaylistUnmarshal(f *testing.F) {
 	f.Add("#EXTINF:")
 
-	f.Fuzz(func(t *testing.T, a string) {
+	f.Fuzz(func(_ *testing.T, a string) {
 		Unmarshal([]byte(a)) //nolint:errcheck
 	})
 }
