@@ -892,7 +892,7 @@ func FuzzMultivariantUnmarshal(f *testing.F) {
 		"#EXT-X-STREAM-INF:BANDWIDTH=2177116,AVERAGE-BANDWIDTH=2168183,CODECS=\"avc1.640020,mp4a.40.2\",RESOLUTION=960x540,FRAME-RATE=60.000,AUDIO=\"aud1\",SUBTITLES=\"sub1\",CLOSED-CAPTIONS=\"cc1\"\n" +
 		"v5/prog_index.m3u8\n")
 
-	f.Fuzz(func(t *testing.T, a string) {
+	f.Fuzz(func(_ *testing.T, a string) {
 		var m Multivariant
 		m.Unmarshal([]byte(a)) //nolint:errcheck
 	})

@@ -787,7 +787,7 @@ func TestClientFMP4LowLatency(t *testing.T) {
 
 	closeRequest := make(chan struct{})
 
-	router.GET("/part3.mp4", func(ctx *gin.Context) {
+	router.GET("/part3.mp4", func(_ *gin.Context) {
 		<-closeRequest
 	})
 

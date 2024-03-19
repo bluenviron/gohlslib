@@ -322,7 +322,7 @@ func FuzzMediaUnmarshal(f *testing.F) {
 	f.Add("#EXTM3U\n" +
 		"#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=5.00000,CAN-SKIP-UNTIL=7.00000\n")
 
-	f.Fuzz(func(t *testing.T, a string) {
+	f.Fuzz(func(_ *testing.T, a string) {
 		var m Media
 		m.Unmarshal([]byte(a)) //nolint:errcheck
 	})
