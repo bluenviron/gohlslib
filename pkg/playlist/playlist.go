@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	maxSupportedVersion = 9
+	maxSupportedVersion = 10
 )
 
 // Playlist is either Media or Multivariant.

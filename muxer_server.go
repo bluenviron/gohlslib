@@ -274,7 +274,7 @@ func generateMediaPlaylistFMP4(
 	skipBoundary := time.Duration(targetDuration) * 6 * time.Second
 
 	pl := &playlist.Media{
-		Version:        9,
+		Version:        10,
 		TargetDuration: targetDuration,
 		MediaSequence:  segmentDeleteCount,
 	}
