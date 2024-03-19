@@ -247,7 +247,7 @@ func TestMuxerVideoAudio(t *testing.T) {
 
 			case "fmp4":
 				re := regexp.MustCompile(`^#EXTM3U\n` +
-					`#EXT-X-VERSION:9\n` +
+					`#EXT-X-VERSION:10\n` +
 					`#EXT-X-TARGETDURATION:4\n` +
 					`#EXT-X-MEDIA-SEQUENCE:0\n` +
 					`#EXT-X-MAP:URI="(.*?_init.mp4)"\n` +
@@ -273,7 +273,7 @@ func TestMuxerVideoAudio(t *testing.T) {
 			case "lowLatency":
 				re := regexp.MustCompile(
 					`^#EXTM3U\n` +
-						`#EXT-X-VERSION:9\n` +
+						`#EXT-X-VERSION:10\n` +
 						`#EXT-X-TARGETDURATION:4\n` +
 						`#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=5.00000,CAN-SKIP-UNTIL=24.00000\n` +
 						`#EXT-X-PART-INF:PART-TARGET=2.00000\n` +
@@ -418,7 +418,7 @@ func TestMuxerVideoOnly(t *testing.T) {
 					`(.*?_seg1\.ts)\n$`)
 			} else {
 				re = regexp.MustCompile(`^#EXTM3U\n` +
-					`#EXT-X-VERSION:9\n` +
+					`#EXT-X-VERSION:10\n` +
 					`#EXT-X-TARGETDURATION:4\n` +
 					`#EXT-X-MEDIA-SEQUENCE:0\n` +
 					`#EXT-X-MAP:URI="(.*?_init.mp4)"\n` +
@@ -524,7 +524,7 @@ func TestMuxerAudioOnly(t *testing.T) {
 					`(.*?_seg0\.ts)\n$`)
 			} else {
 				re = regexp.MustCompile(`^#EXTM3U\n` +
-					`#EXT-X-VERSION:9\n` +
+					`#EXT-X-VERSION:10\n` +
 					`#EXT-X-TARGETDURATION:1\n` +
 					`#EXT-X-MEDIA-SEQUENCE:0\n` +
 					`#EXT-X-MAP:URI="(.*?_init.mp4)"\n` +
@@ -709,7 +709,7 @@ func TestMuxerSaveToDisk(t *testing.T) {
 					`(.*?_seg1\.ts)\n$`)
 			} else {
 				re = regexp.MustCompile(`^#EXTM3U\n` +
-					`#EXT-X-VERSION:9\n` +
+					`#EXT-X-VERSION:10\n` +
 					`#EXT-X-TARGETDURATION:2\n` +
 					`#EXT-X-MEDIA-SEQUENCE:0\n` +
 					`#EXT-X-MAP:URI="(.*?_init.mp4)"\n` +

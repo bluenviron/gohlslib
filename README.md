@@ -57,6 +57,7 @@ Features:
 |[RFC2616, HTTP 1.1](https://datatracker.ietf.org/doc/html/rfc2616)|protocol|
 |[RFC8216, HLS](https://datatracker.ietf.org/doc/html/rfc8216)|protocol|
 |[HLS v2](https://datatracker.ietf.org/doc/html/draft-pantos-hls-rfc8216bis)|protocol|
+|[HTTP Live Streaming by Apple](https://developer.apple.com/documentation/http-live-streaming)|protocol|
 |[Codec specifications](https://github.com/bluenviron/mediacommon#specifications)|codecs|
 |[Golang project layout](https://github.com/golang-standards/project-layout)|project layout|
 
