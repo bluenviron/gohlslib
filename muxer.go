@@ -78,7 +78,7 @@ type Muxer struct {
 
 	// Deprecated: replaced with SegmentMinDuration
 	SegmentDuration time.Duration
-	// Deprecated: replaced with PartMinDUratino
+	// Deprecated: replaced with PartMinDuration
 	PartDuration time.Duration
 
 	//
