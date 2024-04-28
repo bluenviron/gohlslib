@@ -120,7 +120,8 @@ func (m *Media) Unmarshal(buf []byte) error {
 		case strings.HasPrefix(line, "#EXT-X-VERSION:"):
 			line = line[len("#EXT-X-VERSION:"):]
 
-			tmp, err := strconv.ParseUint(line, 10, 31)
+			var tmp uint64
+			tmp, err = strconv.ParseUint(line, 10, 31)
 			if err != nil {
 				return err
 			}
@@ -137,7 +138,7 @@ func (m *Media) Unmarshal(buf []byte) error {
 			line = line[len("#EXT-X-START:"):]
 
 			m.Start = &MultivariantStart{}
-			err := m.Start.unmarshal(line)
+			err = m.Start.unmarshal(line)
 			if err != nil {
 				return err
 			}
@@ -156,7 +157,8 @@ func (m *Media) Unmarshal(buf []byte) error {
 				line = line[:i]
 			}
 
-			tmp, err := strconv.ParseUint(line, 10, 31)
+			var tmp uint64
+			tmp, err = strconv.ParseUint(line, 10, 31)
 			if err != nil {
 				return err
 			}
@@ -166,7 +168,7 @@ func (m *Media) Unmarshal(buf []byte) error {
 			line = line[len("#EXT-X-SERVER-CONTROL:"):]
 
 			m.ServerControl = &MediaServerControl{}
-			err := m.ServerControl.unmarshal(line)
+			err = m.ServerControl.unmarshal(line)
 			if err != nil {
 				return err
 			}
@@ -183,7 +185,8 @@ func (m *Media) Unmarshal(buf []byte) error {
 		case strings.HasPrefix(line, "#EXT-X-MEDIA-SEQUENCE:"):
 			line = line[len("#EXT-X-MEDIA-SEQUENCE:"):]
 
-			tmp, err := strconv.ParseUint(line, 10, 31)
+			var tmp uint64
+			tmp, err = strconv.ParseUint(line, 10, 31)
 			if err != nil {
 				return err
 			}
@@ -193,7 +196,8 @@ func (m *Media) Unmarshal(buf []byte) error {
 		case strings.HasPrefix(line, "#EXT-X-DISCONTINUITY-SEQUENCE:"):
 			line = line[len("#EXT-X-DISCONTINUITY-SEQUENCE:"):]
 
-			tmp, err := strconv.ParseUint(line, 10, 31)
+			var tmp uint64
+			tmp, err = strconv.ParseUint(line, 10, 31)
 			if err != nil {
 				return err
 			}
@@ -232,7 +236,8 @@ func (m *Media) Unmarshal(buf []byte) error {
 		case strings.HasPrefix(line, "#EXT-X-PROGRAM-DATE-TIME:"):
 			line = line[len("#EXT-X-PROGRAM-DATE-TIME:"):]
 
-			tmp, err := parseTime(line)
+			var tmp time.Time
+			tmp, err = parseTime(line)
 			if err != nil {
 				return err
 			}
@@ -245,7 +250,8 @@ func (m *Media) Unmarshal(buf []byte) error {
 		case strings.HasPrefix(line, "#EXT-X-BITRATE:"):
 			line = line[len("#EXT-X-BITRATE:"):]
 
-			tmp, err := strconv.ParseUint(line, 10, 31)
+			var tmp uint64
+			tmp, err = strconv.ParseUint(line, 10, 31)
 			if err != nil {
 				return err
 			}
@@ -260,18 +266,21 @@ func (m *Media) Unmarshal(buf []byte) error {
 				return fmt.Errorf("invalid EXTINF: %s", line)
 			}
 
-			tmp, err := primitives.DurationUnmarshal(parts[0])
+			var du time.Duration
+			du, err = primitives.DurationUnmarshal(parts[0])
 			if err != nil {
 				return err
 			}
 
-			curSegment.Duration = tmp
+			curSegment.Duration = du
 			curSegment.Title = strings.TrimSpace(parts[1])
 
 		case strings.HasPrefix(line, "#EXT-X-BYTERANGE:"):
 			line = line[len("#EXT-X-BYTERANGE:"):]
 
-			tmp1, tmp2, err := primitives.ByteRangeUnmarshal(line)
+			var tmp1 uint64
+			var tmp2 *uint64
+			tmp1, tmp2, err = primitives.ByteRangeUnmarshal(line)
 			if err != nil {
 				return err
 			}
@@ -283,7 +292,7 @@ func (m *Media) Unmarshal(buf []byte) error {
 			line = line[len("#EXT-X-PART:"):]
 
 			var part MediaPart
-			err := part.unmarshal(line)
+			err = part.unmarshal(line)
 			if err != nil {
 				return err
 			}
@@ -293,7 +302,7 @@ func (m *Media) Unmarshal(buf []byte) error {
 		case len(line) != 0 && line[0] != '#':
 			curSegment.URI = line
 
-			err := curSegment.validate()
+			err = curSegment.validate()
 			if err != nil {
 				return err
 			}
