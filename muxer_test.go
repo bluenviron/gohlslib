@@ -315,8 +315,8 @@ func TestMuxerVideoAudio(t *testing.T) {
 				recv := make(chan struct{})
 
 				go func() {
-					_, _, err := doRequest(m, ma[5], "", "", "")
-					require.NoError(t, err)
+					_, _, err2 := doRequest(m, ma[5], "", "", "")
+					require.NoError(t, err2)
 					close(recv)
 				}()
 

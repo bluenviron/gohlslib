@@ -50,7 +50,8 @@ func (m *Multivariant) Unmarshal(buf []byte) error {
 		case strings.HasPrefix(line, "#EXT-X-VERSION:"):
 			line = line[len("#EXT-X-VERSION:"):]
 
-			tmp, err := strconv.ParseUint(line, 10, 31)
+			var tmp uint64
+			tmp, err = strconv.ParseUint(line, 10, 31)
 			if err != nil {
 				return err
 			}
@@ -67,7 +68,7 @@ func (m *Multivariant) Unmarshal(buf []byte) error {
 			line = line[len("#EXT-X-START:"):]
 
 			m.Start = &MultivariantStart{}
-			err := m.Start.unmarshal(line)
+			err = m.Start.unmarshal(line)
 			if err != nil {
 				return err
 			}

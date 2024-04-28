@@ -186,7 +186,8 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 			return fmt.Errorf("no variants with supported codecs found")
 		}
 
-		u, err := clientAbsoluteURL(d.primaryPlaylistURL, leadingPlaylist.URI)
+		var u *url.URL
+		u, err = clientAbsoluteURL(d.primaryPlaylistURL, leadingPlaylist.URI)
 		if err != nil {
 			return err
 		}
@@ -216,7 +217,7 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 			}
 
 			if audioPlaylist.URI != "" {
-				u, err := clientAbsoluteURL(d.primaryPlaylistURL, audioPlaylist.URI)
+				u, err = clientAbsoluteURL(d.primaryPlaylistURL, audioPlaylist.URI)
 				if err != nil {
 					return err
 				}

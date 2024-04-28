@@ -343,15 +343,15 @@ func TestClient(t *testing.T) {
 
 				if mode == "tls" {
 					go func() {
-						serverCertFpath, err := writeTempFile(serverCert)
-						if err != nil {
-							panic(err)
+						serverCertFpath, err2 := writeTempFile(serverCert)
+						if err2 != nil {
+							panic(err2)
 						}
 						defer os.Remove(serverCertFpath)
 
-						serverKeyFpath, err := writeTempFile(serverKey)
-						if err != nil {
-							panic(err)
+						serverKeyFpath, err2 := writeTempFile(serverKey)
+						if err2 != nil {
+							panic(err2)
 						}
 						defer os.Remove(serverKeyFpath)
 
