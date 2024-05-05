@@ -243,7 +243,7 @@ func (m *Muxer) WriteVP9(ntp time.Time, pts time.Duration, frame []byte) error {
 	codec := m.VideoTrack.Codec.(*codecs.VP9)
 	randomAccess := false
 
-	if h.FrameType == vp9.FrameTypeKeyFrame {
+	if !h.NonKeyFrame {
 		randomAccess = true
 
 		if v := h.Width(); v != codec.Width {
