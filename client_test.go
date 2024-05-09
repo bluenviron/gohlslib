@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -13,7 +14,6 @@ import (
 	"github.com/bluenviron/gohlslib/pkg/codecs"
 	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
 	"github.com/bluenviron/mediacommon/pkg/codecs/mpeg4audio"
-	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 
 	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
@@ -115,231 +115,237 @@ func TestClient(t *testing.T) {
 	for _, mode := range []string{"plain", "tls"} {
 		for _, format := range []string{"mpegts", "fmp4"} {
 			t.Run(mode+"_"+format, func(t *testing.T) {
-				gin.SetMode(gin.ReleaseMode)
-				router := gin.New()
+				httpServ := &http.Server{
+					Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						if format == "mpegts" {
+							switch {
+							case r.Method == http.MethodGet && r.URL.Path == "/stream.m3u8":
+								w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
+								w.Write([]byte("#EXTM3U\n" +
+									"#EXT-X-VERSION:3\n" +
+									"#EXT-X-ALLOW-CACHE:NO\n" +
+									"#EXT-X-TARGETDURATION:2\n" +
+									"#EXT-X-MEDIA-SEQUENCE:0\n" +
+									"#EXT-X-PLAYLIST-TYPE:VOD\n" +
+									"#EXT-X-PROGRAM-DATE-TIME:2015-02-05T01:02:02Z\n" +
+									"#EXTINF:1,\n" +
+									"segment1.ts?key=val\n" +
+									"#EXTINF:1,\n" +
+									"segment2.ts\n" +
+									"#EXT-X-ENDLIST\n"))
 
-				if format == "mpegts" {
-					router.GET("/stream.m3u8", func(ctx *gin.Context) {
-						ctx.Writer.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
-						ctx.Writer.Write([]byte("#EXTM3U\n" +
-							"#EXT-X-VERSION:3\n" +
-							"#EXT-X-ALLOW-CACHE:NO\n" +
-							"#EXT-X-TARGETDURATION:2\n" +
-							"#EXT-X-MEDIA-SEQUENCE:0\n" +
-							"#EXT-X-PLAYLIST-TYPE:VOD\n" +
-							"#EXT-X-PROGRAM-DATE-TIME:2015-02-05T01:02:02Z\n" +
-							"#EXTINF:1,\n" +
-							"segment1.ts?key=val\n" +
-							"#EXTINF:1,\n" +
-							"segment2.ts\n" +
-							"#EXT-X-ENDLIST\n"))
-					})
+							case r.Method == http.MethodGet && r.URL.Path == "/segment1.ts":
+								q, err := url.ParseQuery(r.URL.RawQuery)
+								require.NoError(t, err)
+								require.Equal(t, "val", q.Get("key"))
+								w.Header().Set("Content-Type", `video/MP2T`)
 
-					router.GET("/segment1.ts", func(ctx *gin.Context) {
-						require.Equal(t, "val", ctx.Query("key"))
-						ctx.Writer.Header().Set("Content-Type", `video/MP2T`)
+								h264Track := &mpegts.Track{
+									Codec: &mpegts.CodecH264{},
+								}
+								mpeg4audioTrack := &mpegts.Track{
+									Codec: &mpegts.CodecMPEG4Audio{
+										Config: mpeg4audio.AudioSpecificConfig{
+											Type:         2,
+											SampleRate:   44100,
+											ChannelCount: 2,
+										},
+									},
+								}
+								mw := mpegts.NewWriter(w, []*mpegts.Track{h264Track, mpeg4audioTrack})
 
-						h264Track := &mpegts.Track{
-							Codec: &mpegts.CodecH264{},
+								err = mw.WriteH26x(
+									h264Track,
+									90000,      // +1 sec
+									8589844592, // -1 sec
+									true,
+									[][]byte{
+										{7, 1, 2, 3}, // SPS
+										{8},          // PPS
+										{5},          // IDR
+									},
+								)
+								require.NoError(t, err)
+
+								err = mw.WriteH26x(
+									h264Track,
+									90000+90000/30,
+									8589844592+90000/30,
+									false,
+									[][]byte{
+										{1, 4, 5, 6},
+									},
+								)
+								require.NoError(t, err)
+
+								err = mw.WriteMPEG4Audio(
+									mpeg4audioTrack,
+									8589844592,
+									[][]byte{{1, 2, 3, 4}},
+								)
+								require.NoError(t, err)
+
+								err = mw.WriteMPEG4Audio(
+									mpeg4audioTrack,
+									8589844592+90000/30,
+									[][]byte{{5, 6, 7, 8}},
+								)
+								require.NoError(t, err)
+
+							case r.Method == http.MethodGet && r.URL.Path == "/segment2.ts":
+								q, err := url.ParseQuery(r.URL.RawQuery)
+								require.NoError(t, err)
+								require.Equal(t, "", q.Get("key"))
+								w.Header().Set("Content-Type", `video/MP2T`)
+
+								h264Track := &mpegts.Track{
+									Codec: &mpegts.CodecH264{},
+								}
+								mpeg4audioTrack := &mpegts.Track{
+									Codec: &mpegts.CodecMPEG4Audio{
+										Config: mpeg4audio.AudioSpecificConfig{
+											Type:         2,
+											SampleRate:   44100,
+											ChannelCount: 2,
+										},
+									},
+								}
+								mw := mpegts.NewWriter(w, []*mpegts.Track{h264Track, mpeg4audioTrack})
+
+								err = mw.WriteH26x(
+									h264Track,
+									8589844592+2*90000/30,
+									8589844592+2*90000/30,
+									true,
+									[][]byte{
+										{4},
+									},
+								)
+								require.NoError(t, err)
+							}
+						} else {
+							switch {
+							case r.Method == http.MethodGet && r.URL.Path == "/stream.m3u8":
+								w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
+								w.Write([]byte("#EXTM3U\n" +
+									"#EXT-X-VERSION:7\n" +
+									"#EXT-X-MEDIA-SEQUENCE:20\n" +
+									"#EXT-X-PLAYLIST-TYPE:VOD\n" +
+									"#EXT-X-INDEPENDENT-SEGMENTS\n" +
+									"#EXT-X-TARGETDURATION:2\n" +
+									"#EXT-X-MAP:URI=\"init.mp4?key=val\"\n" +
+									"#EXT-X-PROGRAM-DATE-TIME:2015-02-05T01:02:02Z\n" +
+									"#EXTINF:2,\n" +
+									"segment1.mp4?key=val\n" +
+									"#EXTINF:2,\n" +
+									"segment2.mp4\n" +
+									"#EXT-X-ENDLIST\n"))
+
+							case r.Method == http.MethodGet && r.URL.Path == "/init.mp4":
+								q, err := url.ParseQuery(r.URL.RawQuery)
+								require.NoError(t, err)
+								require.Equal(t, "val", q.Get("key"))
+								w.Header().Set("Content-Type", `video/mp4`)
+								err = mp4ToWriter(&fmp4.Init{
+									Tracks: []*fmp4.InitTrack{
+										{
+											ID:        99,
+											TimeScale: 90000,
+											Codec: &fmp4.CodecH264{
+												SPS: testSPS,
+												PPS: testPPS,
+											},
+										},
+										{
+											ID:        98,
+											TimeScale: 44100,
+											Codec: &fmp4.CodecMPEG4Audio{
+												Config: testConfig,
+											},
+										},
+									},
+								}, w)
+								require.NoError(t, err)
+
+							case r.Method == http.MethodGet && r.URL.Path == "/segment1.mp4":
+								q, err := url.ParseQuery(r.URL.RawQuery)
+								require.NoError(t, err)
+								require.Equal(t, "val", q.Get("key"))
+								w.Header().Set("Content-Type", `video/mp4`)
+
+								err = mp4ToWriter(&fmp4.Part{
+									Tracks: []*fmp4.PartTrack{
+										{
+											ID:       98,
+											BaseTime: 44100 * 6,
+											Samples: []*fmp4.PartSample{
+												{
+													Duration: 44100 / 30,
+													Payload:  []byte{1, 2, 3, 4},
+												},
+												{
+													Duration: 44100 / 30,
+													Payload:  []byte{5, 6, 7, 8},
+												},
+											},
+										},
+										{
+											ID:       99,
+											BaseTime: 90000 * 6,
+											Samples: []*fmp4.PartSample{
+												{
+													Duration:  90000 / 30,
+													PTSOffset: 90000 * 2,
+													Payload: mustMarshalAVCC([][]byte{
+														{7, 1, 2, 3}, // SPS
+														{8},          // PPS
+														{5},          // IDR
+													}),
+												},
+												{
+													Duration:  90000 / 30,
+													PTSOffset: 90000 * 2,
+													Payload: mustMarshalAVCC([][]byte{
+														{1, 4, 5, 6},
+													}),
+												},
+											},
+										},
+									},
+								}, w)
+								require.NoError(t, err)
+
+							case r.Method == http.MethodGet && r.URL.Path == "/segment2.mp4":
+								q, err := url.ParseQuery(r.URL.RawQuery)
+								require.NoError(t, err)
+								require.Equal(t, "", q.Get("key"))
+								w.Header().Set("Content-Type", `video/mp4`)
+
+								err = mp4ToWriter(&fmp4.Part{
+									Tracks: []*fmp4.PartTrack{
+										{
+											ID:       99,
+											BaseTime: 90000*6 + 2*90000/30,
+											Samples: []*fmp4.PartSample{
+												{
+													Duration:  90000 / 30,
+													PTSOffset: 0,
+													Payload: mustMarshalAVCC([][]byte{
+														{4},
+													}),
+												},
+											},
+										},
+									},
+								}, w)
+								require.NoError(t, err)
+							}
 						}
-						mpeg4audioTrack := &mpegts.Track{
-							Codec: &mpegts.CodecMPEG4Audio{
-								Config: mpeg4audio.AudioSpecificConfig{
-									Type:         2,
-									SampleRate:   44100,
-									ChannelCount: 2,
-								},
-							},
-						}
-						mw := mpegts.NewWriter(ctx.Writer, []*mpegts.Track{h264Track, mpeg4audioTrack})
-
-						err := mw.WriteH26x(
-							h264Track,
-							90000,      // +1 sec
-							8589844592, // -1 sec
-							true,
-							[][]byte{
-								{7, 1, 2, 3}, // SPS
-								{8},          // PPS
-								{5},          // IDR
-							},
-						)
-						require.NoError(t, err)
-
-						err = mw.WriteH26x(
-							h264Track,
-							90000+90000/30,
-							8589844592+90000/30,
-							false,
-							[][]byte{
-								{1, 4, 5, 6},
-							},
-						)
-						require.NoError(t, err)
-
-						err = mw.WriteMPEG4Audio(
-							mpeg4audioTrack,
-							8589844592,
-							[][]byte{{1, 2, 3, 4}},
-						)
-						require.NoError(t, err)
-
-						err = mw.WriteMPEG4Audio(
-							mpeg4audioTrack,
-							8589844592+90000/30,
-							[][]byte{{5, 6, 7, 8}},
-						)
-						require.NoError(t, err)
-					})
-
-					router.GET("/segment2.ts", func(ctx *gin.Context) {
-						require.Equal(t, "", ctx.Query("key"))
-						ctx.Writer.Header().Set("Content-Type", `video/MP2T`)
-
-						h264Track := &mpegts.Track{
-							Codec: &mpegts.CodecH264{},
-						}
-						mpeg4audioTrack := &mpegts.Track{
-							Codec: &mpegts.CodecMPEG4Audio{
-								Config: mpeg4audio.AudioSpecificConfig{
-									Type:         2,
-									SampleRate:   44100,
-									ChannelCount: 2,
-								},
-							},
-						}
-						mw := mpegts.NewWriter(ctx.Writer, []*mpegts.Track{h264Track, mpeg4audioTrack})
-
-						err := mw.WriteH26x(
-							h264Track,
-							8589844592+2*90000/30,
-							8589844592+2*90000/30,
-							true,
-							[][]byte{
-								{4},
-							},
-						)
-						require.NoError(t, err)
-					})
-				} else {
-					router.GET("/stream.m3u8", func(ctx *gin.Context) {
-						ctx.Writer.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
-						ctx.Writer.Write([]byte("#EXTM3U\n" +
-							"#EXT-X-VERSION:7\n" +
-							"#EXT-X-MEDIA-SEQUENCE:20\n" +
-							"#EXT-X-PLAYLIST-TYPE:VOD\n" +
-							"#EXT-X-INDEPENDENT-SEGMENTS\n" +
-							"#EXT-X-TARGETDURATION:2\n" +
-							"#EXT-X-MAP:URI=\"init.mp4?key=val\"\n" +
-							"#EXT-X-PROGRAM-DATE-TIME:2015-02-05T01:02:02Z\n" +
-							"#EXTINF:2,\n" +
-							"segment1.mp4?key=val\n" +
-							"#EXTINF:2,\n" +
-							"segment2.mp4\n" +
-							"#EXT-X-ENDLIST\n"))
-					})
-
-					router.GET("/init.mp4", func(ctx *gin.Context) {
-						require.Equal(t, "val", ctx.Query("key"))
-						ctx.Writer.Header().Set("Content-Type", `video/mp4`)
-						err := mp4ToWriter(&fmp4.Init{
-							Tracks: []*fmp4.InitTrack{
-								{
-									ID:        99,
-									TimeScale: 90000,
-									Codec: &fmp4.CodecH264{
-										SPS: testSPS,
-										PPS: testPPS,
-									},
-								},
-								{
-									ID:        98,
-									TimeScale: 44100,
-									Codec: &fmp4.CodecMPEG4Audio{
-										Config: testConfig,
-									},
-								},
-							},
-						}, ctx.Writer)
-						require.NoError(t, err)
-					})
-
-					router.GET("/segment1.mp4", func(ctx *gin.Context) {
-						require.Equal(t, "val", ctx.Query("key"))
-						ctx.Writer.Header().Set("Content-Type", `video/mp4`)
-
-						err := mp4ToWriter(&fmp4.Part{
-							Tracks: []*fmp4.PartTrack{
-								{
-									ID:       98,
-									BaseTime: 44100 * 6,
-									Samples: []*fmp4.PartSample{
-										{
-											Duration: 44100 / 30,
-											Payload:  []byte{1, 2, 3, 4},
-										},
-										{
-											Duration: 44100 / 30,
-											Payload:  []byte{5, 6, 7, 8},
-										},
-									},
-								},
-								{
-									ID:       99,
-									BaseTime: 90000 * 6,
-									Samples: []*fmp4.PartSample{
-										{
-											Duration:  90000 / 30,
-											PTSOffset: 90000 * 2,
-											Payload: mustMarshalAVCC([][]byte{
-												{7, 1, 2, 3}, // SPS
-												{8},          // PPS
-												{5},          // IDR
-											}),
-										},
-										{
-											Duration:  90000 / 30,
-											PTSOffset: 90000 * 2,
-											Payload: mustMarshalAVCC([][]byte{
-												{1, 4, 5, 6},
-											}),
-										},
-									},
-								},
-							},
-						}, ctx.Writer)
-						require.NoError(t, err)
-					})
-
-					router.GET("/segment2.mp4", func(ctx *gin.Context) {
-						require.Equal(t, "", ctx.Query("key"))
-						ctx.Writer.Header().Set("Content-Type", `video/mp4`)
-
-						err := mp4ToWriter(&fmp4.Part{
-							Tracks: []*fmp4.PartTrack{
-								{
-									ID:       99,
-									BaseTime: 90000*6 + 2*90000/30,
-									Samples: []*fmp4.PartSample{
-										{
-											Duration:  90000 / 30,
-											PTSOffset: 0,
-											Payload: mustMarshalAVCC([][]byte{
-												{4},
-											}),
-										},
-									},
-								},
-							},
-						}, ctx.Writer)
-						require.NoError(t, err)
-					})
+					}),
 				}
 
 				ln, err := net.Listen("tcp", "localhost:5780")
 				require.NoError(t, err)
-
-				s := &http.Server{Handler: router}
 
 				if mode == "tls" {
 					go func() {
@@ -355,13 +361,13 @@ func TestClient(t *testing.T) {
 						}
 						defer os.Remove(serverKeyFpath)
 
-						s.ServeTLS(ln, serverCertFpath, serverKeyFpath)
+						httpServ.ServeTLS(ln, serverCertFpath, serverKeyFpath)
 					}()
 				} else {
-					go s.Serve(ln)
+					go httpServ.Serve(ln)
 				}
 
-				defer s.Shutdown(context.Background())
+				defer httpServ.Shutdown(context.Background())
 
 				videoRecv := make(chan struct{})
 				audioRecv := make(chan struct{})
@@ -483,126 +489,117 @@ func TestClient(t *testing.T) {
 }
 
 func TestClientFMP4MultiRenditions(t *testing.T) {
-	gin.SetMode(gin.ReleaseMode)
-	router := gin.New()
+	httpServ := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/index.m3u8":
+				w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
+				w.Write([]byte("#EXTM3U\n" +
+					"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aac\",NAME=\"English\"," +
+					"DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"en\",URI=\"audio.m3u8\"\n" +
+					"#EXT-X-STREAM-INF:BANDWIDTH=7680000,CODECS=\"avc1.640015,mp4a.40.5\",AUDIO=\"aac\"\n" +
+					"video.m3u8\n"))
 
-	router.GET("/index.m3u8", func(ctx *gin.Context) {
-		ctx.Writer.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
-		ctx.Writer.Write([]byte("#EXTM3U\n" +
-			"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aac\",NAME=\"English\"," +
-			"DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"en\",URI=\"audio.m3u8\"\n" +
-			"#EXT-X-STREAM-INF:BANDWIDTH=7680000,CODECS=\"avc1.640015,mp4a.40.5\",AUDIO=\"aac\"\n" +
-			"video.m3u8\n"))
-	})
+			case r.Method == http.MethodGet && r.URL.Path == "/video.m3u8":
+				w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
+				w.Write([]byte("#EXTM3U\n" +
+					"#EXT-X-VERSION:7\n" +
+					"#EXT-X-MEDIA-SEQUENCE:20\n" +
+					"#EXT-X-PLAYLIST-TYPE:VOD\n" +
+					"#EXT-X-INDEPENDENT-SEGMENTS\n" +
+					"#EXT-X-TARGETDURATION:2\n" +
+					"#EXT-X-MAP:URI=\"init_video.mp4\"\n" +
+					"#EXTINF:2,\n" +
+					"segment_video.mp4\n" +
+					"#EXT-X-ENDLIST\n"))
 
-	router.GET("/video.m3u8", func(ctx *gin.Context) {
-		ctx.Writer.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
-		ctx.Writer.Write([]byte("#EXTM3U\n" +
-			"#EXT-X-VERSION:7\n" +
-			"#EXT-X-MEDIA-SEQUENCE:20\n" +
-			"#EXT-X-PLAYLIST-TYPE:VOD\n" +
-			"#EXT-X-INDEPENDENT-SEGMENTS\n" +
-			"#EXT-X-TARGETDURATION:2\n" +
-			"#EXT-X-MAP:URI=\"init_video.mp4\"\n" +
-			"#EXTINF:2,\n" +
-			"segment_video.mp4\n" +
-			"#EXT-X-ENDLIST\n"))
-	})
+			case r.Method == http.MethodGet && r.URL.Path == "/audio.m3u8":
+				w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
+				w.Write([]byte("#EXTM3U\n" +
+					"#EXT-X-VERSION:7\n" +
+					"#EXT-X-MEDIA-SEQUENCE:20\n" +
+					"#EXT-X-PLAYLIST-TYPE:VOD\n" +
+					"#EXT-X-INDEPENDENT-SEGMENTS\n" +
+					"#EXT-X-TARGETDURATION:2\n" +
+					"#EXT-X-MAP:URI=\"init_audio.mp4\"\n" +
+					"#EXTINF:2,\n" +
+					"segment_audio.mp4\n" +
+					"#EXT-X-ENDLIST"))
 
-	router.GET("/audio.m3u8", func(ctx *gin.Context) {
-		ctx.Writer.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
-		ctx.Writer.Write([]byte("#EXTM3U\n" +
-			"#EXT-X-VERSION:7\n" +
-			"#EXT-X-MEDIA-SEQUENCE:20\n" +
-			"#EXT-X-PLAYLIST-TYPE:VOD\n" +
-			"#EXT-X-INDEPENDENT-SEGMENTS\n" +
-			"#EXT-X-TARGETDURATION:2\n" +
-			"#EXT-X-MAP:URI=\"init_audio.mp4\"\n" +
-			"#EXTINF:2,\n" +
-			"segment_audio.mp4\n" +
-			"#EXT-X-ENDLIST"))
-	})
-
-	router.GET("/init_video.mp4", func(ctx *gin.Context) {
-		ctx.Writer.Header().Set("Content-Type", `video/mp4`)
-
-		err := mp4ToWriter(&fmp4.Init{
-			Tracks: []*fmp4.InitTrack{
-				{
-					ID:        1,
-					TimeScale: 90000,
-					Codec: &fmp4.CodecH264{
-						SPS: testSPS,
-						PPS: testPPS,
+			case r.Method == http.MethodGet && r.URL.Path == "/init_video.mp4":
+				w.Header().Set("Content-Type", `video/mp4`)
+				err := mp4ToWriter(&fmp4.Init{
+					Tracks: []*fmp4.InitTrack{
+						{
+							ID:        1,
+							TimeScale: 90000,
+							Codec: &fmp4.CodecH264{
+								SPS: testSPS,
+								PPS: testPPS,
+							},
+						},
 					},
-				},
-			},
-		}, ctx.Writer)
-		require.NoError(t, err)
-	})
+				}, w)
+				require.NoError(t, err)
 
-	router.GET("/init_audio.mp4", func(ctx *gin.Context) {
-		ctx.Writer.Header().Set("Content-Type", `video/mp4`)
-
-		err := mp4ToWriter(&fmp4.Init{
-			Tracks: []*fmp4.InitTrack{
-				{
-					ID:        1,
-					TimeScale: 44100,
-					Codec: &fmp4.CodecMPEG4Audio{
-						Config: testConfig,
+			case r.Method == http.MethodGet && r.URL.Path == "/init_audio.mp4":
+				w.Header().Set("Content-Type", `video/mp4`)
+				err := mp4ToWriter(&fmp4.Init{
+					Tracks: []*fmp4.InitTrack{
+						{
+							ID:        1,
+							TimeScale: 44100,
+							Codec: &fmp4.CodecMPEG4Audio{
+								Config: testConfig,
+							},
+						},
 					},
-				},
-			},
-		}, ctx.Writer)
-		require.NoError(t, err)
-	})
+				}, w)
+				require.NoError(t, err)
 
-	router.GET("/segment_video.mp4", func(ctx *gin.Context) {
-		ctx.Writer.Header().Set("Content-Type", `video/mp4`)
+			case r.Method == http.MethodGet && r.URL.Path == "/segment_video.mp4":
+				w.Header().Set("Content-Type", `video/mp4`)
+				err := mp4ToWriter(&fmp4.Part{
+					Tracks: []*fmp4.PartTrack{
+						{
+							ID: 1,
+							Samples: []*fmp4.PartSample{{
+								Duration:  90000,
+								PTSOffset: 90000 * 3,
+								Payload: mustMarshalAVCC([][]byte{
+									{7, 1, 2, 3}, // SPS
+									{8},          // PPS
+									{5},          // IDR
+								}),
+							}},
+						},
+					},
+				}, w)
+				require.NoError(t, err)
 
-		err := mp4ToWriter(&fmp4.Part{
-			Tracks: []*fmp4.PartTrack{
-				{
-					ID: 1,
-					Samples: []*fmp4.PartSample{{
-						Duration:  90000,
-						PTSOffset: 90000 * 3,
-						Payload: mustMarshalAVCC([][]byte{
-							{7, 1, 2, 3}, // SPS
-							{8},          // PPS
-							{5},          // IDR
-						}),
-					}},
-				},
-			},
-		}, ctx.Writer)
-		require.NoError(t, err)
-	})
-
-	router.GET("/segment_audio.mp4", func(ctx *gin.Context) {
-		ctx.Writer.Header().Set("Content-Type", `video/mp4`)
-
-		err := mp4ToWriter(&fmp4.Part{
-			Tracks: []*fmp4.PartTrack{
-				{
-					ID: 1,
-					Samples: []*fmp4.PartSample{{
-						Duration: 44100,
-						Payload:  []byte{1, 2, 3, 4},
-					}},
-				},
-			},
-		}, ctx.Writer)
-		require.NoError(t, err)
-	})
+			case r.Method == http.MethodGet && r.URL.Path == "/segment_audio.mp4":
+				w.Header().Set("Content-Type", `video/mp4`)
+				err := mp4ToWriter(&fmp4.Part{
+					Tracks: []*fmp4.PartTrack{
+						{
+							ID: 1,
+							Samples: []*fmp4.PartSample{{
+								Duration: 44100,
+								Payload:  []byte{1, 2, 3, 4},
+							}},
+						},
+					},
+				}, w)
+				require.NoError(t, err)
+			}
+		}),
+	}
 
 	ln, err := net.Listen("tcp", "localhost:5780")
 	require.NoError(t, err)
 
-	s := &http.Server{Handler: router}
-	go s.Serve(ln)
-	defer s.Shutdown(context.Background())
+	go httpServ.Serve(ln)
+	defer httpServ.Shutdown(context.Background())
 
 	packetRecv := make(chan struct{}, 2)
 	tracksRecv := make(chan struct{}, 1)
@@ -666,137 +663,138 @@ func TestClientFMP4MultiRenditions(t *testing.T) {
 }
 
 func TestClientFMP4LowLatency(t *testing.T) {
-	gin.SetMode(gin.ReleaseMode)
-	router := gin.New()
-
 	count := 0
-
-	router.GET("/stream.m3u8", func(ctx *gin.Context) {
-		ctx.Writer.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
-
-		switch count {
-		case 0:
-			require.Equal(t, "", ctx.Query("_HLS_skip"))
-			ctx.Writer.Write([]byte("#EXTM3U\n" +
-				"#EXT-X-VERSION:9\n" +
-				"#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=5.00000,CAN-SKIP-UNTIL=24.00000\n" +
-				"#EXT-X-MEDIA-SEQUENCE:20\n" +
-				"#EXT-X-TARGETDURATION:2\n" +
-				"#EXT-X-MAP:URI=\"init.mp4\"\n" +
-				"#EXT-X-PROGRAM-DATE-TIME:2015-02-05T01:02:02Z\n" +
-				"#EXTINF:2,\n" +
-				"segment.mp4\n" +
-				"#EXT-X-PRELOAD-HINT:TYPE=PART,URI=part1.mp4\n"))
-
-		case 1:
-			require.Equal(t, "YES", ctx.Query("_HLS_skip"))
-			ctx.Writer.Write([]byte("#EXTM3U\n" +
-				"#EXT-X-VERSION:9\n" +
-				"#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=5.00000,CAN-SKIP-UNTIL=24.00000\n" +
-				"#EXT-X-MEDIA-SEQUENCE:20\n" +
-				"#EXT-X-TARGETDURATION:2\n" +
-				"#EXT-X-MAP:URI=\"init.mp4\"\n" +
-				"#EXT-X-PROGRAM-DATE-TIME:2015-02-05T01:02:02Z\n" +
-				"#EXTINF:2,\n" +
-				"segment.mp4\n" +
-				"#EXT-X-PART:DURATION=0.066666666,URI=\"part1.mp4\",INDEPENDENT=YES\n" +
-				"#EXT-X-PRELOAD-HINT:TYPE=PART,URI=part2.mp4\n"))
-
-		case 2:
-			require.Equal(t, "YES", ctx.Query("_HLS_skip"))
-			ctx.Writer.Write([]byte("#EXTM3U\n" +
-				"#EXT-X-VERSION:9\n" +
-				"#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=5.00000,CAN-SKIP-UNTIL=24.00000\n" +
-				"#EXT-X-MEDIA-SEQUENCE:20\n" +
-				"#EXT-X-TARGETDURATION:2\n" +
-				"#EXT-X-MAP:URI=\"init.mp4\"\n" +
-				"#EXT-X-PROGRAM-DATE-TIME:2015-02-05T01:02:02Z\n" +
-				"#EXTINF:2,\n" +
-				"segment.mp4\n" +
-				"#EXT-X-PART:DURATION=0.066666666,URI=\"part1.mp4\",INDEPENDENT=YES\n" +
-				"#EXT-X-PART:DURATION=0.033333333,URI=\"part2.mp4\"\n" +
-				"#EXT-X-PRELOAD-HINT:TYPE=PART,URI=part3.mp4\n"))
-		}
-		count++
-	})
-
-	router.GET("/init.mp4", func(ctx *gin.Context) {
-		ctx.Writer.Header().Set("Content-Type", `video/mp4`)
-
-		err := mp4ToWriter(&fmp4.Init{
-			Tracks: []*fmp4.InitTrack{
-				{
-					ID:        1,
-					TimeScale: 90000,
-					Codec: &fmp4.CodecH264{
-						SPS: testSPS,
-						PPS: testPPS,
-					},
-				},
-			},
-		}, ctx.Writer)
-		require.NoError(t, err)
-	})
-
-	router.GET("/part1.mp4", func(ctx *gin.Context) {
-		ctx.Writer.Header().Set("Content-Type", `video/mp4`)
-		err := mp4ToWriter(&fmp4.Part{
-			Tracks: []*fmp4.PartTrack{
-				{
-					ID: 1,
-					Samples: []*fmp4.PartSample{
-						{
-							Duration: 90000 / 30,
-							Payload: mustMarshalAVCC([][]byte{
-								{7, 1, 2, 3}, // SPS
-								{8},          // PPS
-								{5},          // IDR
-							}),
-						},
-						{
-							Duration: 90000 / 30,
-							Payload: mustMarshalAVCC([][]byte{
-								{1, 4, 5, 6},
-							}),
-						},
-					},
-				},
-			},
-		}, ctx.Writer)
-		require.NoError(t, err)
-	})
-
-	router.GET("/part2.mp4", func(ctx *gin.Context) {
-		ctx.Writer.Header().Set("Content-Type", `video/mp4`)
-		err := mp4ToWriter(&fmp4.Part{
-			Tracks: []*fmp4.PartTrack{
-				{
-					ID:       1,
-					BaseTime: (90000 / 30) * 2,
-					Samples: []*fmp4.PartSample{{
-						Duration: 90000 / 30,
-						Payload: mustMarshalAVCC([][]byte{
-							{1, 7, 8, 9},
-						}),
-					}},
-				},
-			},
-		}, ctx.Writer)
-		require.NoError(t, err)
-	})
-
 	closeRequest := make(chan struct{})
 
-	router.GET("/part3.mp4", func(_ *gin.Context) {
-		<-closeRequest
-	})
+	httpServ := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/stream.m3u8":
+				w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
+
+				switch count {
+				case 0:
+					q, err := url.ParseQuery(r.URL.RawQuery)
+					require.NoError(t, err)
+					require.Equal(t, "", q.Get("_HLS_skip"))
+					w.Write([]byte("#EXTM3U\n" +
+						"#EXT-X-VERSION:9\n" +
+						"#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=5.00000,CAN-SKIP-UNTIL=24.00000\n" +
+						"#EXT-X-MEDIA-SEQUENCE:20\n" +
+						"#EXT-X-TARGETDURATION:2\n" +
+						"#EXT-X-MAP:URI=\"init.mp4\"\n" +
+						"#EXT-X-PROGRAM-DATE-TIME:2015-02-05T01:02:02Z\n" +
+						"#EXTINF:2,\n" +
+						"segment.mp4\n" +
+						"#EXT-X-PRELOAD-HINT:TYPE=PART,URI=part1.mp4\n"))
+
+				case 1:
+					q, err := url.ParseQuery(r.URL.RawQuery)
+					require.NoError(t, err)
+					require.Equal(t, "YES", q.Get("_HLS_skip"))
+					w.Write([]byte("#EXTM3U\n" +
+						"#EXT-X-VERSION:9\n" +
+						"#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=5.00000,CAN-SKIP-UNTIL=24.00000\n" +
+						"#EXT-X-MEDIA-SEQUENCE:20\n" +
+						"#EXT-X-TARGETDURATION:2\n" +
+						"#EXT-X-MAP:URI=\"init.mp4\"\n" +
+						"#EXT-X-PROGRAM-DATE-TIME:2015-02-05T01:02:02Z\n" +
+						"#EXTINF:2,\n" +
+						"segment.mp4\n" +
+						"#EXT-X-PART:DURATION=0.066666666,URI=\"part1.mp4\",INDEPENDENT=YES\n" +
+						"#EXT-X-PRELOAD-HINT:TYPE=PART,URI=part2.mp4\n"))
+
+				case 2:
+					q, err := url.ParseQuery(r.URL.RawQuery)
+					require.NoError(t, err)
+					require.Equal(t, "YES", q.Get("_HLS_skip"))
+					w.Write([]byte("#EXTM3U\n" +
+						"#EXT-X-VERSION:9\n" +
+						"#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=5.00000,CAN-SKIP-UNTIL=24.00000\n" +
+						"#EXT-X-MEDIA-SEQUENCE:20\n" +
+						"#EXT-X-TARGETDURATION:2\n" +
+						"#EXT-X-MAP:URI=\"init.mp4\"\n" +
+						"#EXT-X-PROGRAM-DATE-TIME:2015-02-05T01:02:02Z\n" +
+						"#EXTINF:2,\n" +
+						"segment.mp4\n" +
+						"#EXT-X-PART:DURATION=0.066666666,URI=\"part1.mp4\",INDEPENDENT=YES\n" +
+						"#EXT-X-PART:DURATION=0.033333333,URI=\"part2.mp4\"\n" +
+						"#EXT-X-PRELOAD-HINT:TYPE=PART,URI=part3.mp4\n"))
+				}
+				count++
+
+			case r.Method == http.MethodGet && r.URL.Path == "/init.mp4":
+				w.Header().Set("Content-Type", `video/mp4`)
+				err := mp4ToWriter(&fmp4.Init{
+					Tracks: []*fmp4.InitTrack{
+						{
+							ID:        1,
+							TimeScale: 90000,
+							Codec: &fmp4.CodecH264{
+								SPS: testSPS,
+								PPS: testPPS,
+							},
+						},
+					},
+				}, w)
+				require.NoError(t, err)
+
+			case r.Method == http.MethodGet && r.URL.Path == "/part1.mp4":
+				w.Header().Set("Content-Type", `video/mp4`)
+				err := mp4ToWriter(&fmp4.Part{
+					Tracks: []*fmp4.PartTrack{
+						{
+							ID: 1,
+							Samples: []*fmp4.PartSample{
+								{
+									Duration: 90000 / 30,
+									Payload: mustMarshalAVCC([][]byte{
+										{7, 1, 2, 3}, // SPS
+										{8},          // PPS
+										{5},          // IDR
+									}),
+								},
+								{
+									Duration: 90000 / 30,
+									Payload: mustMarshalAVCC([][]byte{
+										{1, 4, 5, 6},
+									}),
+								},
+							},
+						},
+					},
+				}, w)
+				require.NoError(t, err)
+
+			case r.Method == http.MethodGet && r.URL.Path == "/part2.mp4":
+				w.Header().Set("Content-Type", `video/mp4`)
+				err := mp4ToWriter(&fmp4.Part{
+					Tracks: []*fmp4.PartTrack{
+						{
+							ID:       1,
+							BaseTime: (90000 / 30) * 2,
+							Samples: []*fmp4.PartSample{{
+								Duration: 90000 / 30,
+								Payload: mustMarshalAVCC([][]byte{
+									{1, 7, 8, 9},
+								}),
+							}},
+						},
+					},
+				}, w)
+				require.NoError(t, err)
+
+			case r.Method == http.MethodGet && r.URL.Path == "/part3.mp4":
+				<-closeRequest
+			}
+		}),
+	}
 
 	ln, err := net.Listen("tcp", "localhost:5780")
 	require.NoError(t, err)
 
-	s := &http.Server{Handler: router}
-	go s.Serve(ln)
-	defer s.Shutdown(context.Background())
+	go httpServ.Serve(ln)
+	defer httpServ.Shutdown(context.Background())
 
 	packetRecv := make(chan struct{})
 	recvCount := 0
@@ -873,68 +871,67 @@ func TestClientFMP4LowLatency(t *testing.T) {
 }
 
 func TestClientErrorInvalidSequenceID(t *testing.T) {
-	router := gin.New()
 	first := true
 
-	router.GET("/stream.m3u8", func(ctx *gin.Context) {
-		ctx.Writer.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
+	httpServ := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodGet && r.URL.Path == "/stream.m3u8" {
+				w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
+				if first {
+					first = false
+					w.Write([]byte("#EXTM3U\n" +
+						"#EXT-X-VERSION:3\n" +
+						"#EXT-X-ALLOW-CACHE:NO\n" +
+						"#EXT-X-TARGETDURATION:2\n" +
+						"#EXT-X-MEDIA-SEQUENCE:2\n" +
+						"#EXTINF:2,\n" +
+						"segment1.ts\n" +
+						"#EXTINF:2,\n" +
+						"segment1.ts\n" +
+						"#EXTINF:2,\n" +
+						"segment1.ts\n"))
+				} else {
+					w.Write([]byte("#EXTM3U\n" +
+						"#EXT-X-VERSION:3\n" +
+						"#EXT-X-ALLOW-CACHE:NO\n" +
+						"#EXT-X-TARGETDURATION:2\n" +
+						"#EXT-X-MEDIA-SEQUENCE:4\n" +
+						"#EXTINF:2,\n" +
+						"segment1.ts\n" +
+						"#EXTINF:2,\n" +
+						"segment1.ts\n" +
+						"#EXTINF:2,\n" +
+						"segment1.ts\n"))
+				}
+			} else if r.Method == http.MethodGet && r.URL.Path == "/segment1.ts" {
+				w.Header().Set("Content-Type", `video/MP2T`)
 
-		if first {
-			first = false
-			ctx.Writer.Write([]byte("#EXTM3U\n" +
-				"#EXT-X-VERSION:3\n" +
-				"#EXT-X-ALLOW-CACHE:NO\n" +
-				"#EXT-X-TARGETDURATION:2\n" +
-				"#EXT-X-MEDIA-SEQUENCE:2\n" +
-				"#EXTINF:2,\n" +
-				"segment1.ts\n" +
-				"#EXTINF:2,\n" +
-				"segment1.ts\n" +
-				"#EXTINF:2,\n" +
-				"segment1.ts\n"))
-		} else {
-			ctx.Writer.Write([]byte("#EXTM3U\n" +
-				"#EXT-X-VERSION:3\n" +
-				"#EXT-X-ALLOW-CACHE:NO\n" +
-				"#EXT-X-TARGETDURATION:2\n" +
-				"#EXT-X-MEDIA-SEQUENCE:4\n" +
-				"#EXTINF:2,\n" +
-				"segment1.ts\n" +
-				"#EXTINF:2,\n" +
-				"segment1.ts\n" +
-				"#EXTINF:2,\n" +
-				"segment1.ts\n"))
-		}
-	})
+				h264Track := &mpegts.Track{
+					Codec: &mpegts.CodecH264{},
+				}
+				mw := mpegts.NewWriter(w, []*mpegts.Track{h264Track})
 
-	router.GET("/segment1.ts", func(ctx *gin.Context) {
-		ctx.Writer.Header().Set("Content-Type", `video/MP2T`)
-
-		h264Track := &mpegts.Track{
-			Codec: &mpegts.CodecH264{},
-		}
-		mw := mpegts.NewWriter(ctx.Writer, []*mpegts.Track{h264Track})
-
-		err := mw.WriteH26x(
-			h264Track,
-			90000,               // +1 sec
-			0x1FFFFFFFF-90000+1, // -1 sec
-			true,
-			[][]byte{
-				{7, 1, 2, 3}, // SPS
-				{8},          // PPS
-				{5},          // IDR
-			},
-		)
-		require.NoError(t, err)
-	})
+				err := mw.WriteH26x(
+					h264Track,
+					90000,               // +1 sec
+					0x1FFFFFFFF-90000+1, // -1 sec
+					true,
+					[][]byte{
+						{7, 1, 2, 3}, // SPS
+						{8},          // PPS
+						{5},          // IDR
+					},
+				)
+				require.NoError(t, err)
+			}
+		}),
+	}
 
 	ln, err := net.Listen("tcp", "localhost:5780")
 	require.NoError(t, err)
 
-	s := &http.Server{Handler: router}
-	go s.Serve(ln)
-	defer s.Shutdown(context.Background())
+	go httpServ.Serve(ln)
+	defer httpServ.Shutdown(context.Background())
 
 	tr := &http.Transport{}
 	defer tr.CloseIdleConnections()
