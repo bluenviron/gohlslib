@@ -14,12 +14,12 @@ import (
 	"github.com/bluenviron/mediacommon/pkg/codecs/av1"
 	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
 	"github.com/bluenviron/mediacommon/pkg/codecs/h265"
+	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
+	"github.com/bluenviron/mediacommon/pkg/formats/fmp4/seekablebuffer"
 
 	"github.com/bluenviron/gohlslib/pkg/codecparams"
 	"github.com/bluenviron/gohlslib/pkg/codecs"
 	"github.com/bluenviron/gohlslib/pkg/playlist"
-	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
-	"github.com/bluenviron/mediacommon/pkg/formats/fmp4/seekablebuffer"
 )
 
 func boolPtr(v bool) *bool {
@@ -564,7 +564,7 @@ func (s *muxerServer) handleMediaPlaylist(msn string, part string, skip string, 
 				// exceeds the last Partial Segment in the current Playlist by the
 				// Advance Part Limit, then the server SHOULD immediately return Bad
 				// Request, such as HTTP 400.
-				if msnint > (s.nextSegmentID + 1) {
+				if msnint > (s.nextSegmentID+1) || msnint < (s.nextSegmentID-uint64(len(s.segments)-1)) {
 					w.WriteHeader(http.StatusBadRequest)
 					return nil, nil
 				}

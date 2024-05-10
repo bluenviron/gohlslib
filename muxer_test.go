@@ -3,12 +3,14 @@ package gohlslib
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -1050,4 +1052,79 @@ func TestMuxerInvalidFolder(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMuxerExpiredSegment(t *testing.T) {
+	t.Parallel()
+
+	testcases := []struct {
+		name    string
+		variant MuxerVariant
+	}{
+		{
+			name:    "lowLatency",
+			variant: MuxerVariantLowLatency,
+		},
+	}
+
+	for _, tc := range testcases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			muxer := &Muxer{
+				Variant:      tc.variant,
+				SegmentCount: 7,
+				VideoTrack:   testVideoTrack,
+				Directory:    "/nonexisting",
+			}
+			err := muxer.Start()
+			require.NoError(t, err)
+			for i := 0; i < 9; i++ {
+				muxer.server.segments = append(muxer.server.segments, &mockSegmentMP4{})
+			}
+			muxer.server.nextSegmentParts = append(muxer.server.nextSegmentParts, &muxerPart{})
+			w := &dummyResponseWriter{
+				h: make(http.Header),
+			}
+			v := url.Values{}
+			v.Set("_HLS_msn", "1")
+			v.Set("_HLS_part", "0")
+
+			r := &http.Request{
+				URL: &url.URL{
+					Path:     "stream.m3u8",
+					RawQuery: v.Encode(),
+				},
+			}
+			muxer.Handle(w, r)
+			require.Equal(t, http.StatusBadRequest, w.statusCode)
+		})
+	}
+}
+
+type mockSegmentMP4 struct {
+}
+
+func (m mockSegmentMP4) close() {
+	return
+}
+
+func (m mockSegmentMP4) getName() string {
+	return "mock"
+}
+
+func (m mockSegmentMP4) getDuration() time.Duration {
+	return 100 * time.Millisecond
+}
+
+func (m mockSegmentMP4) getSize() uint64 {
+	return 12345
+}
+
+func (m mockSegmentMP4) isForceSwitched() bool {
+	return false
+}
+
+func (m mockSegmentMP4) reader() (io.ReadCloser, error) {
+	return io.NopCloser(strings.NewReader("mock")), nil
 }
