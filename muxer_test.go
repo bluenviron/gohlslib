@@ -1102,11 +1102,10 @@ func TestMuxerExpiredSegment(t *testing.T) {
 	}
 }
 
-type mockSegmentMP4 struct {
-}
+type mockSegmentMP4 struct{}
 
 func (m mockSegmentMP4) close() {
-	return
+	// do nothing
 }
 
 func (m mockSegmentMP4) getName() string {
