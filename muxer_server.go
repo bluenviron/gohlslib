@@ -449,41 +449,28 @@ func (s *muxerServer) hasContent() bool {
 }
 
 func (s *muxerServer) hasPart(segmentID uint64, partID uint64) bool {
-	if !s.hasContent() {
-		return false
-	}
-
-	for _, sop := range s.segments {
-		seg, ok := sop.(*muxerSegmentFMP4)
-		if !ok {
-			continue
+	if segmentID == s.nextSegmentID {
+		if partID < uint64(len(s.nextSegmentParts)) {
+			return true
 		}
+	} else {
+		for _, sop := range s.segments {
+			if seg, ok := sop.(*muxerSegmentFMP4); ok && segmentID == seg.id {
+				// If the Client requests a Part Index greater than that of the final
+				// Partial Segment of the Parent Segment, the Server MUST treat the
+				// request as one for Part Index 0 of the following Parent Segment.
+				if partID >= uint64(len(seg.parts)) {
+					segmentID++
+					partID = 0
+					continue
+				}
 
-		if segmentID != seg.id {
-			continue
+				return true
+			}
 		}
-
-		// If the Client requests a Part Index greater than that of the final
-		// Partial Segment of the Parent Segment, the Server MUST treat the
-		// request as one for Part Index 0 of the following Parent Segment.
-		if partID >= uint64(len(seg.parts)) {
-			segmentID++
-			partID = 0
-			continue
-		}
-
-		return true
 	}
 
-	if segmentID != s.nextSegmentID {
-		return false
-	}
-
-	if partID >= uint64(len(s.nextSegmentParts)) {
-		return false
-	}
-
-	return true
+	return false
 }
 
 func queryVal(q url.Values, key string) string {
@@ -554,26 +541,36 @@ func (s *muxerServer) handleMediaPlaylist(msn string, part string, skip string, 
 			return
 		}
 
-		if msn != "" {
-			byts, err := func() ([]byte, error) {
+		switch {
+		case msn != "":
+			byts := func() []byte {
 				s.mutex.Lock()
 				defer s.mutex.Unlock()
 
-				// If the _HLS_msn is greater than the Media Sequence Number of the last
-				// Media Segment in the current Playlist plus two, or if the _HLS_part
-				// exceeds the last Partial Segment in the current Playlist by the
-				// Advance Part Limit, then the server SHOULD immediately return Bad
-				// Request, such as HTTP 400.
-				if msnint > (s.nextSegmentID+1) || msnint < (s.nextSegmentID-uint64(len(s.segments)-1)) {
-					w.WriteHeader(http.StatusBadRequest)
-					return nil, nil
-				}
+				for {
+					if s.closed {
+						w.WriteHeader(http.StatusInternalServerError)
+						return nil
+					}
 
-				for !s.closed && !s.hasPart(msnint, partint) {
+					// If the _HLS_msn is greater than the Media Sequence Number of the last
+					// Media Segment in the current Playlist plus two, or if the _HLS_part
+					// exceeds the last Partial Segment in the current Playlist by the
+					// Advance Part Limit, then the server SHOULD immediately return Bad
+					// Request, such as HTTP 400.
+					if msnint > (s.nextSegmentID+1) || msnint < (s.nextSegmentID-uint64(len(s.segments)-1)) {
+						w.WriteHeader(http.StatusBadRequest)
+						return nil
+					}
+
+					if s.hasContent() && s.hasPart(msnint, partint) {
+						break
+					}
+
 					s.cond.Wait()
 				}
 
-				return generateMediaPlaylist(
+				byts, err := generateMediaPlaylist(
 					isDeltaUpdate,
 					s.variant,
 					s.segments,
@@ -582,11 +579,13 @@ func (s *muxerServer) handleMediaPlaylist(msn string, part string, skip string, 
 					s.segmentDeleteCount,
 					s.prefix,
 				)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return nil
+				}
+
+				return byts
 			}()
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
 
 			if byts != nil {
 				w.Header().Set("Cache-Control", "no-cache")
@@ -595,24 +594,31 @@ func (s *muxerServer) handleMediaPlaylist(msn string, part string, skip string, 
 				w.Write(byts)
 			}
 			return
-		}
 
-		// part without msn is not supported.
-		if part != "" {
+		case part != "": // part without msn is not supported.
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 	}
 
-	byts, err := func() ([]byte, error) {
+	byts := func() []byte {
 		s.mutex.Lock()
 		defer s.mutex.Unlock()
 
-		for !s.closed && !s.hasContent() {
+		for {
+			if s.closed {
+				w.WriteHeader(http.StatusInternalServerError)
+				return nil
+			}
+
+			if s.hasContent() {
+				break
+			}
+
 			s.cond.Wait()
 		}
 
-		return generateMediaPlaylist(
+		byts, err := generateMediaPlaylist(
 			isDeltaUpdate,
 			s.variant,
 			s.segments,
@@ -621,11 +627,13 @@ func (s *muxerServer) handleMediaPlaylist(msn string, part string, skip string, 
 			s.segmentDeleteCount,
 			s.prefix,
 		)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return nil
+		}
+
+		return byts
 	}()
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
 
 	if byts != nil {
 		w.Header().Set("Cache-Control", "no-cache")
@@ -739,6 +747,7 @@ func (s *muxerServer) publishPart(part *muxerPart) error {
 	s.mutex.Lock()
 	err := s.publishPartInner(part)
 	s.mutex.Unlock()
+
 	if err != nil {
 		return err
 	}
@@ -807,6 +816,7 @@ func (s *muxerServer) publishSegment(segment muxerSegment) error {
 	s.mutex.Lock()
 	err := s.publishSegmentInner(segment)
 	s.mutex.Unlock()
+
 	if err != nil {
 		return err
 	}
