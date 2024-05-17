@@ -25,7 +25,13 @@ func TestUnmarshal(t *testing.T) {
 }
 
 func FuzzPlaylistUnmarshal(f *testing.F) {
-	f.Add("#EXTINF:")
+	for _, ca := range casesMultivariant {
+		f.Add(ca.input)
+	}
+
+	for _, ca := range casesMedia {
+		f.Add(ca.input)
+	}
 
 	f.Fuzz(func(_ *testing.T, a string) {
 		Unmarshal([]byte(a)) //nolint:errcheck
