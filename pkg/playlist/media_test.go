@@ -38,7 +38,7 @@ var casesMedia = []struct {
 			"#EXT-X-PROGRAM-DATE-TIME:2014-08-25T00:00:00Z\n" +
 			"#EXT-X-BITRATE:14213213\n" +
 			"#EXT-X-PART:DURATION=1.50000,URI=\"part1.mp4\",INDEPENDENT=YES\n" +
-			"#EXT-X-PART:DURATION=1.50000,URI=\"part2.mp4\"\n" +
+			"#EXT-X-PART:DURATION=1.50000,URI=\"part2.mp4\",BYTERANGE=456@123\n" +
 			"#EXTINF:3.00000,\n" +
 			"seg2.mp4\n" +
 			"#EXT-X-PART:DURATION=1.50000,URI=\"part3.mp4\",INDEPENDENT=YES\n" +
@@ -63,7 +63,7 @@ var casesMedia = []struct {
 			"#EXT-X-PROGRAM-DATE-TIME:2014-08-25T00:00:00Z\n" +
 			"#EXT-X-BITRATE:14213213\n" +
 			"#EXT-X-PART:DURATION=1.50000,URI=\"part1.mp4\",INDEPENDENT=YES\n" +
-			"#EXT-X-PART:DURATION=1.50000,URI=\"part2.mp4\"\n" +
+			"#EXT-X-PART:DURATION=1.50000,URI=\"part2.mp4\",BYTERANGE=456@123\n" +
 			"#EXTINF:3.00000,\n" +
 			"seg2.mp4\n" +
 			"#EXT-X-PART:DURATION=1.50000,URI=\"part3.mp4\",INDEPENDENT=YES\n" +
@@ -112,8 +112,10 @@ var casesMedia = []struct {
 							URI:         "part1.mp4",
 						},
 						{
-							Duration: 1500 * time.Millisecond,
-							URI:      "part2.mp4",
+							Duration:        1500 * time.Millisecond,
+							URI:             "part2.mp4",
+							ByteRangeLength: uint64Ptr(456),
+							ByteRangeStart:  uint64Ptr(123),
 						},
 					},
 				},
@@ -307,20 +309,12 @@ func TestMediaMarshal(t *testing.T) {
 }
 
 func FuzzMediaUnmarshal(f *testing.F) {
-	f.Add("#EXTM3U\n" +
-		"#EXT-X-SKIP:SKIPPED-SEGMENTS=aa\n")
-
-	f.Add("#EXTM3U\n" +
-		"#EXT-X-MAP:URI=\"init.mp4\",BYTERANGE=\n")
+	for _, ca := range casesMedia {
+		f.Add(ca.input)
+	}
 
 	f.Add("#EXTM3U\n" +
 		"#EXT-X-PART:DURATION=1.50000,URI=\"part3.mp4\",INDEPENDENT=YES,BYTERANGE=\n")
-
-	f.Add("#EXTM3U\n" +
-		"#EXT-X-PRELOAD-HINT:TYPE=PART,URI=\"part5.mp4\",BYTERANGE-START=43523,BYTERANGE-LENGTH=123\n")
-
-	f.Add("#EXTM3U\n" +
-		"#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=5.00000,CAN-SKIP-UNTIL=7.00000\n")
 
 	f.Fuzz(func(_ *testing.T, a string) {
 		var m Media
