@@ -89,7 +89,7 @@ func main() {
 
 				// pass the access unit to the HLS muxer
 				log.Printf("visit http://localhost:8080 - encoding access unit with PTS = %v", pts)
-				mux.WriteH26x(time.Now(), pts, au)
+				mux.WriteH264(time.Now(), pts, au)
 
 				return nil
 			})
