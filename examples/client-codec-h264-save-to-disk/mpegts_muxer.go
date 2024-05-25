@@ -52,10 +52,7 @@ func (e *mpegtsMuxer) close() {
 
 // writeH264 writes a H264 access unit into MPEG-TS.
 func (e *mpegtsMuxer) writeH264(au [][]byte, pts time.Duration) error {
-	// prepend an AUD. This is required by some players
-	filteredAU := [][]byte{
-		{byte(h264.NALUTypeAccessUnitDelimiter), 240},
-	}
+	var filteredAU [][]byte
 
 	nonIDRPresent := false
 	idrPresent := false
@@ -86,7 +83,7 @@ func (e *mpegtsMuxer) writeH264(au [][]byte, pts time.Duration) error {
 
 	au = filteredAU
 
-	if len(au) <= 1 || (!nonIDRPresent && !idrPresent) {
+	if au == nil || (!nonIDRPresent && !idrPresent) {
 		return nil
 	}
 
@@ -112,5 +109,5 @@ func (e *mpegtsMuxer) writeH264(au [][]byte, pts time.Duration) error {
 	}
 
 	// encode into MPEG-TS
-	return e.w.WriteH26x(e.track, durationGoToMPEGTS(pts), durationGoToMPEGTS(dts), idrPresent, au)
+	return e.w.WriteH264(e.track, durationGoToMPEGTS(pts), durationGoToMPEGTS(dts), idrPresent, au)
 }

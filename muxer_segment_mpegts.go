@@ -8,7 +8,6 @@ import (
 
 	"github.com/bluenviron/gohlslib/pkg/storage"
 
-	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
 	"github.com/bluenviron/mediacommon/pkg/formats/mpegts"
 )
 
@@ -105,10 +104,7 @@ func (t *muxerSegmentMPEGTS) writeH264(
 	}
 	t.size += size
 
-	// prepend an AUD. This is required by video.js and iOS
-	au = append([][]byte{{byte(h264.NALUTypeAccessUnitDelimiter), 240}}, au...)
-
-	err := t.writer.WriteH26x(t.writerVideoTrack, durationGoToMPEGTS(pts), durationGoToMPEGTS(dts), idrPresent, au)
+	err := t.writer.WriteH264(t.writerVideoTrack, durationGoToMPEGTS(pts), durationGoToMPEGTS(dts), idrPresent, au)
 	if err != nil {
 		return err
 	}

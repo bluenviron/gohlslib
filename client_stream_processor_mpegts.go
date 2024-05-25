@@ -238,7 +238,7 @@ func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, firs
 
 		switch track.track.Codec.(type) {
 		case *codecs.H264:
-			p.reader.OnDataH26x(mpegtsTrack, func(pts int64, dts int64, au [][]byte) error {
+			p.reader.OnDataH264(mpegtsTrack, func(pts int64, dts int64, au [][]byte) error {
 				return processSample(pts, dts, au)
 			})
 
