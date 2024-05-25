@@ -282,68 +282,89 @@ func (m *Muxer) WriteVP9(ntp time.Time, pts time.Duration, frame []byte) error {
 }
 
 // WriteH26x writes an H264 or an H265 access unit.
+//
+// Deprecated: replaced by WriteH264 and WriteH265.
 func (m *Muxer) WriteH26x(ntp time.Time, pts time.Duration, au [][]byte) error {
+	if _, ok := m.VideoTrack.Codec.(*codecs.H265); ok {
+		return m.WriteH265(ntp, pts, au)
+	}
+
+	return m.WriteH264(ntp, pts, au)
+}
+
+// WriteH265 writes an H265 access unit.
+func (m *Muxer) WriteH265(ntp time.Time, pts time.Duration, au [][]byte) error {
 	randomAccess := false
+	codec := m.VideoTrack.Codec.(*codecs.H265)
 
-	switch codec := m.VideoTrack.Codec.(type) {
-	case *codecs.H265:
-		for _, nalu := range au {
-			typ := h265.NALUType((nalu[0] >> 1) & 0b111111)
+	for _, nalu := range au {
+		typ := h265.NALUType((nalu[0] >> 1) & 0b111111)
 
-			switch typ {
-			case h265.NALUType_IDR_W_RADL, h265.NALUType_IDR_N_LP, h265.NALUType_CRA_NUT:
-				randomAccess = true
+		switch typ {
+		case h265.NALUType_IDR_W_RADL, h265.NALUType_IDR_N_LP, h265.NALUType_CRA_NUT:
+			randomAccess = true
 
-			case h265.NALUType_VPS_NUT:
-				if !bytes.Equal(codec.VPS, nalu) {
-					m.forceSwitch = true
-					codec.VPS = nalu
-				}
+		case h265.NALUType_VPS_NUT:
+			if !bytes.Equal(codec.VPS, nalu) {
+				m.forceSwitch = true
+				codec.VPS = nalu
+			}
 
-			case h265.NALUType_SPS_NUT:
-				if !bytes.Equal(codec.SPS, nalu) {
-					m.forceSwitch = true
-					codec.SPS = nalu
-				}
+		case h265.NALUType_SPS_NUT:
+			if !bytes.Equal(codec.SPS, nalu) {
+				m.forceSwitch = true
+				codec.SPS = nalu
+			}
 
-			case h265.NALUType_PPS_NUT:
-				if !bytes.Equal(codec.PPS, nalu) {
-					m.forceSwitch = true
-					codec.PPS = nalu
-				}
+		case h265.NALUType_PPS_NUT:
+			if !bytes.Equal(codec.PPS, nalu) {
+				m.forceSwitch = true
+				codec.PPS = nalu
 			}
 		}
+	}
 
-	case *codecs.H264:
-		nonIDRPresent := false
+	forceSwitch := false
+	if randomAccess && m.forceSwitch {
+		m.forceSwitch = false
+		forceSwitch = true
+	}
 
-		for _, nalu := range au {
-			typ := h264.NALUType(nalu[0] & 0x1F)
+	return m.segmenter.writeH26x(ntp, pts, au, randomAccess, forceSwitch)
+}
 
-			switch typ {
-			case h264.NALUTypeIDR:
-				randomAccess = true
+// WriteH264 writes an H264 access unit.
+func (m *Muxer) WriteH264(ntp time.Time, pts time.Duration, au [][]byte) error {
+	randomAccess := false
+	codec := m.VideoTrack.Codec.(*codecs.H264)
+	nonIDRPresent := false
 
-			case h264.NALUTypeNonIDR:
-				nonIDRPresent = true
+	for _, nalu := range au {
+		typ := h264.NALUType(nalu[0] & 0x1F)
 
-			case h264.NALUTypeSPS:
-				if !bytes.Equal(codec.SPS, nalu) {
-					m.forceSwitch = true
-					codec.SPS = nalu
-				}
+		switch typ {
+		case h264.NALUTypeIDR:
+			randomAccess = true
 
-			case h264.NALUTypePPS:
-				if !bytes.Equal(codec.PPS, nalu) {
-					m.forceSwitch = true
-					codec.PPS = nalu
-				}
+		case h264.NALUTypeNonIDR:
+			nonIDRPresent = true
+
+		case h264.NALUTypeSPS:
+			if !bytes.Equal(codec.SPS, nalu) {
+				m.forceSwitch = true
+				codec.SPS = nalu
+			}
+
+		case h264.NALUTypePPS:
+			if !bytes.Equal(codec.PPS, nalu) {
+				m.forceSwitch = true
+				codec.PPS = nalu
 			}
 		}
+	}
 
-		if !randomAccess && !nonIDRPresent {
-			return nil
-		}
+	if !randomAccess && !nonIDRPresent {
+		return nil
 	}
 
 	forceSwitch := false

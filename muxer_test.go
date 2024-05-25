@@ -132,14 +132,14 @@ func TestMuxerVideoAudio(t *testing.T) {
 
 			// access unit without IDR
 			d := 1 * time.Second
-			err = m.WriteH26x(testTime.Add(d-1*time.Second), d, [][]byte{
+			err = m.WriteH264(testTime.Add(d-1*time.Second), d, [][]byte{
 				{1}, // non-IDR
 			})
 			require.NoError(t, err)
 
 			// access unit with IDR
 			d = 2 * time.Second
-			err = m.WriteH26x(testTime.Add(d-1*time.Second), d, [][]byte{
+			err = m.WriteH264(testTime.Add(d-1*time.Second), d, [][]byte{
 				testSPS, // SPS
 				{8},     // PPS
 				{5},     // IDR
@@ -160,7 +160,7 @@ func TestMuxerVideoAudio(t *testing.T) {
 
 			// access unit without IDR
 			d = 4 * time.Second
-			err = m.WriteH26x(testTime.Add(d-1*time.Second), d, [][]byte{
+			err = m.WriteH264(testTime.Add(d-1*time.Second), d, [][]byte{
 				{1}, // non-IDR
 			})
 			require.NoError(t, err)
@@ -173,14 +173,14 @@ func TestMuxerVideoAudio(t *testing.T) {
 
 			// access unit with IDR
 			d = 6 * time.Second
-			err = m.WriteH26x(testTime.Add(d-1*time.Second), d, [][]byte{
+			err = m.WriteH264(testTime.Add(d-1*time.Second), d, [][]byte{
 				{5}, // IDR
 			})
 			require.NoError(t, err)
 
 			// access unit with IDR
 			d = 7 * time.Second
-			err = m.WriteH26x(testTime.Add(d-1*time.Second), d, [][]byte{
+			err = m.WriteH264(testTime.Add(d-1*time.Second), d, [][]byte{
 				{5}, // IDR
 			})
 			require.NoError(t, err)
@@ -321,7 +321,7 @@ func TestMuxerVideoAudio(t *testing.T) {
 				}()
 
 				d = 9 * time.Second
-				err = m.WriteH26x(testTime.Add(d-1*time.Second), d, [][]byte{
+				err = m.WriteH264(testTime.Add(d-1*time.Second), d, [][]byte{
 					{1}, // non-IDR
 				})
 				require.NoError(t, err)
@@ -358,7 +358,7 @@ func TestMuxerVideoOnly(t *testing.T) {
 
 			// access unit with IDR
 			d := 2 * time.Second
-			err = m.WriteH26x(testTime.Add(d-2*time.Second), d, [][]byte{
+			err = m.WriteH264(testTime.Add(d-2*time.Second), d, [][]byte{
 				testSPS, // SPS
 				{8},     // PPS
 				{5},     // IDR
@@ -367,14 +367,14 @@ func TestMuxerVideoOnly(t *testing.T) {
 
 			// access unit with IDR
 			d = 6 * time.Second
-			err = m.WriteH26x(testTime.Add(d-2*time.Second), d, [][]byte{
+			err = m.WriteH264(testTime.Add(d-2*time.Second), d, [][]byte{
 				{5}, // IDR
 			})
 			require.NoError(t, err)
 
 			// access unit with IDR
 			d = 7 * time.Second
-			err = m.WriteH26x(testTime.Add(d-2*time.Second), d, [][]byte{
+			err = m.WriteH264(testTime.Add(d-2*time.Second), d, [][]byte{
 				{5}, // IDR
 			})
 			require.NoError(t, err)
@@ -590,7 +590,7 @@ func TestMuxerMaxSegmentSize(t *testing.T) {
 	require.NoError(t, err)
 	defer m.Close()
 
-	err = m.WriteH26x(testTime, 2*time.Second, [][]byte{
+	err = m.WriteH264(testTime, 2*time.Second, [][]byte{
 		testSPS,
 		{5}, // IDR
 	})
@@ -609,14 +609,14 @@ func TestMuxerDoubleRead(t *testing.T) {
 	require.NoError(t, err)
 	defer m.Close()
 
-	err = m.WriteH26x(testTime, 0, [][]byte{
+	err = m.WriteH264(testTime, 0, [][]byte{
 		testSPS,
 		{5}, // IDR
 		{1},
 	})
 	require.NoError(t, err)
 
-	err = m.WriteH26x(testTime, 2*time.Second, [][]byte{
+	err = m.WriteH264(testTime, 2*time.Second, [][]byte{
 		{5}, // IDR
 		{2},
 	})
@@ -672,20 +672,20 @@ func TestMuxerSaveToDisk(t *testing.T) {
 			err = m.Start()
 			require.NoError(t, err)
 
-			err = m.WriteH26x(testTime, 0, [][]byte{
+			err = m.WriteH264(testTime, 0, [][]byte{
 				testSPS,
 				{5}, // IDR
 				{1},
 			})
 			require.NoError(t, err)
 
-			err = m.WriteH26x(testTime, 2*time.Second, [][]byte{
+			err = m.WriteH264(testTime, 2*time.Second, [][]byte{
 				{5}, // IDR
 				{2},
 			})
 			require.NoError(t, err)
 
-			err = m.WriteH26x(testTime, 3*time.Second, [][]byte{
+			err = m.WriteH264(testTime, 3*time.Second, [][]byte{
 				{5}, // IDR
 				{2},
 			})
@@ -756,20 +756,20 @@ func TestMuxerDynamicParams(t *testing.T) {
 	require.NoError(t, err)
 	defer m.Close()
 
-	err = m.WriteH26x(testTime, 0, [][]byte{
+	err = m.WriteH264(testTime, 0, [][]byte{
 		testSPS,
 		{5}, // IDR
 		{1},
 	})
 	require.NoError(t, err)
 
-	err = m.WriteH26x(testTime, 1*time.Second, [][]byte{
+	err = m.WriteH264(testTime, 1*time.Second, [][]byte{
 		{5}, // IDR
 		{2},
 	})
 	require.NoError(t, err)
 
-	err = m.WriteH26x(testTime, 2*time.Second, [][]byte{
+	err = m.WriteH264(testTime, 2*time.Second, [][]byte{
 		{5}, // IDR
 		{2},
 	})
@@ -803,14 +803,14 @@ func TestMuxerDynamicParams(t *testing.T) {
 		0xcb,
 	}
 
-	err = m.WriteH26x(testTime, 3*time.Second, [][]byte{
+	err = m.WriteH264(testTime, 3*time.Second, [][]byte{
 		testSPS2,
 		{5}, // IDR
 		{2},
 	})
 	require.NoError(t, err)
 
-	err = m.WriteH26x(testTime, 5*time.Second, [][]byte{
+	err = m.WriteH264(testTime, 5*time.Second, [][]byte{
 		{5}, // IDR
 	})
 	require.NoError(t, err)
@@ -846,14 +846,14 @@ func TestMuxerFMP4ZeroDuration(t *testing.T) {
 	require.NoError(t, err)
 	defer m.Close()
 
-	err = m.WriteH26x(time.Now(), 0, [][]byte{
+	err = m.WriteH264(time.Now(), 0, [][]byte{
 		testSPS, // SPS
 		{8},     // PPS
 		{5},     // IDR
 	})
 	require.NoError(t, err)
 
-	err = m.WriteH26x(time.Now(), 1*time.Nanosecond, [][]byte{
+	err = m.WriteH264(time.Now(), 1*time.Nanosecond, [][]byte{
 		testSPS, // SPS
 		{8},     // PPS
 		{5},     // IDR
@@ -880,21 +880,21 @@ func TestMuxerFMP4NegativeTimestamp(t *testing.T) {
 	require.NoError(t, err)
 
 	// this is skipped
-	err = m.WriteH26x(testTime, -11*time.Second, [][]byte{
+	err = m.WriteH264(testTime, -11*time.Second, [][]byte{
 		testSPS,
 		{5}, // IDR
 		{1},
 	})
 	require.NoError(t, err)
 
-	err = m.WriteH26x(testTime, -9*time.Second, [][]byte{
+	err = m.WriteH264(testTime, -9*time.Second, [][]byte{
 		testSPS,
 		{5}, // IDR
 		{1},
 	})
 	require.NoError(t, err)
 
-	err = m.WriteH26x(testTime, -8*time.Second, [][]byte{
+	err = m.WriteH264(testTime, -8*time.Second, [][]byte{
 		{5}, // IDR
 		{2},
 	})
@@ -917,7 +917,7 @@ func TestMuxerFMP4NegativeTimestamp(t *testing.T) {
 	require.NoError(t, err)
 
 	// switch segment
-	err = m.WriteH26x(testTime, -7*time.Second, [][]byte{
+	err = m.WriteH264(testTime, -7*time.Second, [][]byte{
 		{5}, // IDR
 		{3},
 	})
@@ -985,7 +985,7 @@ func TestMuxerFMP4SequenceNumber(t *testing.T) {
 	require.NoError(t, err)
 	defer m.Close()
 
-	err = m.WriteH26x(testTime, 0, [][]byte{
+	err = m.WriteH264(testTime, 0, [][]byte{
 		testSPS,
 		{5}, // IDR
 		{1},
@@ -993,7 +993,7 @@ func TestMuxerFMP4SequenceNumber(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < 3; i++ {
-		err = m.WriteH26x(testTime, (1+time.Duration(i))*time.Second, [][]byte{
+		err = m.WriteH264(testTime, (1+time.Duration(i))*time.Second, [][]byte{
 			{1}, // non IDR
 		})
 		require.NoError(t, err)
@@ -1036,7 +1036,7 @@ func TestMuxerInvalidFolder(t *testing.T) {
 			defer m.Close()
 
 			for i := 0; i < 2; i++ {
-				err := m.WriteH26x(testTime, time.Duration(i)*time.Second, [][]byte{
+				err := m.WriteH264(testTime, time.Duration(i)*time.Second, [][]byte{
 					testSPS, // SPS
 					{8},     // PPS
 					{5},     // IDR
@@ -1065,7 +1065,7 @@ func TestMuxerExpiredSegment(t *testing.T) {
 	defer m.Close()
 
 	for i := 0; i < 2; i++ {
-		err := m.WriteH26x(testTime, time.Duration(i)*time.Second, [][]byte{
+		err := m.WriteH264(testTime, time.Duration(i)*time.Second, [][]byte{
 			testSPS, // SPS
 			{8},     // PPS
 			{5},     // IDR
