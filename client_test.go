@@ -73,6 +73,13 @@ y++U32uuSFiXDcSLarfIsE992MEJLSAynbF1Rsgsr3gXbGiuToJRyxbIeVy7gwzD
 -----END RSA PRIVATE KEY-----
 `)
 
+const (
+	testHeaderKey   = "test-header"
+	testHeaderValue = "test-value"
+	testCookieName = "test-cookie"
+	testCookieValue = "test-value"
+)
+
 func writeTempFile(byts []byte) (string, error) {
 	tmpf, err := os.CreateTemp(os.TempDir(), "rtsp-")
 	if err != nil {
@@ -117,6 +124,25 @@ func TestClient(t *testing.T) {
 			t.Run(mode+"_"+format, func(t *testing.T) {
 				httpServ := &http.Server{
 					Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						// reject requests that do not have out custom header - key pair to ensure headers are working
+						if r.Header.Get(testHeaderKey) != testHeaderValue {
+							w.WriteHeader(http.StatusUnauthorized)
+							return
+						}
+
+						// reject requests that do not have out custom cookie - key pair to ensure cookies are working
+						cookieValidated := false
+						for _, cookie := range r.Cookies() {
+							if cookie.Name == testCookieName && cookie.Value == testCookieValue {
+								cookieValidated = true
+								break
+							}
+						}
+						if !cookieValidated {
+							w.WriteHeader(http.StatusUnauthorized)
+							return
+						}
+
 						if format == "mpegts" {
 							switch {
 							case r.Method == http.MethodGet && r.URL.Path == "/stream.m3u8":
@@ -390,6 +416,15 @@ func TestClient(t *testing.T) {
 				c = &Client{
 					URI:        prefix + "://localhost:5780/stream.m3u8",
 					HTTPClient: &http.Client{Transport: tr},
+					Headers: map[string]string{
+						testHeaderKey: testHeaderValue,
+					},
+					Cookies: []*http.Cookie{
+						{
+							Name:  testCookieName,
+							Value: testCookieValue,
+						},
+					},
 					OnTracks: func(tracks []*Track) error {
 						var sps []byte
 						var pps []byte
@@ -476,11 +511,23 @@ func TestClient(t *testing.T) {
 				err = c.Start()
 				require.NoError(t, err)
 
-				<-videoRecv
-				<-audioRecv
-
-				err = <-c.Wait()
-				require.Equal(t, ErrClientEOS, err)
+				// loop the channels with a select so we can catch the error if something fails
+				// for example if you get a 401 then we need to handle it
+				for {
+					exit := false
+					select {
+					case <-videoRecv:
+						continue
+					case <-audioRecv:
+						continue
+					case err := <-c.Wait():
+						require.Equal(t, ErrClientEOS, err)
+						exit = true
+					}
+					if exit {
+						break
+					}
+				}
 
 				c.Close()
 			})

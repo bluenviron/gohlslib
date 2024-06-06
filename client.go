@@ -81,6 +81,12 @@ type Client struct {
 	// HTTP client.
 	// It defaults to http.DefaultClient.
 	HTTPClient *http.Client
+	// Headers to be used for requests.
+	Headers map[string]string
+	// Cookies to be used for requests.
+	Cookies []*http.Cookie
+	// Proxy to be used for requests.
+	Proxy *url.URL
 
 	//
 	// callbacks (all optional)
@@ -229,6 +235,8 @@ func (c *Client) runInner() error {
 	c.primaryDownloader = &clientPrimaryDownloader{
 		primaryPlaylistURL:        c.playlistURL,
 		httpClient:                c.HTTPClient,
+		headers:                   c.Headers,
+		cookies:                   c.Cookies,
 		onDownloadPrimaryPlaylist: c.OnDownloadPrimaryPlaylist,
 		onDownloadStreamPlaylist:  c.OnDownloadStreamPlaylist,
 		onDownloadSegment:         c.OnDownloadSegment,

@@ -52,6 +52,8 @@ func dateTimeOfPreloadHint(pl *playlist.Media) *time.Time {
 type clientStreamDownloader struct {
 	isLeading                bool
 	httpClient               *http.Client
+	headers                 map[string]string
+	cookies                 []*http.Cookie
 	onDownloadStreamPlaylist ClientOnDownloadStreamPlaylistFunc
 	onDownloadSegment        ClientOnDownloadSegmentFunc
 	onDownloadPart           ClientOnDownloadPartFunc
@@ -189,7 +191,7 @@ func (d *clientStreamDownloader) downloadPlaylist(
 
 	d.onDownloadStreamPlaylist(ur.String())
 
-	pl, err := clientDownloadPlaylist(ctx, d.httpClient, ur)
+	pl, err := clientDownloadPlaylist(ctx, d.httpClient, d.headers, d.cookies, ur)
 	if err != nil {
 		return nil, err
 	}
@@ -218,8 +220,19 @@ func (d *clientStreamDownloader) downloadPreloadHint(
 		return nil, err
 	}
 
+	// Add headers to the request if provided
+	for key, value := range d.headers {
+		req.Header.Add(key, value)
+	}
+
+	// Add cookies to the request if provided
+	for _, cookie := range d.cookies {
+		req.AddCookie(cookie)
+	}
+
+
 	if preloadHint.ByteRangeLength != nil {
-		req.Header.Add("Range", "bytes="+strconv.FormatUint(preloadHint.ByteRangeStart, 10)+
+		req.Header.Set("Range", "bytes="+strconv.FormatUint(preloadHint.ByteRangeStart, 10)+
 			"-"+strconv.FormatUint(preloadHint.ByteRangeStart+*preloadHint.ByteRangeLength-1, 10))
 	}
 
@@ -259,12 +272,22 @@ func (d *clientStreamDownloader) downloadSegment(
 		return nil, err
 	}
 
+	// Optionally add the headers to the request if provided
+	for key, value := range d.headers {
+		req.Header.Add(key, value)
+	}
+
+	// Optionally add cookies to the request if provided
+	for _, cookie := range d.cookies {
+		req.AddCookie(cookie)
+	}
+
 	if length != nil {
 		if start == nil {
 			v := uint64(0)
 			start = &v
 		}
-		req.Header.Add("Range", "bytes="+strconv.FormatUint(*start, 10)+
+		req.Header.Set("Range", "bytes="+strconv.FormatUint(*start, 10)+
 			"-"+strconv.FormatUint(*start+*length-1, 10))
 	}
 

@@ -43,11 +43,23 @@ func cloneURL(ur *url.URL) *url.URL {
 func clientDownloadPlaylist(
 	ctx context.Context,
 	httpClient *http.Client,
+	headers map[string]string,
+	cookies []*http.Cookie,
 	ur *url.URL,
 ) (playlist.Playlist, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ur.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	// Add headers to the request if provided
+	for key, value := range headers {
+		req.Header.Add(key, value)
+	}
+
+	// Add cookies to the request if provided
+	for _, cookie := range cookies {
+		req.AddCookie(cookie)
 	}
 
 	res, err := httpClient.Do(req)
@@ -124,6 +136,8 @@ type streamTracksEntry struct {
 type clientPrimaryDownloader struct {
 	primaryPlaylistURL        *url.URL
 	httpClient                *http.Client
+	headers                   map[string]string
+	cookies                   []*http.Cookie
 	onDownloadPrimaryPlaylist ClientOnDownloadPrimaryPlaylistFunc
 	onDownloadStreamPlaylist  ClientOnDownloadStreamPlaylistFunc
 	onDownloadSegment         ClientOnDownloadSegmentFunc
@@ -153,7 +167,13 @@ func (d *clientPrimaryDownloader) initialize() {
 func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 	d.onDownloadPrimaryPlaylist(d.primaryPlaylistURL.String())
 
-	pl, err := clientDownloadPlaylist(ctx, d.httpClient, d.primaryPlaylistURL)
+	pl, err := clientDownloadPlaylist(
+		ctx,
+		d.httpClient,
+		d.headers,
+		d.cookies,
+		d.primaryPlaylistURL,
+	)
 	if err != nil {
 		return err
 	}
@@ -165,6 +185,8 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 		ds := &clientStreamDownloader{
 			isLeading:                true,
 			httpClient:               d.httpClient,
+			headers:                  d.headers,
+			cookies:                  d.cookies,
 			onDownloadStreamPlaylist: d.onDownloadStreamPlaylist,
 			onDownloadSegment:        d.onDownloadSegment,
 			onDownloadPart:           d.onDownloadPart,
@@ -195,6 +217,8 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 		ds := &clientStreamDownloader{
 			isLeading:                true,
 			httpClient:               d.httpClient,
+			headers:                  d.headers,
+			cookies:                  d.cookies,
 			onDownloadStreamPlaylist: d.onDownloadStreamPlaylist,
 			onDownloadSegment:        d.onDownloadSegment,
 			onDownloadPart:           d.onDownloadPart,
@@ -225,6 +249,8 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 				ds := &clientStreamDownloader{
 					isLeading:                false,
 					httpClient:               d.httpClient,
+					headers:                  d.headers,
+					cookies:                  d.cookies,
 					onDownloadStreamPlaylist: d.onDownloadStreamPlaylist,
 					onDownloadSegment:        d.onDownloadSegment,
 					onDownloadPart:           d.onDownloadPart,
