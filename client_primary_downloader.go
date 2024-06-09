@@ -43,12 +43,15 @@ func cloneURL(ur *url.URL) *url.URL {
 func clientDownloadPlaylist(
 	ctx context.Context,
 	httpClient *http.Client,
+	onRequest ClientOnRequestFunc,
 	ur *url.URL,
 ) (playlist.Playlist, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ur.String(), nil)
 	if err != nil {
 		return nil, err
 	}
+
+	onRequest(req)
 
 	res, err := httpClient.Do(req)
 	if err != nil {
@@ -124,6 +127,7 @@ type streamTracksEntry struct {
 type clientPrimaryDownloader struct {
 	primaryPlaylistURL        *url.URL
 	httpClient                *http.Client
+	onRequest                 ClientOnRequestFunc
 	onDownloadPrimaryPlaylist ClientOnDownloadPrimaryPlaylistFunc
 	onDownloadStreamPlaylist  ClientOnDownloadStreamPlaylistFunc
 	onDownloadSegment         ClientOnDownloadSegmentFunc
@@ -153,7 +157,7 @@ func (d *clientPrimaryDownloader) initialize() {
 func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 	d.onDownloadPrimaryPlaylist(d.primaryPlaylistURL.String())
 
-	pl, err := clientDownloadPlaylist(ctx, d.httpClient, d.primaryPlaylistURL)
+	pl, err := clientDownloadPlaylist(ctx, d.httpClient, d.onRequest, d.primaryPlaylistURL)
 	if err != nil {
 		return err
 	}
@@ -165,6 +169,7 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 		ds := &clientStreamDownloader{
 			isLeading:                true,
 			httpClient:               d.httpClient,
+			onRequest:                d.onRequest,
 			onDownloadStreamPlaylist: d.onDownloadStreamPlaylist,
 			onDownloadSegment:        d.onDownloadSegment,
 			onDownloadPart:           d.onDownloadPart,
@@ -195,6 +200,7 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 		ds := &clientStreamDownloader{
 			isLeading:                true,
 			httpClient:               d.httpClient,
+			onRequest:                d.onRequest,
 			onDownloadStreamPlaylist: d.onDownloadStreamPlaylist,
 			onDownloadSegment:        d.onDownloadSegment,
 			onDownloadPart:           d.onDownloadPart,
@@ -224,6 +230,7 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 
 				ds := &clientStreamDownloader{
 					isLeading:                false,
+					onRequest:                d.onRequest,
 					httpClient:               d.httpClient,
 					onDownloadStreamPlaylist: d.onDownloadStreamPlaylist,
 					onDownloadSegment:        d.onDownloadSegment,

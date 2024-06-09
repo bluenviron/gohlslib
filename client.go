@@ -41,6 +41,9 @@ type ClientOnDownloadPartFunc func(url string)
 // ClientOnDecodeErrorFunc is the prototype of Client.OnDecodeError.
 type ClientOnDecodeErrorFunc func(err error)
 
+// ClientOnRequestFunc is the prototype of the function passed to OnRequest().
+type ClientOnRequestFunc func(*http.Request)
+
 // ClientOnTracksFunc is the prototype of the function passed to OnTracks().
 type ClientOnTracksFunc func([]*Track) error
 
@@ -85,6 +88,8 @@ type Client struct {
 	//
 	// callbacks (all optional)
 	//
+	// called when sending a request to the server.
+	OnRequest ClientOnRequestFunc
 	// called when tracks are available.
 	OnTracks ClientOnTracksFunc
 	// called before downloading a primary playlist.
@@ -118,6 +123,9 @@ type Client struct {
 func (c *Client) Start() error {
 	if c.HTTPClient == nil {
 		c.HTTPClient = http.DefaultClient
+	}
+	if c.OnRequest == nil {
+		c.OnRequest = func(_ *http.Request) {}
 	}
 	if c.OnTracks == nil {
 		c.OnTracks = func(_ []*Track) error {
@@ -229,6 +237,7 @@ func (c *Client) runInner() error {
 	c.primaryDownloader = &clientPrimaryDownloader{
 		primaryPlaylistURL:        c.playlistURL,
 		httpClient:                c.HTTPClient,
+		onRequest:                 c.OnRequest,
 		onDownloadPrimaryPlaylist: c.OnDownloadPrimaryPlaylist,
 		onDownloadStreamPlaylist:  c.OnDownloadStreamPlaylist,
 		onDownloadSegment:         c.OnDownloadSegment,
