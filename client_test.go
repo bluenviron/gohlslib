@@ -122,11 +122,8 @@ func TestClient(t *testing.T) {
 			t.Run(mode+"_"+format, func(t *testing.T) {
 				httpServ := &http.Server{
 					Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-						// reject requests that do not have out custom header - key pair to ensure OnRequest was called
-						if r.Header.Get(testHeaderKey) != testHeaderValue {
-							w.WriteHeader(http.StatusUnauthorized)
-							return
-						}
+						require.Equal(t, testHeaderValue, r.Header.Get(testHeaderKey))
+
 						if format == "mpegts" {
 							switch {
 							case r.Method == http.MethodGet && r.URL.Path == "/stream.m3u8":
@@ -489,23 +486,8 @@ func TestClient(t *testing.T) {
 				err = c.Start()
 				require.NoError(t, err)
 
-				// loop the channels with a select so we can catch the error if something fails
-				// for example if you get a 401 then we need to handle it
-				for {
-					exit := false
-					select {
-					case <-videoRecv:
-						continue
-					case <-audioRecv:
-						continue
-					case err := <-c.Wait():
-						require.Equal(t, ErrClientEOS, err)
-						exit = true
-					}
-					if exit {
-						break
-					}
-				}
+				<-videoRecv
+				<-audioRecv
 
 				c.Close()
 			})
