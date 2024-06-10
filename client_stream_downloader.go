@@ -52,6 +52,7 @@ func dateTimeOfPreloadHint(pl *playlist.Media) *time.Time {
 type clientStreamDownloader struct {
 	isLeading                bool
 	httpClient               *http.Client
+	onRequest                ClientOnRequestFunc
 	onDownloadStreamPlaylist ClientOnDownloadStreamPlaylistFunc
 	onDownloadSegment        ClientOnDownloadSegmentFunc
 	onDownloadPart           ClientOnDownloadPartFunc
@@ -189,7 +190,7 @@ func (d *clientStreamDownloader) downloadPlaylist(
 
 	d.onDownloadStreamPlaylist(ur.String())
 
-	pl, err := clientDownloadPlaylist(ctx, d.httpClient, ur)
+	pl, err := clientDownloadPlaylist(ctx, d.httpClient, d.onRequest, ur)
 	if err != nil {
 		return nil, err
 	}
@@ -222,6 +223,8 @@ func (d *clientStreamDownloader) downloadPreloadHint(
 		req.Header.Add("Range", "bytes="+strconv.FormatUint(preloadHint.ByteRangeStart, 10)+
 			"-"+strconv.FormatUint(preloadHint.ByteRangeStart+*preloadHint.ByteRangeLength-1, 10))
 	}
+
+	d.onRequest(req)
 
 	res, err := d.httpClient.Do(req)
 	if err != nil {
@@ -267,6 +270,8 @@ func (d *clientStreamDownloader) downloadSegment(
 		req.Header.Add("Range", "bytes="+strconv.FormatUint(*start, 10)+
 			"-"+strconv.FormatUint(*start+*length-1, 10))
 	}
+
+	d.onRequest(req)
 
 	res, err := d.httpClient.Do(req)
 	if err != nil {
