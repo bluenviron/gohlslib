@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/asticode/go-astits v1.13.0
-	github.com/bluenviron/mediacommon v1.11.1-0.20240525122142-20163863aa75
+	github.com/bluenviron/mediacommon v1.12.0
 	github.com/stretchr/testify v1.9.0
 )
 
