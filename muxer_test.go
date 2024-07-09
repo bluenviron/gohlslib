@@ -799,13 +799,13 @@ func TestMuxerDynamicParams(t *testing.T) {
 
 	err = m.WriteH264(testTime, 3*time.Second, [][]byte{
 		testSPS2,
-		{5}, // IDR
+		{0x65, 0x88, 0x84, 0x00, 0x33, 0xff}, // IDR
 		{2},
 	})
 	require.NoError(t, err)
 
 	err = m.WriteH264(testTime, 5*time.Second, [][]byte{
-		{5}, // IDR
+		{0x65, 0x88, 0x84, 0x00, 0x33, 0xff}, // IDR
 	})
 	require.NoError(t, err)
 
@@ -815,7 +815,7 @@ func TestMuxerDynamicParams(t *testing.T) {
 		"#EXT-X-VERSION:9\n"+
 		"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 		"\n"+
-		"#EXT-X-STREAM-INF:BANDWIDTH=912,AVERAGE-BANDWIDTH=742,"+
+		"#EXT-X-STREAM-INF:BANDWIDTH=912,AVERAGE-BANDWIDTH=752,"+
 		"CODECS=\"avc1.64001f\",RESOLUTION=1280x720,FRAME-RATE=30.000\n"+
 		"stream.m3u8\n", string(bu))
 
