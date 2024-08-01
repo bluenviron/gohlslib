@@ -13,8 +13,10 @@ const (
 
 // Playlist is either Media or Multivariant.
 type Playlist interface {
-	isPlaylist()
 	Unmarshal([]byte) error
+	Marshal() ([]byte, error)
+
+	isPlaylist()
 }
 
 func findType(buf []byte) (Playlist, error) {
