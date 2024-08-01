@@ -34,6 +34,9 @@ func FuzzPlaylistUnmarshal(f *testing.F) {
 	}
 
 	f.Fuzz(func(_ *testing.T, a string) {
-		Unmarshal([]byte(a)) //nolint:errcheck
+		pl, err := Unmarshal([]byte(a))
+		if err == nil {
+			pl.Marshal() //nolint:errcheck
+		}
 	})
 }
