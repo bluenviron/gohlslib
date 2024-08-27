@@ -204,7 +204,7 @@ func (m *Muxer) Start() error {
 				}
 				hasVideo = true
 			} else {
-				hasAudio = true
+				hasAudio = true //nolint:ineffassign,wastedassign
 			}
 		}
 	}
@@ -245,13 +245,9 @@ func (m *Muxer) Start() error {
 		m.mtracksByTrack[track] = mtrack
 	}
 
-	if m.Variant == MuxerVariantMPEGTS {
-		// nothing
-	} else {
-		// add initial gaps, required by iOS LL-HLS
-		if m.Variant == MuxerVariantLowLatency {
-			m.nextSegmentID = 7
-		}
+	// add initial gaps, required by iOS LL-HLS
+	if m.Variant == MuxerVariantLowLatency {
+		m.nextSegmentID = 7
 	}
 
 	switch {
