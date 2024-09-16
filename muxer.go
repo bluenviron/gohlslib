@@ -76,11 +76,6 @@ type Muxer struct {
 	// than saving them on RAM, but allows to preserve RAM.
 	Directory string
 
-	// Deprecated: replaced with SegmentMinDuration
-	SegmentDuration time.Duration
-	// Deprecated: replaced with PartMinDuration
-	PartDuration time.Duration
-
 	//
 	// private
 	//
@@ -100,14 +95,8 @@ func (m *Muxer) Start() error {
 	if m.SegmentCount == 0 {
 		m.SegmentCount = 7
 	}
-	if m.SegmentDuration != 0 {
-		m.SegmentMinDuration = m.SegmentDuration
-	}
 	if m.SegmentMinDuration == 0 {
 		m.SegmentMinDuration = 1 * time.Second
-	}
-	if m.PartDuration != 0 {
-		m.PartMinDuration = m.PartDuration
 	}
 	if m.PartMinDuration == 0 {
 		m.PartMinDuration = 200 * time.Millisecond
@@ -279,17 +268,6 @@ func (m *Muxer) WriteVP9(ntp time.Time, pts time.Duration, frame []byte) error {
 	}
 
 	return m.segmenter.writeVP9(ntp, pts, frame, randomAccess, forceSwitch)
-}
-
-// WriteH26x writes an H264 or an H265 access unit.
-//
-// Deprecated: replaced by WriteH264 and WriteH265.
-func (m *Muxer) WriteH26x(ntp time.Time, pts time.Duration, au [][]byte) error {
-	if _, ok := m.VideoTrack.Codec.(*codecs.H265); ok {
-		return m.WriteH265(ntp, pts, au)
-	}
-
-	return m.WriteH264(ntp, pts, au)
 }
 
 // WriteH265 writes an H265 access unit.
