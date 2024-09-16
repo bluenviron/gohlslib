@@ -8,8 +8,8 @@ import (
 	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
 	"github.com/bluenviron/mediacommon/pkg/formats/mpegts"
 
-	"github.com/bluenviron/gohlslib/pkg/codecs"
-	"github.com/bluenviron/gohlslib/pkg/storage"
+	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
+	"github.com/bluenviron/gohlslib/v2/pkg/storage"
 )
 
 const (

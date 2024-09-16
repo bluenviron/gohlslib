@@ -1,7 +1,7 @@
 package gohlslib
 
 import (
-	"github.com/bluenviron/gohlslib/pkg/codecs"
+	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
 )
 
 // Track is a HLS track.

@@ -17,9 +17,9 @@ import (
 	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
 	"github.com/bluenviron/mediacommon/pkg/formats/fmp4/seekablebuffer"
 
-	"github.com/bluenviron/gohlslib/pkg/codecparams"
-	"github.com/bluenviron/gohlslib/pkg/codecs"
-	"github.com/bluenviron/gohlslib/pkg/playlist"
+	"github.com/bluenviron/gohlslib/v2/pkg/codecparams"
+	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
+	"github.com/bluenviron/gohlslib/v2/pkg/playlist"
 )
 
 const (

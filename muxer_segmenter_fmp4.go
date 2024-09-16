@@ -10,8 +10,8 @@ import (
 	"github.com/bluenviron/mediacommon/pkg/codecs/opus"
 	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
 
-	"github.com/bluenviron/gohlslib/pkg/codecs"
-	"github.com/bluenviron/gohlslib/pkg/storage"
+	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
+	"github.com/bluenviron/gohlslib/v2/pkg/storage"
 )
 
 const (
