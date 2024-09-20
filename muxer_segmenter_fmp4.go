@@ -102,7 +102,6 @@ type muxerSegmenterFMP4 struct {
 	audioTimeScale                 uint32
 	videoFirstRandomAccessReceived bool
 	videoDTSExtractor              dtsExtractor
-	startDTS                       time.Duration
 	currentSegment                 *muxerSegmentFMP4
 	nextSegmentID                  uint64
 	nextPartID                     uint64
@@ -345,8 +344,6 @@ func (m *muxerSegmenterFMP4) writeVideo(
 
 	// create first segment
 	if m.currentSegment == nil {
-		m.startDTS = sample.dts
-
 		seg := &muxerSegmentFMP4{
 			lowLatency:     m.lowLatency,
 			id:             m.takeSegmentID(),
@@ -449,8 +446,6 @@ func (m *muxerSegmenterFMP4) writeAudio(sample *augmentedSample) error {
 	if m.videoTrack == nil {
 		// create first segment
 		if m.currentSegment == nil {
-			m.startDTS = sample.dts
-
 			seg := &muxerSegmentFMP4{
 				lowLatency:     m.lowLatency,
 				id:             m.takeSegmentID(),
