@@ -228,7 +228,7 @@ func (m *Muxer) Start() error {
 	}
 
 	switch {
-	case true || m.Variant == MuxerVariantMPEGTS:
+	case m.Variant == MuxerVariantMPEGTS:
 		stream := &muxerStream{
 			muxer:  m,
 			tracks: m.mtracks,
