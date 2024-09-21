@@ -1085,3 +1085,104 @@ func TestMuxerExpiredSegment(t *testing.T) {
 	m.Handle(w, r)
 	require.Equal(t, http.StatusBadRequest, w.statusCode)
 }
+
+func TestMuxerPreloadHint(t *testing.T) {
+	m := &Muxer{
+		Variant:         MuxerVariantLowLatency,
+		SegmentCount:    7,
+		SegmentDuration: 1 * time.Second,
+		VideoTrack:      testVideoTrack,
+	}
+
+	err := m.Start()
+	require.NoError(t, err)
+	defer m.Close()
+
+	for i := 0; i < 2; i++ {
+		err := m.WriteH264(testTime, time.Duration(i)*time.Second, [][]byte{
+			testSPS, // SPS
+			{8},     // PPS
+			{5},     // IDR
+		})
+		require.NoError(t, err)
+	}
+
+	byts, _, err := doRequest(m, "stream.m3u8")
+	require.NoError(t, err)
+
+	re := regexp.MustCompile(`^#EXTM3U\n` +
+		`#EXT-X-VERSION:10\n` +
+		`#EXT-X-TARGETDURATION:1\n` +
+		`#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=2.50000,CAN-SKIP-UNTIL=6.00000\n` +
+		`#EXT-X-PART-INF:PART-TARGET=1.00000\n` +
+		`#EXT-X-MEDIA-SEQUENCE:1\n` +
+		`#EXT-X-MAP:URI=".*?_init\.mp4"\n` +
+		`#EXT-X-GAP\n` +
+		`#EXTINF:1.00000,\n` +
+		`gap.mp4\n` +
+		`#EXT-X-GAP\n` +
+		`#EXTINF:1.00000,\n` +
+		`gap.mp4\n` +
+		`#EXT-X-GAP\n` +
+		`#EXTINF:1.00000,\n` +
+		`gap.mp4\n` +
+		`#EXT-X-GAP\n` +
+		`#EXTINF:1.00000,\n` +
+		`gap.mp4\n` +
+		`#EXT-X-GAP\n` +
+		`#EXTINF:1.00000,\n` +
+		`gap.mp4\n` +
+		`#EXT-X-GAP\n` +
+		`#EXTINF:1.00000,\n` +
+		`gap.mp4\n` +
+		`#EXT-X-PROGRAM-DATE-TIME:.*?\n` +
+		`#EXT-X-PART:DURATION=1.00000,URI=".*?_part0\.mp4",INDEPENDENT=YES\n` +
+		`#EXTINF:1.00000,\n` +
+		`.*?_seg7\.mp4\n` +
+		`#EXT-X-PRELOAD-HINT:TYPE=PART,URI="(.*?_part1\.mp4)"\n$`)
+	require.Regexp(t, re, string(byts))
+	ma := re.FindStringSubmatch(string(byts))
+
+	preloadDone := make(chan []byte)
+
+	go func() {
+		byts, _, err := doRequest(m, ma[1])
+		require.NoError(t, err)
+		preloadDone <- byts
+	}()
+
+	select {
+	case <-preloadDone:
+		t.Error("should not happen")
+	case <-time.After(500 * time.Millisecond):
+	}
+
+	err = m.WriteH264(testTime, 3*time.Second, [][]byte{
+		{5}, // IDR
+	})
+	require.NoError(t, err)
+
+	byts = <-preloadDone
+
+	var parts fmp4.Parts
+	err = parts.Unmarshal(byts)
+	require.NoError(t, err)
+
+	require.Equal(t, fmp4.Parts{{
+		SequenceNumber: 1,
+		Tracks: []*fmp4.PartTrack{{
+			ID:       1,
+			BaseTime: 990000,
+			Samples: []*fmp4.PartSample{{
+				Duration: 180000,
+				Payload: []byte{
+					0x00, 0x00, 0x00, 0x19, 0x67, 0x42, 0xc0, 0x28,
+					0xd9, 0x00, 0x78, 0x02, 0x27, 0xe5, 0x84, 0x00,
+					0x00, 0x03, 0x00, 0x04, 0x00, 0x00, 0x03, 0x00,
+					0xf0, 0x3c, 0x60, 0xc9, 0x20, 0x00, 0x00, 0x00,
+					0x01, 0x08, 0x00, 0x00, 0x00, 0x01, 0x05,
+				},
+			}},
+		}},
+	}}, parts)
+}
