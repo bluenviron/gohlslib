@@ -3,23 +3,17 @@ package gohlslib
 import (
 	"fmt"
 	"io"
-	"strconv"
 	"time"
 )
 
-func segmentName(prefix string, id uint64, mp4 bool) string {
-	if mp4 {
-		return prefix + "_seg" + strconv.FormatUint(id, 10) + ".mp4"
-	}
-	return prefix + "_seg" + strconv.FormatUint(id, 10) + ".ts"
-}
-
 type muxerSegment interface {
+	initialize() error
 	close()
-	getName() string
+	finalize(time.Duration) error
+	getPath() string
 	getDuration() time.Duration
 	getSize() uint64
-	isForceSwitched() bool
+	isFromForcedRotation() bool
 	reader() (io.ReadCloser, error)
 }
 
@@ -27,10 +21,18 @@ type muxerGap struct {
 	duration time.Duration
 }
 
-func (g muxerGap) close() {
+func (muxerGap) initialize() error {
+	return nil
 }
 
-func (g muxerGap) getName() string {
+func (muxerGap) close() {
+}
+
+func (muxerGap) finalize(time.Duration) error {
+	return nil
+}
+
+func (muxerGap) getPath() string {
 	return ""
 }
 
@@ -42,7 +44,7 @@ func (muxerGap) getSize() uint64 {
 	return 0
 }
 
-func (muxerGap) isForceSwitched() bool {
+func (muxerGap) isFromForcedRotation() bool {
 	return false
 }
 

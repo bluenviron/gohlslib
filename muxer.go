@@ -1,21 +1,33 @@
 package gohlslib
 
 import (
-	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"net/http"
+	"strconv"
+	"sync"
 	"time"
 
-	"github.com/bluenviron/mediacommon/pkg/codecs/av1"
-	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
-	"github.com/bluenviron/mediacommon/pkg/codecs/h265"
-	"github.com/bluenviron/mediacommon/pkg/codecs/vp9"
+	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
 
-	"github.com/bluenviron/gohlslib/pkg/codecs"
-	"github.com/bluenviron/gohlslib/pkg/storage"
+	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
+	"github.com/bluenviron/gohlslib/v2/pkg/storage"
 )
+
+const (
+	fmp4StartDTS            = 10 * time.Second
+	mpegtsSegmentMinAUCount = 100
+)
+
+type switchableWriter struct {
+	w io.Writer
+}
+
+func (w *switchableWriter) Write(p []byte) (int, error) {
+	return w.w.Write(p)
+}
 
 // a prefix is needed to prevent usage of cached segments
 // from previous muxing sessions.
@@ -29,15 +41,78 @@ func generatePrefix() (string, error) {
 	return hex.EncodeToString(buf[:]), nil
 }
 
-// MuxerVariant is a muxer variant.
-type MuxerVariant int
+func mediaPlaylistPath(streamID string) string {
+	return streamID + "_stream.m3u8"
+}
 
-// supported variants.
-const (
-	MuxerVariantMPEGTS MuxerVariant = iota + 1
-	MuxerVariantFMP4
-	MuxerVariantLowLatency
-)
+func initFilePath(prefix string, streamID string) string {
+	return prefix + "_" + streamID + "_init.mp4"
+}
+
+func segmentPath(prefix string, streamID string, segmentID uint64, mp4 bool) string {
+	if mp4 {
+		return prefix + "_" + streamID + "_seg" + strconv.FormatUint(segmentID, 10) + ".mp4"
+	}
+	return prefix + "_" + streamID + "_seg" + strconv.FormatUint(segmentID, 10) + ".ts"
+}
+
+func partPath(prefix string, streamID string, partID uint64) string {
+	return prefix + "_" + streamID + "_part" + strconv.FormatUint(partID, 10) + ".mp4"
+}
+
+func fmp4TimeScale(c codecs.Codec) uint32 {
+	switch codec := c.(type) {
+	case *codecs.MPEG4Audio:
+		return uint32(codec.SampleRate)
+
+	case *codecs.Opus:
+		return 48000
+	}
+
+	return 90000
+}
+
+func partDurationIsCompatible(partDuration time.Duration, sampleDuration time.Duration) bool {
+	if sampleDuration > partDuration {
+		return false
+	}
+
+	f := (partDuration / sampleDuration)
+	if (partDuration % sampleDuration) != 0 {
+		f++
+	}
+	f *= sampleDuration
+
+	return partDuration > ((f * 85) / 100)
+}
+
+func partDurationIsCompatibleWithAll(partDuration time.Duration, sampleDurations map[time.Duration]struct{}) bool {
+	for sd := range sampleDurations {
+		if !partDurationIsCompatible(partDuration, sd) {
+			return false
+		}
+	}
+	return true
+}
+
+func findCompatiblePartDuration(
+	minPartDuration time.Duration,
+	sampleDurations map[time.Duration]struct{},
+) time.Duration {
+	i := minPartDuration
+	for ; i < 5*time.Second; i += 5 * time.Millisecond {
+		if partDurationIsCompatibleWithAll(i, sampleDurations) {
+			break
+		}
+	}
+	return i
+}
+
+type fmp4AugmentedSample struct {
+	fmp4.PartSample
+	dts time.Duration
+	ntp time.Time
+}
 
 // Muxer is a HLS muxer.
 type Muxer struct {
@@ -76,20 +151,24 @@ type Muxer struct {
 	// than saving them on RAM, but allows to preserve RAM.
 	Directory string
 
-	// Deprecated: replaced with SegmentMinDuration
-	SegmentDuration time.Duration
-	// Deprecated: replaced with PartMinDuration
-	PartDuration time.Duration
-
 	//
 	// private
 	//
 
-	prefix         string
-	storageFactory storage.Factory
-	server         *muxerServer
-	segmenter      muxerSegmenter
-	forceSwitch    bool
+	mutex              sync.Mutex
+	cond               *sync.Cond
+	mtracks            []*muxerTrack
+	mtracksByTrack     map[*Track]*muxerTrack
+	streams            []*muxerStream
+	prefix             string
+	storageFactory     storage.Factory
+	segmenter          *muxerSegmenter
+	server             *muxerServer
+	closed             bool
+	nextSegmentID      uint64
+	nextPartID         uint64 // low-latency only
+	segmentDeleteCount int
+	nextPartHasSamples bool
 }
 
 // Start initializes the muxer.
@@ -100,20 +179,33 @@ func (m *Muxer) Start() error {
 	if m.SegmentCount == 0 {
 		m.SegmentCount = 7
 	}
-	if m.SegmentDuration != 0 {
-		m.SegmentMinDuration = m.SegmentDuration
-	}
 	if m.SegmentMinDuration == 0 {
 		m.SegmentMinDuration = 1 * time.Second
-	}
-	if m.PartDuration != 0 {
-		m.PartMinDuration = m.PartDuration
 	}
 	if m.PartMinDuration == 0 {
 		m.PartMinDuration = 200 * time.Millisecond
 	}
 	if m.SegmentMaxSize == 0 {
 		m.SegmentMaxSize = 50 * 1024 * 1024
+	}
+
+	if m.VideoTrack == nil && m.AudioTrack == nil {
+		return fmt.Errorf("one between VideoTrack and AudioTrack is required")
+	}
+
+	if m.Variant == MuxerVariantMPEGTS {
+		if m.VideoTrack != nil {
+			if _, ok := m.VideoTrack.Codec.(*codecs.H264); !ok {
+				return fmt.Errorf(
+					"the MPEG-TS variant of HLS only supports H264 video. Use the fMP4 or Low-Latency variants instead")
+			}
+		}
+		if m.AudioTrack != nil {
+			if _, ok := m.AudioTrack.Codec.(*codecs.MPEG4Audio); !ok {
+				return fmt.Errorf(
+					"the MPEG-TS variant of HLS only supports MPEG-4 Audio. Use the fMP4 or Low-Latency variants instead")
+			}
+		}
 	}
 
 	switch m.Variant {
@@ -124,23 +216,84 @@ func (m *Muxer) Start() error {
 
 	default:
 		if m.SegmentCount < 3 {
-			return fmt.Errorf("The minimum number of HLS segments is 3")
+			return fmt.Errorf("the minimum number of HLS segments is 3")
 		}
 	}
 
+	m.cond = sync.NewCond(&m.mutex)
+	m.mtracksByTrack = make(map[*Track]*muxerTrack)
+
+	m.segmenter = &muxerSegmenter{
+		muxer: m,
+	}
+	m.segmenter.initialize()
+
+	m.server = &muxerServer{
+		muxer: m,
+	}
+	m.server.initialize()
+
+	if m.VideoTrack != nil {
+		track := &muxerTrack{
+			Track:     m.VideoTrack,
+			variant:   m.Variant,
+			isLeading: true,
+		}
+		track.initialize()
+		m.mtracks = append(m.mtracks, track)
+		m.mtracksByTrack[m.VideoTrack] = track
+	}
+
+	if m.AudioTrack != nil {
+		track := &muxerTrack{
+			Track:     m.AudioTrack,
+			variant:   m.Variant,
+			isLeading: m.VideoTrack == nil,
+		}
+		track.initialize()
+		m.mtracks = append(m.mtracks, track)
+		m.mtracksByTrack[m.AudioTrack] = track
+	}
+
 	if m.Variant == MuxerVariantMPEGTS {
+		// nothing
+	} else {
+		// add initial gaps, required by iOS LL-HLS
+		if m.Variant == MuxerVariantLowLatency {
+			m.nextSegmentID = 7
+		}
+	}
+
+	switch {
+	case true || m.Variant == MuxerVariantMPEGTS:
+		stream := &muxerStream{
+			muxer:  m,
+			tracks: m.mtracks,
+			id:     "main",
+		}
+		stream.initialize()
+		m.streams = append(m.streams, stream)
+
+	default:
 		if m.VideoTrack != nil {
-			if _, ok := m.VideoTrack.Codec.(*codecs.H264); !ok {
-				return fmt.Errorf(
-					"the MPEG-TS variant of HLS only supports H264 video. Use the fMP4 or Low-Latency variants instead")
+			videoStream := &muxerStream{
+				muxer:  m,
+				tracks: []*muxerTrack{m.mtracksByTrack[m.VideoTrack]},
+				id:     "video",
 			}
+			videoStream.initialize()
+			m.streams = append(m.streams, videoStream)
 		}
 
 		if m.AudioTrack != nil {
-			if _, ok := m.AudioTrack.Codec.(*codecs.MPEG4Audio); !ok {
-				return fmt.Errorf(
-					"the MPEG-TS variant of HLS only supports MPEG-4 Audio. Use the fMP4 or Low-Latency variants instead")
+			audioStream := &muxerStream{
+				muxer:       m,
+				tracks:      []*muxerTrack{m.mtracksByTrack[m.AudioTrack]},
+				id:          "audio",
+				isRendition: m.VideoTrack != nil,
 			}
+			audioStream.initialize()
+			m.streams = append(m.streams, audioStream)
 		}
 	}
 
@@ -156,228 +309,64 @@ func (m *Muxer) Start() error {
 		m.storageFactory = storage.NewFactoryRAM()
 	}
 
-	m.server = &muxerServer{
-		variant:      m.Variant,
-		segmentCount: m.SegmentCount,
-		videoTrack:   m.VideoTrack,
-		audioTrack:   m.AudioTrack,
-		prefix:       m.prefix,
-	}
-	m.server.initialize()
-
-	if m.Variant == MuxerVariantMPEGTS {
-		m.segmenter = &muxerSegmenterMPEGTS{
-			segmentMinDuration: m.SegmentMinDuration,
-			segmentMaxSize:     m.SegmentMaxSize,
-			videoTrack:         m.VideoTrack,
-			audioTrack:         m.AudioTrack,
-			prefix:             m.prefix,
-			factory:            m.storageFactory,
-			publishSegment:     m.server.publishSegment,
-		}
-		m.segmenter.initialize()
-	} else {
-		m.segmenter = &muxerSegmenterFMP4{
-			lowLatency:         m.Variant == MuxerVariantLowLatency,
-			segmentMinDuration: m.SegmentMinDuration,
-			partMinDuration:    m.PartMinDuration,
-			segmentMaxSize:     m.SegmentMaxSize,
-			videoTrack:         m.VideoTrack,
-			audioTrack:         m.AudioTrack,
-			prefix:             m.prefix,
-			factory:            m.storageFactory,
-			publishSegment:     m.server.publishSegment,
-			publishPart:        m.server.publishPart,
-		}
-		m.segmenter.initialize()
-	}
-
 	return nil
 }
 
 // Close closes a Muxer.
 func (m *Muxer) Close() {
-	m.server.close()
-	m.segmenter.close()
+	m.mutex.Lock()
+	m.closed = true
+	m.mutex.Unlock()
+
+	m.cond.Broadcast()
+
+	for _, stream := range m.streams {
+		stream.close()
+	}
 }
 
 // WriteAV1 writes an AV1 temporal unit.
-func (m *Muxer) WriteAV1(ntp time.Time, pts time.Duration, tu [][]byte) error {
-	codec := m.VideoTrack.Codec.(*codecs.AV1)
-	randomAccess := false
-
-	for _, obu := range tu {
-		var h av1.OBUHeader
-		err := h.Unmarshal(obu)
-		if err != nil {
-			return err
-		}
-
-		if h.Type == av1.OBUTypeSequenceHeader {
-			randomAccess = true
-
-			if !bytes.Equal(codec.SequenceHeader, obu) {
-				m.forceSwitch = true
-				codec.SequenceHeader = obu
-			}
-		}
-	}
-
-	forceSwitch := false
-	if randomAccess && m.forceSwitch {
-		m.forceSwitch = false
-		forceSwitch = true
-	}
-
-	return m.segmenter.writeAV1(ntp, pts, tu, randomAccess, forceSwitch)
+func (m *Muxer) WriteAV1(
+	ntp time.Time,
+	pts time.Duration,
+	tu [][]byte,
+) error {
+	return m.segmenter.writeAV1(ntp, pts, tu)
 }
 
 // WriteVP9 writes a VP9 frame.
-func (m *Muxer) WriteVP9(ntp time.Time, pts time.Duration, frame []byte) error {
-	var h vp9.Header
-	err := h.Unmarshal(frame)
-	if err != nil {
-		return err
-	}
-
-	codec := m.VideoTrack.Codec.(*codecs.VP9)
-	randomAccess := false
-
-	if !h.NonKeyFrame {
-		randomAccess = true
-
-		if v := h.Width(); v != codec.Width {
-			m.forceSwitch = true
-			codec.Width = v
-		}
-		if v := h.Height(); v != codec.Height {
-			m.forceSwitch = true
-			codec.Height = v
-		}
-		if h.Profile != codec.Profile {
-			m.forceSwitch = true
-			codec.Profile = h.Profile
-		}
-		if h.ColorConfig.BitDepth != codec.BitDepth {
-			m.forceSwitch = true
-			codec.BitDepth = h.ColorConfig.BitDepth
-		}
-		if v := h.ChromaSubsampling(); v != codec.ChromaSubsampling {
-			m.forceSwitch = true
-			codec.ChromaSubsampling = v
-		}
-		if h.ColorConfig.ColorRange != codec.ColorRange {
-			m.forceSwitch = true
-			codec.ColorRange = h.ColorConfig.ColorRange
-		}
-	}
-
-	forceSwitch := false
-	if randomAccess && m.forceSwitch {
-		m.forceSwitch = false
-		forceSwitch = true
-	}
-
-	return m.segmenter.writeVP9(ntp, pts, frame, randomAccess, forceSwitch)
-}
-
-// WriteH26x writes an H264 or an H265 access unit.
-//
-// Deprecated: replaced by WriteH264 and WriteH265.
-func (m *Muxer) WriteH26x(ntp time.Time, pts time.Duration, au [][]byte) error {
-	if _, ok := m.VideoTrack.Codec.(*codecs.H265); ok {
-		return m.WriteH265(ntp, pts, au)
-	}
-
-	return m.WriteH264(ntp, pts, au)
+func (m *Muxer) WriteVP9(
+	ntp time.Time,
+	pts time.Duration,
+	frame []byte,
+) error {
+	return m.segmenter.writeVP9(ntp, pts, frame)
 }
 
 // WriteH265 writes an H265 access unit.
-func (m *Muxer) WriteH265(ntp time.Time, pts time.Duration, au [][]byte) error {
-	randomAccess := false
-	codec := m.VideoTrack.Codec.(*codecs.H265)
-
-	for _, nalu := range au {
-		typ := h265.NALUType((nalu[0] >> 1) & 0b111111)
-
-		switch typ {
-		case h265.NALUType_IDR_W_RADL, h265.NALUType_IDR_N_LP, h265.NALUType_CRA_NUT:
-			randomAccess = true
-
-		case h265.NALUType_VPS_NUT:
-			if !bytes.Equal(codec.VPS, nalu) {
-				m.forceSwitch = true
-				codec.VPS = nalu
-			}
-
-		case h265.NALUType_SPS_NUT:
-			if !bytes.Equal(codec.SPS, nalu) {
-				m.forceSwitch = true
-				codec.SPS = nalu
-			}
-
-		case h265.NALUType_PPS_NUT:
-			if !bytes.Equal(codec.PPS, nalu) {
-				m.forceSwitch = true
-				codec.PPS = nalu
-			}
-		}
-	}
-
-	forceSwitch := false
-	if randomAccess && m.forceSwitch {
-		m.forceSwitch = false
-		forceSwitch = true
-	}
-
-	return m.segmenter.writeH26x(ntp, pts, au, randomAccess, forceSwitch)
+func (m *Muxer) WriteH265(
+	ntp time.Time,
+	pts time.Duration,
+	au [][]byte,
+) error {
+	return m.segmenter.writeH265(ntp, pts, au)
 }
 
 // WriteH264 writes an H264 access unit.
-func (m *Muxer) WriteH264(ntp time.Time, pts time.Duration, au [][]byte) error {
-	randomAccess := false
-	codec := m.VideoTrack.Codec.(*codecs.H264)
-	nonIDRPresent := false
-
-	for _, nalu := range au {
-		typ := h264.NALUType(nalu[0] & 0x1F)
-
-		switch typ {
-		case h264.NALUTypeIDR:
-			randomAccess = true
-
-		case h264.NALUTypeNonIDR:
-			nonIDRPresent = true
-
-		case h264.NALUTypeSPS:
-			if !bytes.Equal(codec.SPS, nalu) {
-				m.forceSwitch = true
-				codec.SPS = nalu
-			}
-
-		case h264.NALUTypePPS:
-			if !bytes.Equal(codec.PPS, nalu) {
-				m.forceSwitch = true
-				codec.PPS = nalu
-			}
-		}
-	}
-
-	if !randomAccess && !nonIDRPresent {
-		return nil
-	}
-
-	forceSwitch := false
-	if randomAccess && m.forceSwitch {
-		m.forceSwitch = false
-		forceSwitch = true
-	}
-
-	return m.segmenter.writeH26x(ntp, pts, au, randomAccess, forceSwitch)
+func (m *Muxer) WriteH264(
+	ntp time.Time,
+	pts time.Duration,
+	au [][]byte,
+) error {
+	return m.segmenter.writeH264(ntp, pts, au)
 }
 
 // WriteOpus writes Opus packets.
-func (m *Muxer) WriteOpus(ntp time.Time, pts time.Duration, packets [][]byte) error {
+func (m *Muxer) WriteOpus(
+	ntp time.Time,
+	pts time.Duration,
+	packets [][]byte,
+) error {
 	return m.segmenter.writeOpus(ntp, pts, packets)
 }
 
@@ -389,4 +378,89 @@ func (m *Muxer) WriteMPEG4Audio(ntp time.Time, pts time.Duration, aus [][]byte) 
 // Handle handles a HTTP request.
 func (m *Muxer) Handle(w http.ResponseWriter, r *http.Request) {
 	m.server.handle(w, r)
+}
+
+func (m *Muxer) createFirstSegment(nextDTS time.Duration, nextNTP time.Time) error {
+	for _, stream := range m.streams {
+		err := stream.createFirstSegment(nextDTS, nextNTP)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (m *Muxer) rotateParts(nextDTS time.Duration) error {
+	m.mutex.Lock()
+	err := m.rotatePartsInner(nextDTS, true)
+	m.mutex.Unlock()
+
+	if err != nil {
+		return err
+	}
+
+	m.cond.Broadcast()
+
+	return nil
+}
+
+func (m *Muxer) rotatePartsInner(nextDTS time.Duration, createNew bool) error {
+	if !m.nextPartHasSamples {
+		for _, stream := range m.streams {
+			stream.nextPart = nil
+		}
+	} else {
+		m.nextPartID++
+		m.nextPartHasSamples = false
+
+		for _, stream := range m.streams {
+			err := stream.rotateParts(nextDTS, createNew)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (m *Muxer) rotateSegments(
+	nextDTS time.Duration,
+	nextNTP time.Time,
+	force bool,
+) error {
+	m.mutex.Lock()
+	err := m.rotateSegmentsInner(nextDTS, nextNTP, force)
+	m.mutex.Unlock()
+
+	if err != nil {
+		return err
+	}
+
+	m.cond.Broadcast()
+
+	return nil
+}
+
+func (m *Muxer) rotateSegmentsInner(
+	nextDTS time.Duration,
+	nextNTP time.Time,
+	force bool,
+) error {
+	err := m.rotatePartsInner(nextDTS, false)
+	if err != nil {
+		return err
+	}
+
+	m.nextSegmentID++
+
+	for _, stream := range m.streams {
+		err := stream.rotateSegments(nextDTS, nextNTP, force)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

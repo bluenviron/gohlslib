@@ -1,4 +1,4 @@
-module github.com/bluenviron/gohlslib
+module github.com/bluenviron/gohlslib/v2
 
 go 1.20
 

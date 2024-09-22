@@ -6,9 +6,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/bluenviron/gohlslib/pkg/storage"
-
-	"github.com/bluenviron/mediacommon/pkg/formats/mpegts"
+	"github.com/bluenviron/gohlslib/v2/pkg/storage"
 )
 
 func durationGoToMPEGTS(v time.Duration) int64 {
@@ -16,80 +14,78 @@ func durationGoToMPEGTS(v time.Duration) int64 {
 }
 
 type muxerSegmentMPEGTS struct {
-	id               uint64
-	startNTP         time.Time
-	segmentMaxSize   uint64
-	writerVideoTrack *mpegts.Track
-	writerAudioTrack *mpegts.Track
-	switchableWriter *switchableWriter
-	writer           *mpegts.Writer
-	prefix           string
-	factory          storage.Factory
+	segmentMaxSize uint64
+	prefix         string
+	storageFactory storage.Factory
+	stream         *muxerStream
+	id             uint64
+	startNTP       time.Time
+	startDTS       time.Duration
 
 	storage      storage.File
 	storagePart  storage.Part
 	bw           *bufio.Writer
 	size         uint64
-	name         string
-	startDTS     *time.Duration
+	path         string
 	endDTS       time.Duration
 	audioAUCount int
 }
 
-func (t *muxerSegmentMPEGTS) initialize() error {
-	t.name = segmentName(t.prefix, t.id, false)
+func (s *muxerSegmentMPEGTS) initialize() error {
+	s.path = segmentPath(s.prefix, s.stream.id, s.id, false)
 
 	var err error
-	t.storage, err = t.factory.NewFile(t.name)
+	s.storage, err = s.storageFactory.NewFile(s.path)
 	if err != nil {
 		return err
 	}
 
-	t.storagePart = t.storage.NewPart()
-	t.bw = bufio.NewWriter(t.storagePart.Writer())
+	s.storagePart = s.storage.NewPart()
+	s.bw = bufio.NewWriter(s.storagePart.Writer())
 
-	t.switchableWriter.w = t.bw
+	s.stream.mpegtsSwitchableWriter.w = s.bw
 
 	return nil
 }
 
-func (t *muxerSegmentMPEGTS) close() {
-	t.storage.Remove()
+func (s *muxerSegmentMPEGTS) close() {
+	s.storage.Remove()
 }
 
-func (t *muxerSegmentMPEGTS) getName() string {
-	return t.name
+func (s *muxerSegmentMPEGTS) getPath() string {
+	return s.path
 }
 
-func (t *muxerSegmentMPEGTS) getDuration() time.Duration {
-	return t.endDTS - *t.startDTS
+func (s *muxerSegmentMPEGTS) getDuration() time.Duration {
+	return s.endDTS - s.startDTS
 }
 
-func (t *muxerSegmentMPEGTS) getSize() uint64 {
-	return t.storage.Size()
+func (s *muxerSegmentMPEGTS) getSize() uint64 {
+	return s.storage.Size()
 }
 
-func (*muxerSegmentMPEGTS) isForceSwitched() bool {
+func (*muxerSegmentMPEGTS) isFromForcedRotation() bool {
 	return false
 }
 
-func (t *muxerSegmentMPEGTS) reader() (io.ReadCloser, error) {
-	return t.storage.Reader()
+func (s *muxerSegmentMPEGTS) reader() (io.ReadCloser, error) {
+	return s.storage.Reader()
 }
 
-func (t *muxerSegmentMPEGTS) finalize(nextDTS time.Duration) error {
-	err := t.bw.Flush()
+func (s *muxerSegmentMPEGTS) finalize(endDTS time.Duration) error {
+	err := s.bw.Flush()
 	if err != nil {
 		return err
 	}
 
-	t.bw = nil
-	t.storage.Finalize()
-	t.endDTS = nextDTS
+	s.bw = nil
+	s.storage.Finalize()
+	s.endDTS = endDTS
 	return nil
 }
 
-func (t *muxerSegmentMPEGTS) writeH264(
+func (s *muxerSegmentMPEGTS) writeH264(
+	track *muxerTrack,
 	pts time.Duration,
 	dts time.Duration,
 	idrPresent bool,
@@ -99,25 +95,29 @@ func (t *muxerSegmentMPEGTS) writeH264(
 	for _, nalu := range au {
 		size += uint64(len(nalu))
 	}
-	if (t.size + size) > t.segmentMaxSize {
+	if (s.size + size) > s.segmentMaxSize {
 		return fmt.Errorf("reached maximum segment size")
 	}
-	t.size += size
+	s.size += size
 
-	err := t.writer.WriteH264(t.writerVideoTrack, durationGoToMPEGTS(pts), durationGoToMPEGTS(dts), idrPresent, au)
+	err := s.stream.mpegtsWriter.WriteH264(
+		track.mpegtsTrack,
+		durationGoToMPEGTS(pts),
+		durationGoToMPEGTS(dts),
+		idrPresent,
+		au,
+	)
 	if err != nil {
 		return err
 	}
 
-	if t.startDTS == nil {
-		t.startDTS = &dts
-	}
-	t.endDTS = dts
+	s.endDTS = dts
 
 	return nil
 }
 
-func (t *muxerSegmentMPEGTS) writeMPEG4Audio(
+func (s *muxerSegmentMPEGTS) writeMPEG4Audio(
+	track *muxerTrack,
 	pts time.Duration,
 	aus [][]byte,
 ) error {
@@ -126,23 +126,23 @@ func (t *muxerSegmentMPEGTS) writeMPEG4Audio(
 		size += uint64(len(au))
 	}
 
-	if (t.size + size) > t.segmentMaxSize {
+	if (s.size + size) > s.segmentMaxSize {
 		return fmt.Errorf("reached maximum segment size")
 	}
-	t.size += size
+	s.size += size
 
-	err := t.writer.WriteMPEG4Audio(t.writerAudioTrack, durationGoToMPEGTS(pts), aus)
+	err := s.stream.mpegtsWriter.WriteMPEG4Audio(
+		track.mpegtsTrack,
+		durationGoToMPEGTS(pts),
+		aus,
+	)
 	if err != nil {
 		return err
 	}
 
-	if t.writerVideoTrack == nil {
-		t.audioAUCount++
-
-		if t.startDTS == nil {
-			t.startDTS = &pts
-		}
-		t.endDTS = pts
+	if track.isLeading {
+		s.audioAUCount++
+		s.endDTS = pts
 	}
 
 	return nil

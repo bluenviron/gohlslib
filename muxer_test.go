@@ -16,7 +16,7 @@ import (
 	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
 	"github.com/stretchr/testify/require"
 
-	"github.com/bluenviron/gohlslib/pkg/codecs"
+	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
 )
 
 var testTime = time.Date(2010, 0o1, 0o1, 0o1, 0o1, 0o1, 0, time.UTC)
@@ -192,7 +192,7 @@ func TestMuxerVideoAudio(t *testing.T) {
 					"\n"+
 					"#EXT-X-STREAM-INF:BANDWIDTH=4512,AVERAGE-BANDWIDTH=3008,"+
 					"CODECS=\"avc1.42c028,mp4a.40.2\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
-					"stream.m3u8?key=value\n", string(byts))
+					"main_stream.m3u8?key=value\n", string(byts))
 
 			case "fmp4":
 				require.Equal(t, "#EXTM3U\n"+
@@ -201,7 +201,7 @@ func TestMuxerVideoAudio(t *testing.T) {
 					"\n"+
 					"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=558,"+
 					"CODECS=\"avc1.42c028,mp4a.40.2\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
-					"stream.m3u8?key=value\n", string(byts))
+					"main_stream.m3u8?key=value\n", string(byts))
 
 			case "lowLatency":
 				require.Equal(t, "#EXTM3U\n"+
@@ -210,10 +210,10 @@ func TestMuxerVideoAudio(t *testing.T) {
 					"\n"+
 					"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=705,"+
 					"CODECS=\"avc1.42c028,mp4a.40.2\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
-					"stream.m3u8?key=value\n", string(byts))
+					"main_stream.m3u8?key=value\n", string(byts))
 			}
 
-			byts, h, err = doRequest(m, "stream.m3u8?key=value")
+			byts, h, err = doRequest(m, "main_stream.m3u8?key=value")
 			require.NoError(t, err)
 			require.Equal(t, "application/vnd.apple.mpegurl", h.Get("Content-Type"))
 			require.Equal(t, "no-cache", h.Get("Cache-Control"))
@@ -269,8 +269,8 @@ func TestMuxerVideoAudio(t *testing.T) {
 					`^#EXTM3U\n` +
 						`#EXT-X-VERSION:10\n` +
 						`#EXT-X-TARGETDURATION:4\n` +
-						`#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=5.00000,CAN-SKIP-UNTIL=24.00000\n` +
-						`#EXT-X-PART-INF:PART-TARGET=2.00000\n` +
+						`#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=5\.00000,CAN-SKIP-UNTIL=24\.00000\n` +
+						`#EXT-X-PART-INF:PART-TARGET=2\.00000\n` +
 						`#EXT-X-MEDIA-SEQUENCE:2\n` +
 						`#EXT-X-MAP:URI="(.*?_init\.mp4\?key=value)"\n` +
 						`#EXT-X-GAP\n` +
@@ -383,7 +383,7 @@ func TestMuxerVideoOnly(t *testing.T) {
 					"\n"+
 					"#EXT-X-STREAM-INF:BANDWIDTH=4512,AVERAGE-BANDWIDTH=1804,"+
 					"CODECS=\"avc1.42c028\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
-					"stream.m3u8\n", string(byts))
+					"main_stream.m3u8\n", string(byts))
 			} else {
 				require.Equal(t, "#EXTM3U\n"+
 					"#EXT-X-VERSION:9\n"+
@@ -391,10 +391,10 @@ func TestMuxerVideoOnly(t *testing.T) {
 					"\n"+
 					"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=403,"+
 					"CODECS=\"avc1.42c028\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
-					"stream.m3u8\n", string(byts))
+					"main_stream.m3u8\n", string(byts))
 			}
 
-			byts, _, err = doRequest(m, "stream.m3u8")
+			byts, _, err = doRequest(m, "main_stream.m3u8")
 			require.NoError(t, err)
 
 			var re *regexp.Regexp
@@ -493,17 +493,17 @@ func TestMuxerAudioOnly(t *testing.T) {
 					"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 					"\n"+
 					"#EXT-X-STREAM-INF:BANDWIDTH=451200,AVERAGE-BANDWIDTH=451200,CODECS=\"mp4a.40.2\"\n"+
-					"stream.m3u8\n", string(byts))
+					"main_stream.m3u8\n", string(byts))
 			} else {
 				require.Equal(t, "#EXTM3U\n"+
 					"#EXT-X-VERSION:9\n"+
 					"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 					"\n"+
 					"#EXT-X-STREAM-INF:BANDWIDTH=10368,AVERAGE-BANDWIDTH=5616,CODECS=\"mp4a.40.2\"\n"+
-					"stream.m3u8\n", string(byts))
+					"main_stream.m3u8\n", string(byts))
 			}
 
-			byts, _, err = doRequest(m, "stream.m3u8")
+			byts, _, err = doRequest(m, "main_stream.m3u8")
 			require.NoError(t, err)
 
 			var re *regexp.Regexp
@@ -564,7 +564,7 @@ func TestMuxerCloseBeforeData(t *testing.T) {
 	b, _, _ := doRequest(m, "index.m3u8")
 	require.Equal(t, []byte(nil), b)
 
-	b, _, _ = doRequest(m, "stream.m3u8")
+	b, _, _ = doRequest(m, "main_stream.m3u8")
 	require.Equal(t, []byte(nil), b)
 
 	b, _, _ = doRequest(m, m.prefix+"_init.mp4")
@@ -616,7 +616,7 @@ func TestMuxerDoubleRead(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	byts, _, err := doRequest(m, "stream.m3u8")
+	byts, _, err := doRequest(m, "main_stream.m3u8")
 	require.NoError(t, err)
 
 	re := regexp.MustCompile(`^#EXTM3U\n` +
@@ -685,7 +685,7 @@ func TestMuxerSaveToDisk(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			byts, _, err := doRequest(m, "stream.m3u8")
+			byts, _, err := doRequest(m, "main_stream.m3u8")
 			require.NoError(t, err)
 
 			var re *regexp.Regexp
@@ -777,9 +777,25 @@ func TestMuxerDynamicParams(t *testing.T) {
 		"\n"+
 		"#EXT-X-STREAM-INF:BANDWIDTH=1144,AVERAGE-BANDWIDTH=1028,"+
 		"CODECS=\"avc1.42c028\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
-		"stream.m3u8\n", string(bu))
+		"main_stream.m3u8\n", string(bu))
 
-	bu, _, err = doRequest(m, m.prefix+"_init.mp4")
+	byts, _, err := doRequest(m, "main_stream.m3u8")
+	require.NoError(t, err)
+	re := regexp.MustCompile(`^#EXTM3U\n` +
+		`#EXT-X-VERSION:10\n` +
+		`#EXT-X-TARGETDURATION:1\n` +
+		`#EXT-X-MEDIA-SEQUENCE:0\n` +
+		`#EXT-X-MAP:URI="(.*?_init.mp4)"\n` +
+		`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
+		`#EXTINF:1.00000,\n` +
+		`(.*?_seg0\.mp4)\n` +
+		`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
+		`#EXTINF:1.00000,\n` +
+		`(.*?_seg1\.mp4)\n$`)
+	require.Regexp(t, re, string(byts))
+	ma := re.FindStringSubmatch(string(byts))
+
+	bu, _, err = doRequest(m, ma[1])
 	require.NoError(t, err)
 
 	func() {
@@ -817,9 +833,27 @@ func TestMuxerDynamicParams(t *testing.T) {
 		"\n"+
 		"#EXT-X-STREAM-INF:BANDWIDTH=912,AVERAGE-BANDWIDTH=752,"+
 		"CODECS=\"avc1.64001f\",RESOLUTION=1280x720,FRAME-RATE=30.000\n"+
-		"stream.m3u8\n", string(bu))
+		"main_stream.m3u8\n", string(bu))
 
-	bu, _, err = doRequest(m, m.prefix+"_init.mp4")
+	byts, _, err = doRequest(m, "main_stream.m3u8")
+	require.NoError(t, err)
+	re = regexp.MustCompile(`^#EXTM3U\n` +
+		`#EXT-X-VERSION:10\n` +
+		`#EXT-X-TARGETDURATION:2\n` +
+		`#EXT-X-MEDIA-SEQUENCE:1\n` +
+		`#EXT-X-MAP:URI="(.*?_init.mp4)"\n` +
+		`#EXTINF:1.00000,\n` +
+		`(.*?_seg1\.mp4)\n` +
+		`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
+		`#EXTINF:1.00000,\n` +
+		`(.*?_seg2\.mp4)\n` +
+		`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
+		`#EXTINF:2.00000,\n` +
+		`(.*?_seg3\.mp4)\n$`)
+	require.Regexp(t, re, string(byts))
+	ma = re.FindStringSubmatch(string(byts))
+
+	bu, _, err = doRequest(m, ma[1])
 	require.NoError(t, err)
 
 	var init fmp4.Init
@@ -917,7 +951,40 @@ func TestMuxerFMP4NegativeTimestamp(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	bu, _, err := doRequest(m, m.prefix+"_seg0.mp4")
+	// switch segment
+	err = m.WriteH264(testTime, -5*time.Second, [][]byte{
+		{5}, // IDR
+		{3},
+	})
+	require.NoError(t, err)
+
+	bu, _, err := doRequest(m, "index.m3u8")
+	require.NoError(t, err)
+	require.Equal(t, "#EXTM3U\n"+
+		"#EXT-X-VERSION:9\n"+
+		"#EXT-X-INDEPENDENT-SEGMENTS\n"+
+		"\n"+
+		"#EXT-X-STREAM-INF:BANDWIDTH=996,AVERAGE-BANDWIDTH=726,"+
+		"CODECS=\"avc1.42c028,mp4a.40.2\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
+		"main_stream.m3u8\n", string(bu))
+
+	byts, _, err := doRequest(m, "main_stream.m3u8")
+	require.NoError(t, err)
+	re := regexp.MustCompile(`^#EXTM3U\n` +
+		`#EXT-X-VERSION:10\n` +
+		`#EXT-X-TARGETDURATION:2\n` +
+		`#EXT-X-MEDIA-SEQUENCE:0\n` +
+		`#EXT-X-MAP:URI="(.*?_init.mp4)"\n` +
+		`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
+		`#EXTINF:2.00000,\n` +
+		`(.*?_seg0\.mp4)\n` +
+		`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
+		`#EXTINF:2.00000,\n` +
+		`(.*?_seg1\.mp4)\n$`)
+	require.Regexp(t, re, string(byts))
+	ma := re.FindStringSubmatch(string(byts))
+
+	bu, _, err = doRequest(m, ma[3])
 	require.NoError(t, err)
 
 	var parts fmp4.Parts
@@ -969,10 +1036,10 @@ func TestMuxerFMP4NegativeTimestamp(t *testing.T) {
 
 func TestMuxerFMP4SequenceNumber(t *testing.T) {
 	m := &Muxer{
-		Variant:         MuxerVariantLowLatency,
-		SegmentCount:    7,
-		SegmentDuration: 2 * time.Second,
-		VideoTrack:      testVideoTrack,
+		Variant:            MuxerVariantLowLatency,
+		SegmentCount:       7,
+		SegmentMinDuration: 2 * time.Second,
+		VideoTrack:         testVideoTrack,
 	}
 
 	err := m.Start()
@@ -993,8 +1060,51 @@ func TestMuxerFMP4SequenceNumber(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	err = m.WriteH264(testTime, 4*time.Second, [][]byte{
+		{5}, // IDR
+	})
+	require.NoError(t, err)
+
+	byts, _, err := doRequest(m, "main_stream.m3u8")
+	require.NoError(t, err)
+	re := regexp.MustCompile(`^#EXTM3U\n` +
+		`#EXT-X-VERSION:10\n` +
+		`#EXT-X-TARGETDURATION:4\n` +
+		`#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=2\.50000,CAN-SKIP-UNTIL=24\.00000\n` +
+		`#EXT-X-PART-INF:PART-TARGET=1.00000\n` +
+		`#EXT-X-MEDIA-SEQUENCE:1\n` +
+		`#EXT-X-MAP:URI=".*?_init.mp4"\n` +
+		`#EXT-X-GAP\n` +
+		`#EXTINF:4.00000,\n` +
+		`gap.mp4\n` +
+		`#EXT-X-GAP\n` +
+		`#EXTINF:4.00000,\n` +
+		`gap.mp4\n` +
+		`#EXT-X-GAP\n` +
+		`#EXTINF:4.00000,\n` +
+		`gap.mp4\n` +
+		`#EXT-X-GAP\n` +
+		`#EXTINF:4.00000,\n` +
+		`gap.mp4\n` +
+		`#EXT-X-GAP\n` +
+		`#EXTINF:4.00000,\n` +
+		`gap.mp4\n` +
+		`#EXT-X-GAP\n` +
+		`#EXTINF:4.00000,\n` +
+		`gap.mp4\n` +
+		`#EXT-X-PROGRAM-DATE-TIME:.*?\n` +
+		`#EXT-X-PART:DURATION=1.00000,URI="(.*?)_part0.mp4",INDEPENDENT=YES\n` +
+		`#EXT-X-PART:DURATION=1.00000,URI=".*?_part1.mp4"\n` +
+		`#EXT-X-PART:DURATION=1.00000,URI=".*?_part2.mp4"\n` +
+		`#EXT-X-PART:DURATION=1.00000,URI=".*?_part3.mp4"\n` +
+		`#EXTINF:4.00000,\n` +
+		`(.*?_seg7\.mp4)\n` +
+		`#EXT-X-PRELOAD-HINT:TYPE=PART,URI=".*?_part4.mp4"\n$`)
+	require.Regexp(t, re, string(byts))
+	ma := re.FindStringSubmatch(string(byts))
+
 	for i := 0; i < 3; i++ {
-		buf, _, err := doRequest(m, m.prefix+"_part"+strconv.FormatInt(int64(i), 10)+".mp4")
+		buf, _, err := doRequest(m, ma[1]+"_part"+strconv.FormatInt(int64(i), 10)+".mp4")
 		require.NoError(t, err)
 
 		var parts fmp4.Parts
@@ -1018,11 +1128,11 @@ func TestMuxerInvalidFolder(t *testing.T) {
 			}
 
 			m := &Muxer{
-				Variant:         v,
-				SegmentCount:    7,
-				SegmentDuration: 1 * time.Second,
-				VideoTrack:      testVideoTrack,
-				Directory:       "/nonexisting",
+				Variant:            v,
+				SegmentCount:       7,
+				SegmentMinDuration: 1 * time.Second,
+				VideoTrack:         testVideoTrack,
+				Directory:          "/nonexisting",
 			}
 
 			err := m.Start()
@@ -1048,10 +1158,10 @@ func TestMuxerInvalidFolder(t *testing.T) {
 
 func TestMuxerExpiredSegment(t *testing.T) {
 	m := &Muxer{
-		Variant:         MuxerVariantLowLatency,
-		SegmentCount:    7,
-		SegmentDuration: 1 * time.Second,
-		VideoTrack:      testVideoTrack,
+		Variant:            MuxerVariantLowLatency,
+		SegmentCount:       7,
+		SegmentMinDuration: 1 * time.Second,
+		VideoTrack:         testVideoTrack,
 	}
 
 	err := m.Start()
@@ -1073,7 +1183,7 @@ func TestMuxerExpiredSegment(t *testing.T) {
 
 	r := &http.Request{
 		URL: &url.URL{
-			Path:     "stream.m3u8",
+			Path:     "main_stream.m3u8",
 			RawQuery: v.Encode(),
 		},
 	}
@@ -1088,10 +1198,10 @@ func TestMuxerExpiredSegment(t *testing.T) {
 
 func TestMuxerPreloadHint(t *testing.T) {
 	m := &Muxer{
-		Variant:         MuxerVariantLowLatency,
-		SegmentCount:    7,
-		SegmentDuration: 1 * time.Second,
-		VideoTrack:      testVideoTrack,
+		Variant:            MuxerVariantLowLatency,
+		SegmentCount:       7,
+		SegmentMinDuration: 1 * time.Second,
+		VideoTrack:         testVideoTrack,
 	}
 
 	err := m.Start()
@@ -1107,7 +1217,7 @@ func TestMuxerPreloadHint(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	byts, _, err := doRequest(m, "stream.m3u8")
+	byts, _, err := doRequest(m, "main_stream.m3u8")
 	require.NoError(t, err)
 
 	re := regexp.MustCompile(`^#EXTM3U\n` +

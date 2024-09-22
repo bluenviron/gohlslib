@@ -8,7 +8,7 @@ import (
 
 	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
 
-	"github.com/bluenviron/gohlslib/pkg/codecs"
+	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
 )
 
 func fmp4PickLeadingTrack(init *fmp4.Init) int {

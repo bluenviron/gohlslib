@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/bluenviron/gohlslib/pkg/playlist/primitives"
+	"github.com/bluenviron/gohlslib/v2/pkg/playlist/primitives"
 )
 
 // MultivariantStart is a EXT-X-START tag.
