@@ -121,18 +121,18 @@ func (m Multivariant) Marshal() ([]byte, error) {
 		ret += m.Start.marshal()
 	}
 
-	ret += "\n"
-
-	for _, v := range m.Variants {
-		ret += v.marshal()
-	}
-
 	if len(m.Renditions) != 0 {
 		ret += "\n"
 
 		for _, r := range m.Renditions {
 			ret += r.marshal()
 		}
+	}
+
+	ret += "\n"
+
+	for _, v := range m.Variants {
+		ret += v.marshal()
 	}
 
 	return []byte(ret), nil
