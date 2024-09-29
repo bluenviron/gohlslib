@@ -160,13 +160,13 @@ func (m *Muxer) Start() error {
 		if m.VideoTrack != nil {
 			if _, ok := m.VideoTrack.Codec.(*codecs.H264); !ok {
 				return fmt.Errorf(
-					"the MPEG-TS variant of HLS only supports H264 video. Use the fMP4 or Low-Latency variants instead")
+					"the MPEG-TS variant of HLS supports H264 video only")
 			}
 		}
 		if m.AudioTrack != nil {
 			if _, ok := m.AudioTrack.Codec.(*codecs.MPEG4Audio); !ok {
 				return fmt.Errorf(
-					"the MPEG-TS variant of HLS only supports MPEG-4 Audio. Use the fMP4 or Low-Latency variants instead")
+					"the MPEG-TS variant of HLS supports MPEG-4 Audio only")
 			}
 		}
 	}
