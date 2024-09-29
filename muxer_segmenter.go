@@ -99,26 +99,22 @@ func (s *muxerSegmenter) writeAV1(
 		paramsChanged = true
 	}
 
-	if s.muxer.Variant == MuxerVariantMPEGTS {
-		return fmt.Errorf("unimplemented")
-	} else {
-		ps, err := fmp4.NewPartSampleAV1(
-			randomAccess,
-			tu)
-		if err != nil {
-			return err
-		}
-
-		return s.fmp4WriteSample(
-			track,
-			randomAccess,
-			paramsChanged,
-			&fmp4AugmentedSample{
-				PartSample: *ps,
-				dts:        pts,
-				ntp:        ntp,
-			})
+	ps, err := fmp4.NewPartSampleAV1(
+		randomAccess,
+		tu)
+	if err != nil {
+		return err
 	}
+
+	return s.fmp4WriteSample(
+		track,
+		randomAccess,
+		paramsChanged,
+		&fmp4AugmentedSample{
+			PartSample: *ps,
+			dts:        pts,
+			ntp:        ntp,
+		})
 }
 
 func (s *muxerSegmenter) writeVP9(
@@ -180,22 +176,18 @@ func (s *muxerSegmenter) writeVP9(
 		track.firstRandomAccessReceived = true
 	}
 
-	if s.muxer.Variant == MuxerVariantMPEGTS {
-		return fmt.Errorf("unimplemented")
-	} else {
-		return s.fmp4WriteSample(
-			track,
-			randomAccess,
-			paramsChanged,
-			&fmp4AugmentedSample{
-				PartSample: fmp4.PartSample{
-					IsNonSyncSample: !randomAccess,
-					Payload:         frame,
-				},
-				dts: pts,
-				ntp: ntp,
-			})
-	}
+	return s.fmp4WriteSample(
+		track,
+		randomAccess,
+		paramsChanged,
+		&fmp4AugmentedSample{
+			PartSample: fmp4.PartSample{
+				IsNonSyncSample: !randomAccess,
+				Payload:         frame,
+			},
+			dts: pts,
+			ntp: ntp,
+		})
 }
 
 func (s *muxerSegmenter) writeH265(
@@ -256,28 +248,23 @@ func (s *muxerSegmenter) writeH265(
 		return fmt.Errorf("unable to extract DTS: %w", err)
 	}
 
-	if s.muxer.Variant == MuxerVariantMPEGTS {
-		return fmt.Errorf("unimplemented")
-	} else {
-		ps, err := fmp4.NewPartSampleH26x(
-			int32(durationGoToMp4(pts-dts, 90000)),
-			randomAccess,
-			au)
-		if err != nil {
-			return err
-		}
-
-		return s.fmp4WriteSample(
-			track,
-			randomAccess,
-			paramsChanged,
-			&fmp4AugmentedSample{
-				PartSample: *ps,
-				dts:        dts,
-				ntp:        ntp,
-			})
+	ps, err := fmp4.NewPartSampleH26x(
+		int32(durationGoToMp4(pts-dts, 90000)),
+		randomAccess,
+		au)
+	if err != nil {
+		return err
 	}
 
+	return s.fmp4WriteSample(
+		track,
+		randomAccess,
+		paramsChanged,
+		&fmp4AugmentedSample{
+			PartSample: *ps,
+			dts:        dts,
+			ntp:        ntp,
+		})
 }
 
 func (s *muxerSegmenter) writeH264(
@@ -398,33 +385,29 @@ func (s *muxerSegmenter) writeOpus(
 ) error {
 	track := s.muxer.mtracksByTrack[s.muxer.AudioTrack]
 
-	if s.muxer.Variant == MuxerVariantMPEGTS {
-		return fmt.Errorf("unimplemented")
-	} else {
-		for _, packet := range packets {
-			err := s.fmp4WriteSample(
-				track,
-				true,
-				false,
-				&fmp4AugmentedSample{
-					PartSample: fmp4.PartSample{
-						Payload: packet,
-					},
-					dts: pts,
-					ntp: ntp,
+	for _, packet := range packets {
+		err := s.fmp4WriteSample(
+			track,
+			true,
+			false,
+			&fmp4AugmentedSample{
+				PartSample: fmp4.PartSample{
+					Payload: packet,
 				},
-			)
-			if err != nil {
-				return err
-			}
-
-			duration := opus.PacketDuration(packet)
-			ntp = ntp.Add(duration)
-			pts += duration
+				dts: pts,
+				ntp: ntp,
+			},
+		)
+		if err != nil {
+			return err
 		}
 
-		return nil
+		duration := opus.PacketDuration(packet)
+		ntp = ntp.Add(duration)
+		pts += duration
 	}
+
+	return nil
 }
 
 func (s *muxerSegmenter) writeMPEG4Audio(ntp time.Time, pts time.Duration, aus [][]byte) error {
