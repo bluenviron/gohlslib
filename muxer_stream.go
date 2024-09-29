@@ -524,15 +524,11 @@ func (s *muxerStream) createFirstSegment(
 		s.nextSegment = seg
 	} else {
 		seg := &muxerSegmentFMP4{
-			variant:        s.muxer.Variant,
-			segmentMaxSize: s.muxer.SegmentMaxSize,
-			prefix:         s.muxer.prefix,
-			nextPartID:     s.muxer.nextPartID,
-			storageFactory: s.muxer.storageFactory,
-			rotateParts:    s.muxer.rotateParts,
-			setNextPartHasSamples: func() {
-				s.muxer.nextPartHasSamples = true
-			},
+			variant:            s.muxer.Variant,
+			segmentMaxSize:     s.muxer.SegmentMaxSize,
+			prefix:             s.muxer.prefix,
+			nextPartID:         s.muxer.nextPartID,
+			storageFactory:     s.muxer.storageFactory,
 			stream:             s,
 			id:                 s.muxer.nextSegmentID,
 			startNTP:           nextNTP,
@@ -603,9 +599,6 @@ func (s *muxerStream) rotateParts(nextDTS time.Duration, createNew bool) error {
 			prefix:   s.muxer.prefix,
 			id:       s.muxer.nextPartID,
 			storage:  part.segment.storage.NewPart(),
-			setNextPartHasSamples: func() {
-				s.muxer.nextPartHasSamples = true
-			},
 		}
 		nextPart.initialize()
 		s.nextPart = nextPart
@@ -703,15 +696,11 @@ func (s *muxerStream) rotateSegments(
 		}
 	} else {
 		nextSegment = &muxerSegmentFMP4{
-			variant:        s.muxer.Variant,
-			segmentMaxSize: s.muxer.SegmentMaxSize,
-			prefix:         s.muxer.prefix,
-			nextPartID:     s.muxer.nextPartID,
-			storageFactory: s.muxer.storageFactory,
-			rotateParts:    s.muxer.rotateParts,
-			setNextPartHasSamples: func() {
-				s.muxer.nextPartHasSamples = true
-			},
+			variant:            s.muxer.Variant,
+			segmentMaxSize:     s.muxer.SegmentMaxSize,
+			prefix:             s.muxer.prefix,
+			nextPartID:         s.muxer.nextPartID,
+			storageFactory:     s.muxer.storageFactory,
 			stream:             s,
 			id:                 s.muxer.nextSegmentID,
 			startNTP:           nextNTP,

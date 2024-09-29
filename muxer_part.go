@@ -9,13 +9,12 @@ import (
 )
 
 type muxerPart struct {
-	stream                *muxerStream
-	segment               *muxerSegmentFMP4
-	startDTS              time.Duration
-	prefix                string
-	id                    uint64
-	storage               storage.Part
-	setNextPartHasSamples func()
+	stream   *muxerStream
+	segment  *muxerSegmentFMP4
+	startDTS time.Duration
+	prefix   string
+	id       uint64
+	storage  storage.Part
 
 	path          string
 	isIndependent bool
@@ -73,6 +72,4 @@ func (p *muxerPart) writeSample(track *muxerTrack, sample *fmp4AugmentedSample) 
 	}
 
 	track.fmp4Samples = append(track.fmp4Samples, &sample.PartSample)
-
-	p.setNextPartHasSamples()
 }
