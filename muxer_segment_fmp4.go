@@ -9,18 +9,16 @@ import (
 )
 
 type muxerSegmentFMP4 struct {
-	variant               MuxerVariant
-	segmentMaxSize        uint64
-	prefix                string
-	nextPartID            uint64
-	storageFactory        storage.Factory
-	rotateParts           func(time.Duration) error
-	setNextPartHasSamples func()
-	stream                *muxerStream
-	id                    uint64
-	startNTP              time.Time
-	startDTS              time.Duration
-	fromForcedRotation    bool
+	variant            MuxerVariant
+	segmentMaxSize     uint64
+	prefix             string
+	nextPartID         uint64
+	storageFactory     storage.Factory
+	stream             *muxerStream
+	id                 uint64
+	startNTP           time.Time
+	startDTS           time.Duration
+	fromForcedRotation bool
 
 	path    string
 	storage storage.File
@@ -39,13 +37,12 @@ func (s *muxerSegmentFMP4) initialize() error {
 	}
 
 	s.stream.nextPart = &muxerPart{
-		stream:                s.stream,
-		segment:               s,
-		startDTS:              s.startDTS,
-		prefix:                s.prefix,
-		id:                    s.nextPartID,
-		storage:               s.storage.NewPart(),
-		setNextPartHasSamples: s.setNextPartHasSamples,
+		stream:   s.stream,
+		segment:  s,
+		startDTS: s.startDTS,
+		prefix:   s.prefix,
+		id:       s.nextPartID,
+		storage:  s.storage.NewPart(),
 	}
 	s.stream.nextPart.initialize()
 
@@ -87,8 +84,6 @@ func (s *muxerSegmentFMP4) finalize(nextDTS time.Duration) error {
 func (s *muxerSegmentFMP4) writeSample(
 	track *muxerTrack,
 	sample *fmp4AugmentedSample,
-	nextDTS time.Duration,
-	adjustedPartDuration time.Duration,
 ) error {
 	size := uint64(len(sample.Payload))
 	if (s.size + size) > s.segmentMaxSize {
@@ -97,15 +92,6 @@ func (s *muxerSegmentFMP4) writeSample(
 	s.size += size
 
 	s.stream.nextPart.writeSample(track, sample)
-
-	// switch part
-	if (s.variant == MuxerVariantLowLatency) && track.isLeading &&
-		s.stream.nextPart.computeDuration(nextDTS) >= adjustedPartDuration {
-		err := s.rotateParts(nextDTS)
-		if err != nil {
-			return err
-		}
-	}
 
 	return nil
 }

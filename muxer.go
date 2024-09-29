@@ -72,42 +72,6 @@ func fmp4TimeScale(c codecs.Codec) uint32 {
 	return 90000
 }
 
-func partDurationIsCompatible(partDuration time.Duration, sampleDuration time.Duration) bool {
-	if sampleDuration > partDuration {
-		return false
-	}
-
-	f := (partDuration / sampleDuration)
-	if (partDuration % sampleDuration) != 0 {
-		f++
-	}
-	f *= sampleDuration
-
-	return partDuration > ((f * 85) / 100)
-}
-
-func partDurationIsCompatibleWithAll(partDuration time.Duration, sampleDurations map[time.Duration]struct{}) bool {
-	for sd := range sampleDurations {
-		if !partDurationIsCompatible(partDuration, sd) {
-			return false
-		}
-	}
-	return true
-}
-
-func findCompatiblePartDuration(
-	minPartDuration time.Duration,
-	sampleDurations map[time.Duration]struct{},
-) time.Duration {
-	i := minPartDuration
-	for ; i < 5*time.Second; i += 5 * time.Millisecond {
-		if partDurationIsCompatibleWithAll(i, sampleDurations) {
-			break
-		}
-	}
-	return i
-}
-
 type fmp4AugmentedSample struct {
 	fmp4.PartSample
 	dts time.Duration
@@ -168,7 +132,6 @@ type Muxer struct {
 	nextSegmentID      uint64
 	nextPartID         uint64 // low-latency only
 	segmentDeleteCount int
-	nextPartHasSamples bool
 }
 
 // Start initializes the muxer.
@@ -406,19 +369,12 @@ func (m *Muxer) rotateParts(nextDTS time.Duration) error {
 }
 
 func (m *Muxer) rotatePartsInner(nextDTS time.Duration, createNew bool) error {
-	if !m.nextPartHasSamples {
-		for _, stream := range m.streams {
-			stream.nextPart = nil
-		}
-	} else {
-		m.nextPartID++
-		m.nextPartHasSamples = false
+	m.nextPartID++
 
-		for _, stream := range m.streams {
-			err := stream.rotateParts(nextDTS, createNew)
-			if err != nil {
-				return err
-			}
+	for _, stream := range m.streams {
+		err := stream.rotateParts(nextDTS, createNew)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -448,9 +404,11 @@ func (m *Muxer) rotateSegmentsInner(
 	nextNTP time.Time,
 	force bool,
 ) error {
-	err := m.rotatePartsInner(nextDTS, false)
-	if err != nil {
-		return err
+	if m.Variant != MuxerVariantMPEGTS {
+		err := m.rotatePartsInner(nextDTS, false)
+		if err != nil {
+			return err
+		}
 	}
 
 	m.nextSegmentID++
