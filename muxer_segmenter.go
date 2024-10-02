@@ -67,12 +67,11 @@ func (s *muxerSegmenter) initialize() {
 }
 
 func (s *muxerSegmenter) writeAV1(
+	track *muxerTrack,
 	ntp time.Time,
 	pts time.Duration,
 	tu [][]byte,
 ) error {
-	track := s.muxer.mtracksByTrack[s.muxer.VideoTrack]
-
 	codec := track.Codec.(*codecs.AV1)
 	randomAccess := false
 
@@ -118,12 +117,11 @@ func (s *muxerSegmenter) writeAV1(
 }
 
 func (s *muxerSegmenter) writeVP9(
+	track *muxerTrack,
 	ntp time.Time,
 	pts time.Duration,
 	frame []byte,
 ) error {
-	track := s.muxer.mtracksByTrack[s.muxer.VideoTrack]
-
 	var h vp9.Header
 	err := h.Unmarshal(frame)
 	if err != nil {
@@ -191,12 +189,11 @@ func (s *muxerSegmenter) writeVP9(
 }
 
 func (s *muxerSegmenter) writeH265(
+	track *muxerTrack,
 	ntp time.Time,
 	pts time.Duration,
 	au [][]byte,
 ) error {
-	track := s.muxer.mtracksByTrack[s.muxer.VideoTrack]
-
 	randomAccess := false
 	codec := track.Codec.(*codecs.H265)
 
@@ -268,12 +265,11 @@ func (s *muxerSegmenter) writeH265(
 }
 
 func (s *muxerSegmenter) writeH264(
+	track *muxerTrack,
 	ntp time.Time,
 	pts time.Duration,
 	au [][]byte,
 ) error {
-	track := s.muxer.mtracksByTrack[s.muxer.VideoTrack]
-
 	randomAccess := false
 	codec := track.Codec.(*codecs.H264)
 	nonIDRPresent := false
@@ -379,12 +375,11 @@ func (s *muxerSegmenter) writeH264(
 }
 
 func (s *muxerSegmenter) writeOpus(
+	track *muxerTrack,
 	ntp time.Time,
 	pts time.Duration,
 	packets [][]byte,
 ) error {
-	track := s.muxer.mtracksByTrack[s.muxer.AudioTrack]
-
 	for _, packet := range packets {
 		err := s.fmp4WriteSample(
 			track,
@@ -410,11 +405,14 @@ func (s *muxerSegmenter) writeOpus(
 	return nil
 }
 
-func (s *muxerSegmenter) writeMPEG4Audio(ntp time.Time, pts time.Duration, aus [][]byte) error {
-	track := s.muxer.mtracksByTrack[s.muxer.AudioTrack]
-
+func (s *muxerSegmenter) writeMPEG4Audio(
+	track *muxerTrack,
+	ntp time.Time,
+	pts time.Duration,
+	aus [][]byte,
+) error {
 	if s.muxer.Variant == MuxerVariantMPEGTS {
-		if s.muxer.VideoTrack == nil {
+		if track.isLeading {
 			if track.stream.nextSegment == nil {
 				err := s.muxer.createFirstSegment(pts, ntp)
 				if err != nil {
@@ -441,7 +439,7 @@ func (s *muxerSegmenter) writeMPEG4Audio(ntp time.Time, pts time.Duration, aus [
 
 		return nil
 	} else {
-		sampleRate := time.Duration(s.muxer.AudioTrack.Codec.(*codecs.MPEG4Audio).Config.SampleRate)
+		sampleRate := time.Duration(track.Codec.(*codecs.MPEG4Audio).Config.SampleRate)
 
 		for i, au := range aus {
 			auNTP := ntp.Add(time.Duration(i) * mpeg4audio.SamplesPerAccessUnit *

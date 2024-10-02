@@ -33,16 +33,27 @@ func filterOutHLSParams(rawQuery string) string {
 	return rawQuery
 }
 
+func containsCodec(cs []string, c string) bool {
+	for _, c0 := range cs {
+		if c0 == c {
+			return true
+		}
+	}
+	return false
+}
+
 type generateMediaPlaylistFunc func(
 	isDeltaUpdate bool,
 	rawQuery string,
 ) ([]byte, error)
 
 type muxerStream struct {
-	muxer       *Muxer // TODO: remove
-	tracks      []*muxerTrack
-	id          string
-	isRendition bool
+	muxer              *Muxer // TODO: remove
+	tracks             []*muxerTrack
+	id                 string
+	isLeading          bool
+	isRendition        bool
+	isDefaultRendition bool
 
 	generateMediaPlaylist generateMediaPlaylistFunc
 
@@ -97,7 +108,10 @@ func (s *muxerStream) populateMultivariantPlaylist(
 	mv := pl.Variants[0]
 
 	for _, track := range s.tracks {
-		mv.Codecs = append(mv.Codecs, codecparams.Marshal(track.Codec))
+		codec := codecparams.Marshal(track.Codec)
+		if !containsCodec(mv.Codecs, codec) {
+			mv.Codecs = append(mv.Codecs, codec)
+		}
 
 		switch codec := track.Codec.(type) {
 		case *codecs.AV1:
@@ -151,16 +165,30 @@ func (s *muxerStream) populateMultivariantPlaylist(
 		uri += "?" + rawQuery
 	}
 
-	if !s.isRendition {
+	if s.isLeading {
 		mv.URI = uri
-	} else {
+	}
+
+	if s.isRendition {
 		mv.Audio = "audio"
 
 		r := &playlist.MultivariantRendition{
-			Type:    playlist.MultivariantRenditionTypeAudio,
-			GroupID: "audio",
-			URI:     &uri,
+			Type:       playlist.MultivariantRenditionTypeAudio,
+			GroupID:    "audio",
+			Name:       s.id,
+			Autoselect: true,
+			Default:    s.isDefaultRendition,
 		}
+
+		// draft-pantos-hls-rfc8216bis:
+		// If the media type is VIDEO or AUDIO, a missing URI attribute
+		// indicates that the media data for this Rendition is included in the
+		// Media Playlist of any EXT-X-STREAM-INF tag referencing this EXT-
+		// X-MEDIA tag.
+		if !s.isLeading {
+			r.URI = &uri
+		}
+
 		pl.Renditions = append(pl.Renditions, r)
 	}
 

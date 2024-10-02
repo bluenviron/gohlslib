@@ -29,6 +29,14 @@ func (w *switchableWriter) Write(p []byte) (int, error) {
 	return w.w.Write(p)
 }
 
+func isVideo(codec codecs.Codec) bool {
+	switch codec.(type) {
+	case *codecs.AV1, *codecs.VP9, *codecs.H265, *codecs.H264:
+		return true
+	}
+	return false
+}
+
 // a prefix is needed to prevent usage of cached segments
 // from previous muxing sessions.
 func generatePrefix() (string, error) {
@@ -81,12 +89,10 @@ type fmp4AugmentedSample struct {
 // Muxer is a HLS muxer.
 type Muxer struct {
 	//
-	// parameters (all optional except VideoTrack or AudioTrack).
+	// parameters (all optional except Tracks).
 	//
-	// video track.
-	VideoTrack *Track
-	// audio track.
-	AudioTrack *Track
+	// tracks.
+	Tracks []*Track
 	// Variant to use.
 	// It defaults to MuxerVariantLowLatency
 	Variant MuxerVariant
@@ -152,21 +158,44 @@ func (m *Muxer) Start() error {
 		m.SegmentMaxSize = 50 * 1024 * 1024
 	}
 
-	if m.VideoTrack == nil && m.AudioTrack == nil {
-		return fmt.Errorf("one between VideoTrack and AudioTrack is required")
+	if len(m.Tracks) == 0 {
+		return fmt.Errorf("at least one track must be provided")
 	}
 
+	hasVideo := false
+	hasAudio := false
+
 	if m.Variant == MuxerVariantMPEGTS {
-		if m.VideoTrack != nil {
-			if _, ok := m.VideoTrack.Codec.(*codecs.H264); !ok {
-				return fmt.Errorf(
-					"the MPEG-TS variant of HLS supports H264 video only")
+		for _, track := range m.Tracks {
+			if isVideo(track.Codec) {
+				if hasVideo {
+					return fmt.Errorf("the MPEG-TS variant of HLS supports a single video track only")
+				}
+				if _, ok := track.Codec.(*codecs.H264); !ok {
+					return fmt.Errorf(
+						"the MPEG-TS variant of HLS supports H264 video only")
+				}
+				hasVideo = true
+			} else {
+				if hasAudio {
+					return fmt.Errorf("the MPEG-TS variant of HLS supports a single audio track only")
+				}
+				if _, ok := track.Codec.(*codecs.MPEG4Audio); !ok {
+					return fmt.Errorf(
+						"the MPEG-TS variant of HLS supports MPEG-4 Audio only")
+				}
+				hasAudio = true
 			}
 		}
-		if m.AudioTrack != nil {
-			if _, ok := m.AudioTrack.Codec.(*codecs.MPEG4Audio); !ok {
-				return fmt.Errorf(
-					"the MPEG-TS variant of HLS supports MPEG-4 Audio only")
+	} else {
+		for _, track := range m.Tracks {
+			if isVideo(track.Codec) {
+				if hasVideo {
+					return fmt.Errorf("only one video track is currently supported")
+				}
+				hasVideo = true
+			} else {
+				hasAudio = true
 			}
 		}
 	}
@@ -196,26 +225,15 @@ func (m *Muxer) Start() error {
 	}
 	m.server.initialize()
 
-	if m.VideoTrack != nil {
-		track := &muxerTrack{
-			Track:     m.VideoTrack,
+	for i, track := range m.Tracks {
+		mtrack := &muxerTrack{
+			Track:     track,
 			variant:   m.Variant,
-			isLeading: true,
+			isLeading: isVideo(track.Codec) || (!hasVideo && i == 0),
 		}
-		track.initialize()
-		m.mtracks = append(m.mtracks, track)
-		m.mtracksByTrack[m.VideoTrack] = track
-	}
-
-	if m.AudioTrack != nil {
-		track := &muxerTrack{
-			Track:     m.AudioTrack,
-			variant:   m.Variant,
-			isLeading: m.VideoTrack == nil,
-		}
-		track.initialize()
-		m.mtracks = append(m.mtracks, track)
-		m.mtracksByTrack[m.AudioTrack] = track
+		mtrack.initialize()
+		m.mtracks = append(m.mtracks, mtrack)
+		m.mtracksByTrack[track] = mtrack
 	}
 
 	if m.Variant == MuxerVariantMPEGTS {
@@ -230,33 +248,45 @@ func (m *Muxer) Start() error {
 	switch {
 	case m.Variant == MuxerVariantMPEGTS:
 		stream := &muxerStream{
-			muxer:  m,
-			tracks: m.mtracks,
-			id:     "main",
+			muxer:     m,
+			tracks:    m.mtracks,
+			id:        "main",
+			isLeading: true,
 		}
 		stream.initialize()
 		m.streams = append(m.streams, stream)
 
 	default:
-		if m.VideoTrack != nil {
-			videoStream := &muxerStream{
-				muxer:  m,
-				tracks: []*muxerTrack{m.mtracksByTrack[m.VideoTrack]},
-				id:     "video",
-			}
-			videoStream.initialize()
-			m.streams = append(m.streams, videoStream)
-		}
+		defaultRenditionChosen := false
 
-		if m.AudioTrack != nil {
-			audioStream := &muxerStream{
-				muxer:       m,
-				tracks:      []*muxerTrack{m.mtracksByTrack[m.AudioTrack]},
-				id:          "audio",
-				isRendition: m.VideoTrack != nil,
+		for i, track := range m.mtracks {
+			var id string
+			if isVideo(track.Codec) {
+				id = "video" + strconv.FormatInt(int64(i+1), 10)
+			} else {
+				id = "audio" + strconv.FormatInt(int64(i+1), 10)
 			}
-			audioStream.initialize()
-			m.streams = append(m.streams, audioStream)
+
+			isRendition := !track.isLeading || (!isVideo(track.Codec) && len(m.Tracks) > 1)
+
+			var isDefaultRendition bool
+			if isRendition && !defaultRenditionChosen {
+				isDefaultRendition = true
+				defaultRenditionChosen = true
+			} else {
+				isDefaultRendition = false
+			}
+
+			stream := &muxerStream{
+				muxer:              m,
+				tracks:             []*muxerTrack{track},
+				id:                 id,
+				isLeading:          track.isLeading,
+				isRendition:        isRendition,
+				isDefaultRendition: isDefaultRendition,
+			}
+			stream.initialize()
+			m.streams = append(m.streams, stream)
 		}
 	}
 
@@ -290,52 +320,62 @@ func (m *Muxer) Close() {
 
 // WriteAV1 writes an AV1 temporal unit.
 func (m *Muxer) WriteAV1(
+	track *Track,
 	ntp time.Time,
 	pts time.Duration,
 	tu [][]byte,
 ) error {
-	return m.segmenter.writeAV1(ntp, pts, tu)
+	return m.segmenter.writeAV1(m.mtracksByTrack[track], ntp, pts, tu)
 }
 
 // WriteVP9 writes a VP9 frame.
 func (m *Muxer) WriteVP9(
+	track *Track,
 	ntp time.Time,
 	pts time.Duration,
 	frame []byte,
 ) error {
-	return m.segmenter.writeVP9(ntp, pts, frame)
+	return m.segmenter.writeVP9(m.mtracksByTrack[track], ntp, pts, frame)
 }
 
 // WriteH265 writes an H265 access unit.
 func (m *Muxer) WriteH265(
+	track *Track,
 	ntp time.Time,
 	pts time.Duration,
 	au [][]byte,
 ) error {
-	return m.segmenter.writeH265(ntp, pts, au)
+	return m.segmenter.writeH265(m.mtracksByTrack[track], ntp, pts, au)
 }
 
 // WriteH264 writes an H264 access unit.
 func (m *Muxer) WriteH264(
+	track *Track,
 	ntp time.Time,
 	pts time.Duration,
 	au [][]byte,
 ) error {
-	return m.segmenter.writeH264(ntp, pts, au)
+	return m.segmenter.writeH264(m.mtracksByTrack[track], ntp, pts, au)
 }
 
 // WriteOpus writes Opus packets.
 func (m *Muxer) WriteOpus(
+	track *Track,
 	ntp time.Time,
 	pts time.Duration,
 	packets [][]byte,
 ) error {
-	return m.segmenter.writeOpus(ntp, pts, packets)
+	return m.segmenter.writeOpus(m.mtracksByTrack[track], ntp, pts, packets)
 }
 
 // WriteMPEG4Audio writes MPEG-4 Audio access units.
-func (m *Muxer) WriteMPEG4Audio(ntp time.Time, pts time.Duration, aus [][]byte) error {
-	return m.segmenter.writeMPEG4Audio(ntp, pts, aus)
+func (m *Muxer) WriteMPEG4Audio(
+	track *Track,
+	ntp time.Time,
+	pts time.Duration,
+	aus [][]byte,
+) error {
+	return m.segmenter.writeMPEG4Audio(m.mtracksByTrack[track], ntp, pts, aus)
 }
 
 // Handle handles a HTTP request.

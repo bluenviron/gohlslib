@@ -4,7 +4,7 @@
 [![Lint](https://github.com/bluenviron/gohlslib/workflows/lint/badge.svg)](https://github.com/bluenviron/gohlslib/actions?query=workflow:lint)
 [![Go Report Card](https://goreportcard.com/badge/github.com/bluenviron/gohlslib)](https://goreportcard.com/report/github.com/bluenviron/gohlslib)
 [![CodeCov](https://codecov.io/gh/bluenviron/gohlslib/branch/main/graph/badge.svg)](https://app.codecov.io/gh/bluenviron/gohlslib/branch/main)
-[![PkgGoDev](https://pkg.go.dev/badge/github.com/bluenviron/gohlslib)](https://pkg.go.dev/github.com/bluenviron/gohlslib#pkg-index)
+[![PkgGoDev](https://pkg.go.dev/badge/github.com/bluenviron/gohlslib/v2)](https://pkg.go.dev/github.com/bluenviron/gohlslib/v2#pkg-index)
 
 HLS client and muxer library for the Go programming language, written for [MediaMTX](https://github.com/bluenviron/mediamtx).
 
@@ -15,12 +15,14 @@ Features:
 * Client
 
   * Read streams in MPEG-TS, fMP4 or Low-latency format
+  * Read a single video track and/or a single audio track
   * Read tracks encoded with AV1, VP9, H265, H264, Opus, MPEG-4 Audio (AAC)
   * Get absolute timestamp of incoming data
 
 * Muxer
 
   * Generate streams in MPEG-TS, fMP4 or Low-latency format
+  * Write a single video track and/or multiple audio tracks
   * Write tracks encoded with AV1, VP9, H265, H264, Opus, MPEG-4 audio (AAC)
   * Save generated segments on disk
 

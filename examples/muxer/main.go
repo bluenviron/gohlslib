@@ -35,11 +35,13 @@ func handleIndex(wrapped http.HandlerFunc) http.HandlerFunc {
 }
 
 func main() {
+	videoTrack := &gohlslib.Track{
+		Codec: &codecs.H264{},
+	}
+
 	// create the HLS muxer
 	mux := &gohlslib.Muxer{
-		VideoTrack: &gohlslib.Track{
-			Codec: &codecs.H264{},
-		},
+		Tracks: []*gohlslib.Track{videoTrack},
 	}
 	err := mux.Start()
 	if err != nil {
@@ -80,7 +82,7 @@ func main() {
 	for _, track := range r.Tracks() {
 		if _, ok := track.Codec.(*mpegts.CodecH264); ok {
 			// setup a callback that is called once a H264 access unit is received
-			r.OnDataH26x(track, func(rawPTS int64, _ int64, au [][]byte) error {
+			r.OnDataH264(track, func(rawPTS int64, _ int64, au [][]byte) error {
 				// decode the time
 				if timeDec == nil {
 					timeDec = mpegts.NewTimeDecoder(rawPTS)
@@ -89,7 +91,7 @@ func main() {
 
 				// pass the access unit to the HLS muxer
 				log.Printf("visit http://localhost:8080 - encoding access unit with PTS = %v", pts)
-				mux.WriteH264(time.Now(), pts, au)
+				mux.WriteH264(videoTrack, time.Now(), pts, au)
 
 				return nil
 			})

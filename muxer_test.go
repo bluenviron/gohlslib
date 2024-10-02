@@ -54,6 +54,16 @@ var testAudioTrack = &Track{
 	},
 }
 
+var testAudioTrack2 = &Track{
+	Codec: &codecs.MPEG4Audio{
+		Config: mpeg4audio.Config{
+			Type:         2,
+			SampleRate:   44100,
+			ChannelCount: 2,
+		},
+	},
+}
+
 type dummyResponseWriter struct {
 	bytes.Buffer
 	h          http.Header
@@ -107,27 +117,34 @@ func TestMuxer(t *testing.T) {
 			segmentCount = 7
 		}
 
-		var videoTrack *Track
-		var audioTrack *Track
+		var tracks []*Track
 
 		switch stream {
 		case "video+audio":
-			videoTrack = testVideoTrack
-			audioTrack = testAudioTrack
+			tracks = append(tracks, testVideoTrack)
+			tracks = append(tracks, testAudioTrack)
 
-		case "video-only":
-			videoTrack = testVideoTrack
+		case "video":
+			tracks = append(tracks, testVideoTrack)
 
-		case "audio-only":
-			audioTrack = testAudioTrack
+		case "audio":
+			tracks = append(tracks, testAudioTrack)
+
+		case "video+multiaudio":
+			tracks = append(tracks, testVideoTrack)
+			tracks = append(tracks, testAudioTrack)
+			tracks = append(tracks, testAudioTrack2)
+
+		case "multiaudio":
+			tracks = append(tracks, testAudioTrack)
+			tracks = append(tracks, testAudioTrack2)
 		}
 
 		m := &Muxer{
 			Variant:            v,
 			SegmentCount:       segmentCount,
 			SegmentMinDuration: 1 * time.Second,
-			VideoTrack:         videoTrack,
-			AudioTrack:         audioTrack,
+			Tracks:             tracks,
 		}
 
 		err := m.Start()
@@ -135,16 +152,14 @@ func TestMuxer(t *testing.T) {
 
 		switch stream {
 		case "video+audio":
-			// access unit without IDR
 			d := 1 * time.Second
-			err = m.WriteH264(testTime.Add(d-1*time.Second), d, [][]byte{
+			err = m.WriteH264(testVideoTrack, testTime.Add(d-1*time.Second), d, [][]byte{
 				{1}, // non-IDR
 			})
 			require.NoError(t, err)
 
-			// access unit with IDR
 			d = 2 * time.Second
-			err = m.WriteH264(testTime.Add(d-1*time.Second), d, [][]byte{
+			err = m.WriteH264(testVideoTrack, testTime.Add(d-1*time.Second), d, [][]byte{
 				testSPS, // SPS
 				{8},     // PPS
 				{5},     // IDR
@@ -152,85 +167,150 @@ func TestMuxer(t *testing.T) {
 			require.NoError(t, err)
 
 			d = 3 * time.Second
-			err = m.WriteMPEG4Audio(testTime.Add(d-1*time.Second), d, [][]byte{{
+			err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second), d, [][]byte{{
 				0x01, 0x02, 0x03, 0x04,
 			}})
 			require.NoError(t, err)
 
 			d = 3500 * time.Millisecond
-			err = m.WriteMPEG4Audio(testTime.Add(d-1*time.Second), d, [][]byte{{
+			err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second), d, [][]byte{{
 				0x01, 0x02, 0x03, 0x04,
 			}})
 			require.NoError(t, err)
 
-			// access unit without IDR
 			d = 4 * time.Second
-			err = m.WriteH264(testTime.Add(d-1*time.Second), d, [][]byte{
+			err = m.WriteH264(testVideoTrack, testTime.Add(d-1*time.Second), d, [][]byte{
 				{1}, // non-IDR
 			})
 			require.NoError(t, err)
 
 			d = 4500 * time.Millisecond
-			err = m.WriteMPEG4Audio(testTime.Add(d-1*time.Second), d, [][]byte{{
+			err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second), d, [][]byte{{
 				0x01, 0x02, 0x03, 0x04,
 			}})
 			require.NoError(t, err)
 
-			// access unit with IDR
 			d = 6 * time.Second
-			err = m.WriteH264(testTime.Add(d-1*time.Second), d, [][]byte{
+			err = m.WriteH264(testVideoTrack, testTime.Add(d-1*time.Second), d, [][]byte{
 				{5}, // IDR
 			})
 			require.NoError(t, err)
 
-			// access unit with IDR
 			d = 7 * time.Second
-			err = m.WriteH264(testTime.Add(d-1*time.Second), d, [][]byte{
+			err = m.WriteH264(testVideoTrack, testTime.Add(d-1*time.Second), d, [][]byte{
 				{5}, // IDR
 			})
 			require.NoError(t, err)
 
-		case "video-only":
-			// access unit with IDR
+		case "video":
 			d := 2 * time.Second
-			err = m.WriteH264(testTime.Add(d-2*time.Second), d, [][]byte{
+			err = m.WriteH264(testVideoTrack, testTime.Add(d-2*time.Second), d, [][]byte{
 				testSPS, // SPS
 				{8},     // PPS
 				{5},     // IDR
 			})
 			require.NoError(t, err)
 
-			// access unit with IDR
 			d = 6 * time.Second
-			err = m.WriteH264(testTime.Add(d-2*time.Second), d, [][]byte{
+			err = m.WriteH264(testVideoTrack, testTime.Add(d-2*time.Second), d, [][]byte{
 				{5}, // IDR
 			})
 			require.NoError(t, err)
 
-			// access unit with IDR
 			d = 7 * time.Second
-			err = m.WriteH264(testTime.Add(d-2*time.Second), d, [][]byte{
+			err = m.WriteH264(testVideoTrack, testTime.Add(d-2*time.Second), d, [][]byte{
 				{5}, // IDR
 			})
 			require.NoError(t, err)
 
-		case "audio-only":
+		case "audio":
 			for i := 0; i < 100; i++ {
 				d := time.Duration(i) * 4 * time.Millisecond
-				err = m.WriteMPEG4Audio(testTime.Add(d-1*time.Second), d, [][]byte{{
+				err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second), d, [][]byte{{
 					0x01, 0x02, 0x03, 0x04,
 				}})
 				require.NoError(t, err)
 			}
 
 			d := 2 * time.Second
-			err = m.WriteMPEG4Audio(testTime.Add(d-1*time.Second), d, [][]byte{{
+			err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second), d, [][]byte{{
 				0x01, 0x02, 0x03, 0x04,
 			}})
 			require.NoError(t, err)
 
 			d = 3 * time.Second
-			err = m.WriteMPEG4Audio(testTime.Add(d-1*time.Second), d, [][]byte{{
+			err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second), d, [][]byte{{
+				0x01, 0x02, 0x03, 0x04,
+			}})
+			require.NoError(t, err)
+
+		case "video+multiaudio":
+			d := 2 * time.Second
+			err = m.WriteH264(testVideoTrack, testTime.Add(d-1*time.Second), d, [][]byte{
+				testSPS, // SPS
+				{8},     // PPS
+				{5},     // IDR
+			})
+			require.NoError(t, err)
+
+			d = 3 * time.Second
+			err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second), d, [][]byte{{
+				0x01, 0x02, 0x03, 0x04,
+			}})
+			require.NoError(t, err)
+
+			d = 3500 * time.Millisecond
+			err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second), d, [][]byte{{
+				0x01, 0x02, 0x03, 0x04,
+			}})
+			require.NoError(t, err)
+
+			d = 2 * time.Second
+			err = m.WriteMPEG4Audio(testAudioTrack2, testTime.Add(d-1*time.Second), d, [][]byte{{
+				0x01, 0x02, 0x03, 0x04,
+			}})
+			require.NoError(t, err)
+
+			d = 2500 * time.Millisecond
+			err = m.WriteMPEG4Audio(testAudioTrack2, testTime.Add(d-1*time.Second), d, [][]byte{{
+				0x01, 0x02, 0x03, 0x04,
+			}})
+			require.NoError(t, err)
+
+			d = 6 * time.Second
+			err = m.WriteH264(testVideoTrack, testTime.Add(d-1*time.Second), d, [][]byte{
+				{5}, // IDR
+			})
+			require.NoError(t, err)
+
+			d = 7 * time.Second
+			err = m.WriteH264(testVideoTrack, testTime.Add(d-1*time.Second), d, [][]byte{
+				{5}, // IDR
+			})
+			require.NoError(t, err)
+
+		case "multiaudio":
+			for i := 0; i < 100; i++ {
+				d := time.Duration(i) * 4 * time.Millisecond
+				err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second), d, [][]byte{{
+					0x01, 0x02, 0x03, 0x04,
+				}})
+				require.NoError(t, err)
+
+				err = m.WriteMPEG4Audio(testAudioTrack2, testTime.Add(d-1*time.Second), d, [][]byte{{
+					0x01, 0x02, 0x03, 0x04,
+				}})
+				require.NoError(t, err)
+			}
+
+			d := 2 * time.Second
+			err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second), d, [][]byte{{
+				0x01, 0x02, 0x03, 0x04,
+			}})
+			require.NoError(t, err)
+
+			d = 3 * time.Second
+			err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second), d, [][]byte{{
 				0x01, 0x02, 0x03, 0x04,
 			}})
 			require.NoError(t, err)
@@ -246,7 +326,7 @@ func TestMuxer(t *testing.T) {
 		require.Equal(t, "max-age=30", h.Get("Cache-Control"))
 
 		switch {
-		case variant == "mpegts" && stream == "video+audio":
+		case stream == "video+audio" && variant == "mpegts":
 			require.Equal(t, "#EXTM3U\n"+
 				"#EXT-X-VERSION:3\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
@@ -255,29 +335,29 @@ func TestMuxer(t *testing.T) {
 				"CODECS=\"avc1.42c028,mp4a.40.2\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
 				"main_stream.m3u8?key=value\n", string(byts))
 
-		case variant == "fmp4" && stream == "video+audio":
+		case stream == "video+audio" && variant == "fmp4":
 			require.Equal(t, "#EXTM3U\n"+
 				"#EXT-X-VERSION:9\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 				"\n"+
-				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",URI=\"audio_stream.m3u8?key=value\"\n"+
+				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",NAME=\"audio2\",AUTOSELECT=YES,DEFAULT=YES,URI=\"audio2_stream.m3u8?key=value\"\n"+
 				"\n"+
 				"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=436,CODECS=\"avc1.42c028,mp4a.40.2\","+
 				"RESOLUTION=1920x1080,FRAME-RATE=30.000,AUDIO=\"audio\"\n"+
-				"video_stream.m3u8?key=value\n", string(byts))
+				"video1_stream.m3u8?key=value\n", string(byts))
 
-		case variant == "lowLatency" && stream == "video+audio":
+		case stream == "video+audio" && variant == "lowLatency":
 			require.Equal(t, "#EXTM3U\n"+
 				"#EXT-X-VERSION:9\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 				"\n"+
-				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",URI=\"audio_stream.m3u8?key=value\"\n"+
+				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",NAME=\"audio2\",AUTOSELECT=YES,DEFAULT=YES,URI=\"audio2_stream.m3u8?key=value\"\n"+
 				"\n"+
 				"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=584,CODECS=\"avc1.42c028,mp4a.40.2\","+
 				"RESOLUTION=1920x1080,FRAME-RATE=30.000,AUDIO=\"audio\"\n"+
-				"video_stream.m3u8?key=value\n", string(byts))
+				"video1_stream.m3u8?key=value\n", string(byts))
 
-		case variant == "mpegts" && stream == "video-only":
+		case stream == "video" && variant == "mpegts":
 			require.Equal(t, "#EXTM3U\n"+
 				"#EXT-X-VERSION:3\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
@@ -286,25 +366,25 @@ func TestMuxer(t *testing.T) {
 				"CODECS=\"avc1.42c028\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
 				"main_stream.m3u8?key=value\n", string(byts))
 
-		case variant == "fmp4" && stream == "video-only":
+		case stream == "video" && variant == "fmp4":
 			require.Equal(t, "#EXTM3U\n"+
 				"#EXT-X-VERSION:9\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 				"\n"+
 				"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=403,CODECS=\"avc1.42c028\","+
 				"RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
-				"video_stream.m3u8?key=value\n", string(byts))
+				"video1_stream.m3u8?key=value\n", string(byts))
 
-		case variant == "lowLatency" && stream == "video-only":
+		case stream == "video" && variant == "lowLatency":
 			require.Equal(t, "#EXTM3U\n"+
 				"#EXT-X-VERSION:9\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 				"\n"+
 				"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=403,CODECS=\"avc1.42c028\","+
 				"RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
-				"video_stream.m3u8?key=value\n", string(byts))
+				"video1_stream.m3u8?key=value\n", string(byts))
 
-		case variant == "mpegts" && stream == "audio-only":
+		case stream == "audio" && variant == "mpegts":
 			require.Equal(t, "#EXTM3U\n"+
 				"#EXT-X-VERSION:3\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
@@ -312,36 +392,69 @@ func TestMuxer(t *testing.T) {
 				"#EXT-X-STREAM-INF:BANDWIDTH=225600,AVERAGE-BANDWIDTH=225600,CODECS=\"mp4a.40.2\"\n"+
 				"main_stream.m3u8?key=value\n", string(byts))
 
-		case variant == "fmp4" && stream == "audio-only":
+		case stream == "audio" && variant == "fmp4":
 			require.Equal(t, "#EXTM3U\n"+
 				"#EXT-X-VERSION:9\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 				"\n"+
 				"#EXT-X-STREAM-INF:BANDWIDTH=5184,AVERAGE-BANDWIDTH=3744,CODECS=\"mp4a.40.2\"\n"+
-				"audio_stream.m3u8?key=value\n", string(byts))
+				"audio1_stream.m3u8?key=value\n", string(byts))
 
-		case variant == "lowLatency" && stream == "audio-only":
+		case stream == "audio" && variant == "lowLatency":
 			require.Equal(t, "#EXTM3U\n"+
 				"#EXT-X-VERSION:9\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 				"\n"+
 				"#EXT-X-STREAM-INF:BANDWIDTH=5568,AVERAGE-BANDWIDTH=4000,CODECS=\"mp4a.40.2\"\n"+
-				"audio_stream.m3u8?key=value\n", string(byts))
+				"audio1_stream.m3u8?key=value\n", string(byts))
+
+		case stream == "video+multiaudio" && (variant == "fmp4" || variant == "lowLatency"):
+			require.Equal(t, "#EXTM3U\n"+
+				"#EXT-X-VERSION:9\n"+
+				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
+				"\n"+
+				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",NAME=\"audio2\",AUTOSELECT=YES,DEFAULT=YES,URI=\"audio2_stream.m3u8?key=value\"\n"+
+				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",NAME=\"audio3\",AUTOSELECT=YES,URI=\"audio3_stream.m3u8?key=value\"\n"+
+				"\n"+
+				"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=403,CODECS=\"avc1.42c028,mp4a.40.2\",RESOLUTION=1920x1080,FRAME-RATE=30.000,AUDIO=\"audio\"\n"+
+				"video1_stream.m3u8?key=value\n", string(byts))
+
+		case stream == "multiaudio" && variant == "fmp4":
+			require.Equal(t, "#EXTM3U\n"+
+				"#EXT-X-VERSION:9\n"+
+				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
+				"\n"+
+				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",NAME=\"audio1\",AUTOSELECT=YES,DEFAULT=YES\n"+
+				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",NAME=\"audio2\",AUTOSELECT=YES,URI=\"audio2_stream.m3u8?key=value\"\n"+
+				"\n"+
+				"#EXT-X-STREAM-INF:BANDWIDTH=5184,AVERAGE-BANDWIDTH=3744,CODECS=\"mp4a.40.2\",AUDIO=\"audio\"\n"+
+				"audio1_stream.m3u8?key=value\n", string(byts))
+
+		case stream == "multiaudio" && variant == "lowLatency":
+			require.Equal(t, "#EXTM3U\n"+
+				"#EXT-X-VERSION:9\n"+
+				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
+				"\n"+
+				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",NAME=\"audio1\",AUTOSELECT=YES,DEFAULT=YES\n"+
+				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",NAME=\"audio2\",AUTOSELECT=YES,URI=\"audio2_stream.m3u8?key=value\"\n"+
+				"\n"+
+				"#EXT-X-STREAM-INF:BANDWIDTH=5568,AVERAGE-BANDWIDTH=4000,CODECS=\"mp4a.40.2\",AUDIO=\"audio\"\n"+
+				"audio1_stream.m3u8?key=value\n", string(byts))
 		}
 	}
 
-	checkMainMediaPlaylist := func(t *testing.T, m *Muxer, variant string, stream string) {
+	checkPlaylist1 := func(t *testing.T, m *Muxer, variant string, stream string) {
 		var u string
 
 		switch {
 		case variant == "mpegts":
 			u = "main_stream.m3u8?key=value"
 
-		case stream == "audio-only":
-			u = "audio_stream.m3u8?key=value"
+		case stream == "audio" || stream == "multiaudio":
+			u = "audio1_stream.m3u8?key=value"
 
 		default:
-			u = "video_stream.m3u8?key=value"
+			u = "video1_stream.m3u8?key=value"
 		}
 
 		byts, h, err := doRequest(m, u)
@@ -350,7 +463,7 @@ func TestMuxer(t *testing.T) {
 		require.Equal(t, "no-cache", h.Get("Cache-Control"))
 
 		switch {
-		case variant == "mpegts" && (stream == "video+audio" || stream == "video-only"):
+		case variant == "mpegts" && (stream == "video+audio" || stream == "video"):
 			re := regexp.MustCompile(`^#EXTM3U\n` +
 				`#EXT-X-VERSION:3\n` +
 				`#EXT-X-ALLOW-CACHE:NO\n` +
@@ -364,7 +477,7 @@ func TestMuxer(t *testing.T) {
 				`(.*?_seg1\.ts\?key=value)\n$`)
 			require.Regexp(t, re, string(byts))
 
-		case variant == "mpegts" && stream == "audio-only":
+		case variant == "mpegts" && stream == "audio":
 			re := regexp.MustCompile(`^#EXTM3U\n` +
 				`#EXT-X-VERSION:3\n` +
 				`#EXT-X-ALLOW-CACHE:NO\n` +
@@ -375,7 +488,7 @@ func TestMuxer(t *testing.T) {
 				`(.*?_seg0\.ts\?key=value)\n$`)
 			require.Regexp(t, re, string(byts))
 
-		case variant == "fmp4" && (stream == "video+audio" || stream == "video-only"):
+		case variant == "fmp4" && (stream == "video+audio" || stream == "video"):
 			re := regexp.MustCompile(`^#EXTM3U\n` +
 				`#EXT-X-VERSION:10\n` +
 				`#EXT-X-TARGETDURATION:4\n` +
@@ -389,7 +502,7 @@ func TestMuxer(t *testing.T) {
 				`(.*?_seg1\.mp4\?key=value)\n$`)
 			require.Regexp(t, re, string(byts))
 
-		case variant == "fmp4" && stream == "audio-only":
+		case variant == "fmp4" && stream == "audio":
 			re := regexp.MustCompile(`^#EXTM3U\n` +
 				`#EXT-X-VERSION:10\n` +
 				`#EXT-X-TARGETDURATION:2\n` +
@@ -438,7 +551,7 @@ func TestMuxer(t *testing.T) {
 				`#EXT-X-PRELOAD-HINT:TYPE=PART,URI="(.*?_part3\.mp4\?key=value)"\n$`)
 			require.Regexp(t, re, string(byts))
 
-		case variant == "lowLatency" && stream == "video-only":
+		case variant == "lowLatency" && stream == "video":
 			re := regexp.MustCompile(`^#EXTM3U\n` +
 				`#EXT-X-VERSION:10\n` +
 				`#EXT-X-TARGETDURATION:4\n` +
@@ -472,7 +585,7 @@ func TestMuxer(t *testing.T) {
 				`#EXT-X-PRELOAD-HINT:TYPE=PART,URI="(.*?_part2\.mp4\?key=value)"\n$`)
 			require.Regexp(t, re, string(byts))
 
-		case variant == "lowLatency" && stream == "audio-only":
+		case variant == "lowLatency" && stream == "audio":
 			re := regexp.MustCompile(`^#EXTM3U\n` +
 				`#EXT-X-VERSION:10\n` +
 				`#EXT-X-TARGETDURATION:2\n` +
@@ -509,8 +622,8 @@ func TestMuxer(t *testing.T) {
 		}
 	}
 
-	checkRenditionPlaylist := func(t *testing.T, m *Muxer, variant string) {
-		byts, h, err := doRequest(m, "audio_stream.m3u8?key=value")
+	checkPlaylist2 := func(t *testing.T, m *Muxer, variant string) {
+		byts, h, err := doRequest(m, "audio2_stream.m3u8?key=value")
 		require.NoError(t, err)
 		require.Equal(t, "application/vnd.apple.mpegurl", h.Get("Content-Type"))
 		require.Equal(t, "no-cache", h.Get("Cache-Control"))
@@ -574,18 +687,26 @@ func TestMuxer(t *testing.T) {
 	} {
 		for _, stream := range []string{
 			"video+audio",
-			"video-only",
-			"audio-only",
+			"video",
+			"audio",
+			"video+multiaudio",
+			"multiaudio",
 		} {
+			if variant == "mpegts" && (stream == "video+multiaudio" || stream == "multiaudio") {
+				continue
+			}
+
 			t.Run(variant+"_"+stream, func(t *testing.T) {
 				m := createMuxer(t, variant, stream)
 				defer m.Close()
 
 				checkMultivariantPlaylist(t, m, variant, stream)
-				checkMainMediaPlaylist(t, m, variant, stream)
+				checkPlaylist1(t, m, variant, stream)
 
-				if stream == "video+audio" && (variant == "fmp4" || variant == "lowLatency") {
-					checkRenditionPlaylist(t, m, variant)
+				if variant == "fmp4" || variant == "lowLatency" {
+					if stream == "video+audio" {
+						checkPlaylist2(t, m, variant)
+					}
 				}
 			})
 		}
@@ -597,9 +718,9 @@ func TestMuxerCloseBeforeData(t *testing.T) {
 		Variant:            MuxerVariantFMP4,
 		SegmentCount:       3,
 		SegmentMinDuration: 1 * time.Second,
-		VideoTrack: &Track{
+		Tracks: []*Track{{
 			Codec: &codecs.AV1{},
-		},
+		}},
 	}
 
 	err := m.Start()
@@ -623,14 +744,14 @@ func TestMuxerMaxSegmentSize(t *testing.T) {
 		SegmentCount:       3,
 		SegmentMinDuration: 1 * time.Second,
 		SegmentMaxSize:     1,
-		VideoTrack:         testVideoTrack,
+		Tracks:             []*Track{testVideoTrack},
 	}
 
 	err := m.Start()
 	require.NoError(t, err)
 	defer m.Close()
 
-	err = m.WriteH264(testTime, 2*time.Second, [][]byte{
+	err = m.WriteH264(testVideoTrack, testTime, 2*time.Second, [][]byte{
 		testSPS,
 		{5}, // IDR
 	})
@@ -642,21 +763,21 @@ func TestMuxerDoubleRead(t *testing.T) {
 		Variant:            MuxerVariantMPEGTS,
 		SegmentCount:       3,
 		SegmentMinDuration: 1 * time.Second,
-		VideoTrack:         testVideoTrack,
+		Tracks:             []*Track{testVideoTrack},
 	}
 
 	err := m.Start()
 	require.NoError(t, err)
 	defer m.Close()
 
-	err = m.WriteH264(testTime, 0, [][]byte{
+	err = m.WriteH264(testVideoTrack, testTime, 0, [][]byte{
 		testSPS,
 		{5}, // IDR
 		{1},
 	})
 	require.NoError(t, err)
 
-	err = m.WriteH264(testTime, 2*time.Second, [][]byte{
+	err = m.WriteH264(testVideoTrack, testTime, 2*time.Second, [][]byte{
 		{5}, // IDR
 		{2},
 	})
@@ -705,27 +826,27 @@ func TestMuxerSaveToDisk(t *testing.T) {
 				Variant:            v,
 				SegmentCount:       3,
 				SegmentMinDuration: 1 * time.Second,
-				VideoTrack:         testVideoTrack,
+				Tracks:             []*Track{testVideoTrack},
 				Directory:          dir,
 			}
 
 			err = m.Start()
 			require.NoError(t, err)
 
-			err = m.WriteH264(testTime, 0, [][]byte{
+			err = m.WriteH264(testVideoTrack, testTime, 0, [][]byte{
 				testSPS,
 				{5}, // IDR
 				{1},
 			})
 			require.NoError(t, err)
 
-			err = m.WriteH264(testTime, 2*time.Second, [][]byte{
+			err = m.WriteH264(testVideoTrack, testTime, 2*time.Second, [][]byte{
 				{5}, // IDR
 				{2},
 			})
 			require.NoError(t, err)
 
-			err = m.WriteH264(testTime, 3*time.Second, [][]byte{
+			err = m.WriteH264(testVideoTrack, testTime, 3*time.Second, [][]byte{
 				{5}, // IDR
 				{2},
 			})
@@ -735,7 +856,7 @@ func TestMuxerSaveToDisk(t *testing.T) {
 			if ca == "mpegts" {
 				u = "main_stream.m3u8"
 			} else {
-				u = "video_stream.m3u8"
+				u = "video1_stream.m3u8"
 			}
 
 			byts, _, err := doRequest(m, u)
@@ -796,27 +917,27 @@ func TestMuxerDynamicParams(t *testing.T) {
 		Variant:            MuxerVariantFMP4,
 		SegmentCount:       3,
 		SegmentMinDuration: 1 * time.Second,
-		VideoTrack:         testVideoTrack,
+		Tracks:             []*Track{testVideoTrack},
 	}
 
 	err := m.Start()
 	require.NoError(t, err)
 	defer m.Close()
 
-	err = m.WriteH264(testTime, 0, [][]byte{
+	err = m.WriteH264(testVideoTrack, testTime, 0, [][]byte{
 		testSPS,
 		{5}, // IDR
 		{1},
 	})
 	require.NoError(t, err)
 
-	err = m.WriteH264(testTime, 1*time.Second, [][]byte{
+	err = m.WriteH264(testVideoTrack, testTime, 1*time.Second, [][]byte{
 		{5}, // IDR
 		{2},
 	})
 	require.NoError(t, err)
 
-	err = m.WriteH264(testTime, 2*time.Second, [][]byte{
+	err = m.WriteH264(testVideoTrack, testTime, 2*time.Second, [][]byte{
 		{5}, // IDR
 		{2},
 	})
@@ -830,9 +951,9 @@ func TestMuxerDynamicParams(t *testing.T) {
 		"\n"+
 		"#EXT-X-STREAM-INF:BANDWIDTH=1144,AVERAGE-BANDWIDTH=1028,"+
 		"CODECS=\"avc1.42c028\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
-		"video_stream.m3u8\n", string(bu))
+		"video1_stream.m3u8\n", string(bu))
 
-	byts, _, err := doRequest(m, "video_stream.m3u8")
+	byts, _, err := doRequest(m, "video1_stream.m3u8")
 	require.NoError(t, err)
 	re := regexp.MustCompile(`^#EXTM3U\n` +
 		`#EXT-X-VERSION:10\n` +
@@ -866,14 +987,14 @@ func TestMuxerDynamicParams(t *testing.T) {
 		0xcb,
 	}
 
-	err = m.WriteH264(testTime, 3*time.Second, [][]byte{
+	err = m.WriteH264(testVideoTrack, testTime, 3*time.Second, [][]byte{
 		testSPS2,
 		{0x65, 0x88, 0x84, 0x00, 0x33, 0xff}, // IDR
 		{2},
 	})
 	require.NoError(t, err)
 
-	err = m.WriteH264(testTime, 5*time.Second, [][]byte{
+	err = m.WriteH264(testVideoTrack, testTime, 5*time.Second, [][]byte{
 		{0x65, 0x88, 0x84, 0x00, 0x33, 0xff}, // IDR
 	})
 	require.NoError(t, err)
@@ -886,9 +1007,9 @@ func TestMuxerDynamicParams(t *testing.T) {
 		"\n"+
 		"#EXT-X-STREAM-INF:BANDWIDTH=912,AVERAGE-BANDWIDTH=752,"+
 		"CODECS=\"avc1.64001f\",RESOLUTION=1280x720,FRAME-RATE=30.000\n"+
-		"video_stream.m3u8\n", string(bu))
+		"video1_stream.m3u8\n", string(bu))
 
-	byts, _, err = doRequest(m, "video_stream.m3u8")
+	byts, _, err = doRequest(m, "video1_stream.m3u8")
 	require.NoError(t, err)
 	re = regexp.MustCompile(`^#EXTM3U\n` +
 		`#EXT-X-VERSION:10\n` +
@@ -920,21 +1041,21 @@ func TestMuxerFMP4ZeroDuration(t *testing.T) {
 		Variant:            MuxerVariantFMP4,
 		SegmentCount:       3,
 		SegmentMinDuration: 1 * time.Second,
-		VideoTrack:         testVideoTrack,
+		Tracks:             []*Track{testVideoTrack},
 	}
 
 	err := m.Start()
 	require.NoError(t, err)
 	defer m.Close()
 
-	err = m.WriteH264(time.Now(), 0, [][]byte{
+	err = m.WriteH264(testVideoTrack, time.Now(), 0, [][]byte{
 		testSPS, // SPS
 		{8},     // PPS
 		{5},     // IDR
 	})
 	require.NoError(t, err)
 
-	err = m.WriteH264(time.Now(), 1*time.Nanosecond, [][]byte{
+	err = m.WriteH264(testVideoTrack, time.Now(), 1*time.Nanosecond, [][]byte{
 		testSPS, // SPS
 		{8},     // PPS
 		{5},     // IDR
@@ -947,65 +1068,64 @@ func TestMuxerFMP4NegativeTimestamp(t *testing.T) {
 		Variant:            MuxerVariantFMP4,
 		SegmentCount:       3,
 		SegmentMinDuration: 2 * time.Second,
-		VideoTrack:         testVideoTrack,
-		AudioTrack:         testAudioTrack,
+		Tracks:             []*Track{testVideoTrack, testAudioTrack},
 	}
 
 	err := m.Start()
 	require.NoError(t, err)
 	defer m.Close()
 
-	err = m.WriteMPEG4Audio(testTime, -9*time.Second, [][]byte{
+	err = m.WriteMPEG4Audio(testAudioTrack, testTime, -9*time.Second, [][]byte{
 		{1, 2, 3, 4},
 	})
 	require.NoError(t, err)
 
 	// this is skipped
-	err = m.WriteH264(testTime, -11*time.Second, [][]byte{
+	err = m.WriteH264(testVideoTrack, testTime, -11*time.Second, [][]byte{
 		testSPS,
 		{5}, // IDR
 		{1},
 	})
 	require.NoError(t, err)
 
-	err = m.WriteH264(testTime, -9*time.Second, [][]byte{
+	err = m.WriteH264(testVideoTrack, testTime, -9*time.Second, [][]byte{
 		testSPS,
 		{5}, // IDR
 		{1},
 	})
 	require.NoError(t, err)
 
-	err = m.WriteH264(testTime, -8*time.Second, [][]byte{
+	err = m.WriteH264(testVideoTrack, testTime, -8*time.Second, [][]byte{
 		{5}, // IDR
 		{2},
 	})
 	require.NoError(t, err)
 
 	// this is skipped
-	err = m.WriteMPEG4Audio(testTime, -11*time.Second, [][]byte{
+	err = m.WriteMPEG4Audio(testAudioTrack, testTime, -11*time.Second, [][]byte{
 		{1, 2, 3, 4},
 	})
 	require.NoError(t, err)
 
-	err = m.WriteMPEG4Audio(testTime, -8*time.Second, [][]byte{
+	err = m.WriteMPEG4Audio(testAudioTrack, testTime, -8*time.Second, [][]byte{
 		{5, 6, 7, 8},
 	})
 	require.NoError(t, err)
 
-	err = m.WriteMPEG4Audio(testTime, -7*time.Second, [][]byte{
+	err = m.WriteMPEG4Audio(testAudioTrack, testTime, -7*time.Second, [][]byte{
 		{9, 10, 11, 12},
 	})
 	require.NoError(t, err)
 
 	// switch segment
-	err = m.WriteH264(testTime, -7*time.Second, [][]byte{
+	err = m.WriteH264(testVideoTrack, testTime, -7*time.Second, [][]byte{
 		{5}, // IDR
 		{3},
 	})
 	require.NoError(t, err)
 
 	// switch segment
-	err = m.WriteH264(testTime, -5*time.Second, [][]byte{
+	err = m.WriteH264(testVideoTrack, testTime, -5*time.Second, [][]byte{
 		{5}, // IDR
 		{3},
 	})
@@ -1017,12 +1137,12 @@ func TestMuxerFMP4NegativeTimestamp(t *testing.T) {
 		"#EXT-X-VERSION:9\n"+
 		"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 		"\n"+
-		`#EXT-X-MEDIA:TYPE="AUDIO",GROUP-ID="audio",URI="audio_stream.m3u8"`+"\n"+
+		`#EXT-X-MEDIA:TYPE="AUDIO",GROUP-ID="audio",NAME="audio2",AUTOSELECT=YES,DEFAULT=YES,URI="audio2_stream.m3u8"`+"\n"+
 		"\n"+
 		`#EXT-X-STREAM-INF:BANDWIDTH=644,AVERAGE-BANDWIDTH=550,CODECS="avc1.42c028,mp4a.40.2",RESOLUTION=1920x1080,FRAME-RATE=30.000,AUDIO="audio"`+"\n"+
-		"video_stream.m3u8\n", string(bu))
+		"video1_stream.m3u8\n", string(bu))
 
-	byts, _, err := doRequest(m, "video_stream.m3u8")
+	byts, _, err := doRequest(m, "video1_stream.m3u8")
 	require.NoError(t, err)
 	re := regexp.MustCompile(`^#EXTM3U\n` +
 		`#EXT-X-VERSION:10\n` +
@@ -1075,7 +1195,7 @@ func TestMuxerFMP4NegativeTimestamp(t *testing.T) {
 		}}, parts)
 	}()
 
-	byts, _, err = doRequest(m, "audio_stream.m3u8")
+	byts, _, err = doRequest(m, "audio2_stream.m3u8")
 	require.NoError(t, err)
 	re = regexp.MustCompile(`^#EXTM3U\n` +
 		`#EXT-X-VERSION:10\n` +
@@ -1125,14 +1245,14 @@ func TestMuxerFMP4SequenceNumber(t *testing.T) {
 		Variant:            MuxerVariantLowLatency,
 		SegmentCount:       7,
 		SegmentMinDuration: 2 * time.Second,
-		VideoTrack:         testVideoTrack,
+		Tracks:             []*Track{testVideoTrack},
 	}
 
 	err := m.Start()
 	require.NoError(t, err)
 	defer m.Close()
 
-	err = m.WriteH264(testTime, 0, [][]byte{
+	err = m.WriteH264(testVideoTrack, testTime, 0, [][]byte{
 		testSPS,
 		{5}, // IDR
 		{1},
@@ -1140,13 +1260,13 @@ func TestMuxerFMP4SequenceNumber(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < 3; i++ {
-		err = m.WriteH264(testTime, (1+time.Duration(i))*time.Second, [][]byte{
+		err = m.WriteH264(testVideoTrack, testTime, (1+time.Duration(i))*time.Second, [][]byte{
 			{1}, // non IDR
 		})
 		require.NoError(t, err)
 	}
 
-	err = m.WriteH264(testTime, 4*time.Second, [][]byte{
+	err = m.WriteH264(testVideoTrack, testTime, 4*time.Second, [][]byte{
 		{5}, // IDR
 	})
 	require.NoError(t, err)
@@ -1159,9 +1279,9 @@ func TestMuxerFMP4SequenceNumber(t *testing.T) {
 		"\n"+
 		"#EXT-X-STREAM-INF:BANDWIDTH=964,AVERAGE-BANDWIDTH=964,"+
 		"CODECS=\"avc1.42c028\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
-		"video_stream.m3u8\n", string(byts))
+		"video1_stream.m3u8\n", string(byts))
 
-	byts, _, err = doRequest(m, "video_stream.m3u8")
+	byts, _, err = doRequest(m, "video1_stream.m3u8")
 	require.NoError(t, err)
 	re := regexp.MustCompile(`^#EXTM3U\n` +
 		`#EXT-X-VERSION:10\n` +
@@ -1227,7 +1347,7 @@ func TestMuxerInvalidFolder(t *testing.T) {
 				Variant:            v,
 				SegmentCount:       7,
 				SegmentMinDuration: 1 * time.Second,
-				VideoTrack:         testVideoTrack,
+				Tracks:             []*Track{testVideoTrack},
 				Directory:          "/nonexisting",
 			}
 
@@ -1236,7 +1356,7 @@ func TestMuxerInvalidFolder(t *testing.T) {
 			defer m.Close()
 
 			for i := 0; i < 2; i++ {
-				err := m.WriteH264(testTime, time.Duration(i)*time.Second, [][]byte{
+				err := m.WriteH264(testVideoTrack, testTime, time.Duration(i)*time.Second, [][]byte{
 					testSPS, // SPS
 					{8},     // PPS
 					{5},     // IDR
@@ -1257,7 +1377,7 @@ func TestMuxerExpiredSegment(t *testing.T) {
 		Variant:            MuxerVariantLowLatency,
 		SegmentCount:       7,
 		SegmentMinDuration: 1 * time.Second,
-		VideoTrack:         testVideoTrack,
+		Tracks:             []*Track{testVideoTrack},
 	}
 
 	err := m.Start()
@@ -1265,7 +1385,7 @@ func TestMuxerExpiredSegment(t *testing.T) {
 	defer m.Close()
 
 	for i := 0; i < 2; i++ {
-		err := m.WriteH264(testTime, time.Duration(i)*time.Second, [][]byte{
+		err := m.WriteH264(testVideoTrack, testTime, time.Duration(i)*time.Second, [][]byte{
 			testSPS, // SPS
 			{8},     // PPS
 			{5},     // IDR
@@ -1281,7 +1401,7 @@ func TestMuxerExpiredSegment(t *testing.T) {
 		"\n"+
 		"#EXT-X-STREAM-INF:BANDWIDTH=1144,AVERAGE-BANDWIDTH=1144,"+
 		"CODECS=\"avc1.42c028\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
-		"video_stream.m3u8\n", string(byts))
+		"video1_stream.m3u8\n", string(byts))
 
 	v := url.Values{}
 	v.Set("_HLS_msn", "1")
@@ -1289,7 +1409,7 @@ func TestMuxerExpiredSegment(t *testing.T) {
 
 	r := &http.Request{
 		URL: &url.URL{
-			Path:     "video_stream.m3u8",
+			Path:     "video1_stream.m3u8",
 			RawQuery: v.Encode(),
 		},
 	}
@@ -1307,7 +1427,7 @@ func TestMuxerPreloadHint(t *testing.T) {
 		Variant:            MuxerVariantLowLatency,
 		SegmentCount:       7,
 		SegmentMinDuration: 1 * time.Second,
-		VideoTrack:         testVideoTrack,
+		Tracks:             []*Track{testVideoTrack},
 	}
 
 	err := m.Start()
@@ -1315,7 +1435,7 @@ func TestMuxerPreloadHint(t *testing.T) {
 	defer m.Close()
 
 	for i := 0; i < 2; i++ {
-		err := m.WriteH264(testTime, time.Duration(i)*time.Second, [][]byte{
+		err := m.WriteH264(testVideoTrack, testTime, time.Duration(i)*time.Second, [][]byte{
 			testSPS, // SPS
 			{8},     // PPS
 			{5},     // IDR
@@ -1331,9 +1451,9 @@ func TestMuxerPreloadHint(t *testing.T) {
 		"\n"+
 		"#EXT-X-STREAM-INF:BANDWIDTH=1144,AVERAGE-BANDWIDTH=1144,"+
 		"CODECS=\"avc1.42c028\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
-		"video_stream.m3u8\n", string(byts))
+		"video1_stream.m3u8\n", string(byts))
 
-	byts, _, err = doRequest(m, "video_stream.m3u8")
+	byts, _, err = doRequest(m, "video1_stream.m3u8")
 	require.NoError(t, err)
 
 	re := regexp.MustCompile(`^#EXTM3U\n` +
@@ -1383,7 +1503,7 @@ func TestMuxerPreloadHint(t *testing.T) {
 	case <-time.After(500 * time.Millisecond):
 	}
 
-	err = m.WriteH264(testTime, 3*time.Second, [][]byte{
+	err = m.WriteH264(testVideoTrack, testTime, 3*time.Second, [][]byte{
 		{5}, // IDR
 	})
 	require.NoError(t, err)
