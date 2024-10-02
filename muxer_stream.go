@@ -159,7 +159,7 @@ func (s *muxerStream) populateMultivariantPlaylist(
 		r := &playlist.MultivariantRendition{
 			Type:    playlist.MultivariantRenditionTypeAudio,
 			GroupID: "audio",
-			URI:     uri,
+			URI:     &uri,
 		}
 		pl.Renditions = append(pl.Renditions, r)
 	}

@@ -35,6 +35,7 @@ var casesMedia = []struct {
 			"#EXT-X-PROGRAM-DATE-TIME:2014-08-25T00:00:00Z\n" +
 			"#EXTINF:2.00000,\n" +
 			"seg1.mp4\n" +
+			"#EXT-X-DISCONTINUITY\n" +
 			"#EXT-X-PROGRAM-DATE-TIME:2014-08-25T00:00:00Z\n" +
 			"#EXT-X-BITRATE:14213213\n" +
 			"#EXT-X-PART:DURATION=1.50000,URI=\"part1.mp4\",INDEPENDENT=YES\n" +
@@ -60,6 +61,7 @@ var casesMedia = []struct {
 			"#EXT-X-PROGRAM-DATE-TIME:2014-08-25T00:00:00Z\n" +
 			"#EXTINF:2.00000,\n" +
 			"seg1.mp4\n" +
+			"#EXT-X-DISCONTINUITY\n" +
 			"#EXT-X-PROGRAM-DATE-TIME:2014-08-25T00:00:00Z\n" +
 			"#EXT-X-BITRATE:14213213\n" +
 			"#EXT-X-PART:DURATION=1.50000,URI=\"part1.mp4\",INDEPENDENT=YES\n" +
@@ -101,10 +103,11 @@ var casesMedia = []struct {
 					URI:      "seg1.mp4",
 				},
 				{
-					DateTime: timePtr(time.Date(2014, 8, 25, 0, 0, 0, 0, time.UTC)),
-					Bitrate:  intPtr(14213213),
-					Duration: 3 * time.Second,
-					URI:      "seg2.mp4",
+					DateTime:      timePtr(time.Date(2014, 8, 25, 0, 0, 0, 0, time.UTC)),
+					Bitrate:       intPtr(14213213),
+					Duration:      3 * time.Second,
+					URI:           "seg2.mp4",
+					Discontinuity: true,
 					Parts: []*MediaPart{
 						{
 							Duration:    1500 * time.Millisecond,
