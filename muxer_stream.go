@@ -1,7 +1,9 @@
 package gohlslib
 
 import (
+	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -42,6 +44,49 @@ func containsCodec(cs []string, c string) bool {
 	return false
 }
 
+func targetDuration(segments []muxerSegment) int {
+	ret := int(0)
+
+	// EXTINF, when rounded to the nearest integer, must be <= EXT-X-TARGETDURATION
+	for _, sog := range segments {
+		v := int(math.Round(sog.getDuration().Seconds()))
+		if v > ret {
+			ret = v
+		}
+	}
+
+	return ret
+}
+
+func partTargetDuration(
+	segments []muxerSegment,
+	nextSegmentParts []*muxerPart,
+) time.Duration {
+	var ret time.Duration
+
+	for _, seg := range segments {
+		seg, ok := seg.(*muxerSegmentFMP4)
+		if !ok {
+			continue
+		}
+
+		for _, part := range seg.parts {
+			if part.getDuration() > ret {
+				ret = part.getDuration()
+			}
+		}
+	}
+
+	for _, part := range nextSegmentParts {
+		if part.getDuration() > ret {
+			ret = part.getDuration()
+		}
+	}
+
+	// round to milliseconds to minimize changes
+	return time.Millisecond * time.Duration(math.Ceil(float64(ret)/float64(time.Millisecond)))
+}
+
 type generateMediaPlaylistFunc func(
 	isDeltaUpdate bool,
 	rawQuery string,
@@ -63,6 +108,8 @@ type muxerStream struct {
 	nextSegment            muxerSegment
 	nextPart               *muxerPart // low-latency only
 	initFilePresent        bool       // fmp4 only
+	targetDuration         int
+	partTargetDuration     time.Duration
 }
 
 func (s *muxerStream) initialize() {
@@ -343,7 +390,7 @@ func (s *muxerStream) generateMediaPlaylistMPEGTS(
 	pl := &playlist.Media{
 		Version:        3,
 		AllowCache:     boolPtr(false),
-		TargetDuration: targetDuration(s.segments),
+		TargetDuration: s.targetDuration,
 		MediaSequence:  s.muxer.segmentDeleteCount,
 	}
 
@@ -380,8 +427,7 @@ func (s *muxerStream) generateMediaPlaylistFMP4(
 	}
 
 	if s.muxer.Variant == MuxerVariantLowLatency {
-		partTarget := partTargetDuration(s.muxer.streams)
-		partHoldBack := (partTarget * 25) / 10
+		partHoldBack := (s.partTargetDuration * 25) / 10
 
 		pl.ServerControl = &playlist.MediaServerControl{
 			CanBlockReload: true,
@@ -390,7 +436,7 @@ func (s *muxerStream) generateMediaPlaylistFMP4(
 		}
 
 		pl.PartInf = &playlist.MediaPartInf{
-			PartTarget: partTarget,
+			PartTarget: s.partTargetDuration,
 		}
 	}
 
@@ -619,6 +665,19 @@ func (s *muxerStream) rotateParts(nextDTS time.Duration, createNew bool) error {
 		}
 	}
 
+	// while segment target duration can be increased indefinitely,
+	// part target duration cannot, since
+	// "The duration of a Partial Segment MUST be at least 85% of the Part Target Duration"
+	// so it's better to reset it every time.
+	partTargetDuration := partTargetDuration(s.segments, part.segment.parts)
+	if s.partTargetDuration == 0 {
+		s.partTargetDuration = partTargetDuration
+	} else if partTargetDuration != s.partTargetDuration {
+		s.muxer.OnEncodeError(fmt.Errorf("part duration changed from %v to %v - this will cause an error in iOS clients",
+			s.partTargetDuration, partTargetDuration))
+		s.partTargetDuration = partTargetDuration
+	}
+
 	if createNew {
 		nextPart := &muxerPart{
 			stream:   s,
@@ -708,6 +767,15 @@ func (s *muxerStream) rotateSegments(
 		if err != nil {
 			return err
 		}
+	}
+
+	targetDuration := targetDuration(s.segments)
+	if s.targetDuration == 0 {
+		s.targetDuration = targetDuration
+	} else if targetDuration > s.targetDuration {
+		s.muxer.OnEncodeError(fmt.Errorf("segment duration changed from %ds to %ds - this will cause an error in iOS clients",
+			s.targetDuration, targetDuration))
+		s.targetDuration = targetDuration
 	}
 
 	// create next segment

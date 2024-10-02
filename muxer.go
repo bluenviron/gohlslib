@@ -5,12 +5,11 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"sync"
 	"time"
-
-	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
 
 	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
 	"github.com/bluenviron/gohlslib/v2/pkg/storage"
@@ -80,11 +79,8 @@ func fmp4TimeScale(c codecs.Codec) uint32 {
 	return 90000
 }
 
-type fmp4AugmentedSample struct {
-	fmp4.PartSample
-	dts time.Duration
-	ntp time.Time
-}
+// MuxerOnEncodeErrorFunc is the prototype of Muxer.OnEncodeError.
+type MuxerOnEncodeErrorFunc func(err error)
 
 // Muxer is a HLS muxer.
 type Muxer struct {
@@ -122,6 +118,12 @@ type Muxer struct {
 	Directory string
 
 	//
+	// callbacks (all optional)
+	//
+	// called when a non-fatal encode error occurs.
+	OnEncodeError MuxerOnEncodeErrorFunc
+
+	//
 	// private
 	//
 
@@ -156,6 +158,11 @@ func (m *Muxer) Start() error {
 	}
 	if m.SegmentMaxSize == 0 {
 		m.SegmentMaxSize = 50 * 1024 * 1024
+	}
+	if m.OnEncodeError == nil {
+		m.OnEncodeError = func(e error) {
+			log.Printf("%v", e)
+		}
 	}
 
 	if len(m.Tracks) == 0 {

@@ -1,7 +1,6 @@
 package gohlslib
 
 import (
-	"math"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -19,50 +18,6 @@ const (
 
 func boolPtr(v bool) *bool {
 	return &v
-}
-
-func targetDuration(segments []muxerSegment) int {
-	ret := int(0)
-
-	// EXTINF, when rounded to the nearest integer, must be <= EXT-X-TARGETDURATION
-	for _, sog := range segments {
-		v := int(math.Round(sog.getDuration().Seconds()))
-		if v > ret {
-			ret = v
-		}
-	}
-
-	return ret
-}
-
-func partTargetDuration(
-	streams []*muxerStream,
-) time.Duration {
-	var ret time.Duration
-
-	for _, stream := range streams {
-		for _, seg := range stream.segments {
-			seg, ok := seg.(*muxerSegmentFMP4)
-			if !ok {
-				continue
-			}
-
-			for _, part := range seg.parts {
-				if part.getDuration() > ret {
-					ret = part.getDuration()
-				}
-			}
-		}
-
-		for _, part := range stream.nextSegment.(*muxerSegmentFMP4).parts {
-			if part.getDuration() > ret {
-				ret = part.getDuration()
-			}
-		}
-	}
-
-	// round to milliseconds to avoid changes, that are illegal on iOS
-	return time.Millisecond * time.Duration(math.Ceil(float64(ret)/float64(time.Millisecond)))
 }
 
 func parseMSNPart(msn string, part string) (uint64, uint64, error) {
