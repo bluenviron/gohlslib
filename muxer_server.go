@@ -48,15 +48,15 @@ func partTargetDuration(
 			}
 
 			for _, part := range seg.parts {
-				if part.finalDuration > ret {
-					ret = part.finalDuration
+				if part.getDuration() > ret {
+					ret = part.getDuration()
 				}
 			}
 		}
 
 		for _, part := range stream.nextSegment.(*muxerSegmentFMP4).parts {
-			if part.finalDuration > ret {
-				ret = part.finalDuration
+			if part.getDuration() > ret {
+				ret = part.getDuration()
 			}
 		}
 	}

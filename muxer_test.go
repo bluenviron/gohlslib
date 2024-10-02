@@ -88,42 +88,53 @@ func doRequest(m *Muxer, pathAndQuery string) ([]byte, http.Header, error) {
 	return w.Bytes(), w.h, nil
 }
 
-func TestMuxerVideoAudio(t *testing.T) {
-	for _, ca := range []string{
-		"mpegts",
-		"fmp4",
-		"lowLatency",
-	} {
-		t.Run(ca, func(t *testing.T) {
-			var v MuxerVariant
-			switch ca {
-			case "mpegts":
-				v = MuxerVariantMPEGTS
+func TestMuxer(t *testing.T) {
+	createMuxer := func(t *testing.T, variant string, stream string) *Muxer {
+		var v MuxerVariant
+		var segmentCount int
 
-			case "fmp4":
-				v = MuxerVariantFMP4
+		switch variant {
+		case "mpegts":
+			v = MuxerVariantMPEGTS
+			segmentCount = 3
 
-			case "lowLatency":
-				v = MuxerVariantLowLatency
-			}
+		case "fmp4":
+			v = MuxerVariantFMP4
+			segmentCount = 3
 
-			m := &Muxer{
-				Variant: v,
-				SegmentCount: func() int {
-					if ca == "lowLatency" {
-						return 7
-					}
-					return 3
-				}(),
-				SegmentMinDuration: 1 * time.Second,
-				VideoTrack:         testVideoTrack,
-				AudioTrack:         testAudioTrack,
-			}
+		case "lowLatency":
+			v = MuxerVariantLowLatency
+			segmentCount = 7
+		}
 
-			err := m.Start()
-			require.NoError(t, err)
-			defer m.Close()
+		var videoTrack *Track
+		var audioTrack *Track
 
+		switch stream {
+		case "video+audio":
+			videoTrack = testVideoTrack
+			audioTrack = testAudioTrack
+
+		case "video-only":
+			videoTrack = testVideoTrack
+
+		case "audio-only":
+			audioTrack = testAudioTrack
+		}
+
+		m := &Muxer{
+			Variant:            v,
+			SegmentCount:       segmentCount,
+			SegmentMinDuration: 1 * time.Second,
+			VideoTrack:         videoTrack,
+			AudioTrack:         audioTrack,
+		}
+
+		err := m.Start()
+		require.NoError(t, err)
+
+		switch stream {
+		case "video+audio":
 			// access unit without IDR
 			d := 1 * time.Second
 			err = m.WriteH264(testTime.Add(d-1*time.Second), d, [][]byte{
@@ -179,177 +190,7 @@ func TestMuxerVideoAudio(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			byts, h, err := doRequest(m, "/index.m3u8?key=value")
-			require.NoError(t, err)
-			require.Equal(t, "application/vnd.apple.mpegurl", h.Get("Content-Type"))
-			require.Equal(t, "max-age=30", h.Get("Cache-Control"))
-
-			switch ca {
-			case "mpegts":
-				require.Equal(t, "#EXTM3U\n"+
-					"#EXT-X-VERSION:3\n"+
-					"#EXT-X-INDEPENDENT-SEGMENTS\n"+
-					"\n"+
-					"#EXT-X-STREAM-INF:BANDWIDTH=4512,AVERAGE-BANDWIDTH=3008,"+
-					"CODECS=\"avc1.42c028,mp4a.40.2\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
-					"main_stream.m3u8?key=value\n", string(byts))
-
-			case "fmp4":
-				require.Equal(t, "#EXTM3U\n"+
-					"#EXT-X-VERSION:9\n"+
-					"#EXT-X-INDEPENDENT-SEGMENTS\n"+
-					"\n"+
-					"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=558,"+
-					"CODECS=\"avc1.42c028,mp4a.40.2\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
-					"main_stream.m3u8?key=value\n", string(byts))
-
-			case "lowLatency":
-				require.Equal(t, "#EXTM3U\n"+
-					"#EXT-X-VERSION:9\n"+
-					"#EXT-X-INDEPENDENT-SEGMENTS\n"+
-					"\n"+
-					"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=705,"+
-					"CODECS=\"avc1.42c028,mp4a.40.2\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
-					"main_stream.m3u8?key=value\n", string(byts))
-			}
-
-			byts, h, err = doRequest(m, "main_stream.m3u8?key=value")
-			require.NoError(t, err)
-			require.Equal(t, "application/vnd.apple.mpegurl", h.Get("Content-Type"))
-			require.Equal(t, "no-cache", h.Get("Cache-Control"))
-
-			switch ca {
-			case "mpegts":
-				re := regexp.MustCompile(`^#EXTM3U\n` +
-					`#EXT-X-VERSION:3\n` +
-					`#EXT-X-ALLOW-CACHE:NO\n` +
-					`#EXT-X-TARGETDURATION:4\n` +
-					`#EXT-X-MEDIA-SEQUENCE:0\n` +
-					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
-					`#EXTINF:4.00000,\n` +
-					`(.*?_seg0\.ts\?key=value)\n` +
-					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
-					`#EXTINF:1.00000,\n` +
-					`(.*?_seg1\.ts\?key=value)\n$`)
-				require.Regexp(t, re, string(byts))
-				ma := re.FindStringSubmatch(string(byts))
-
-				_, h, err := doRequest(m, ma[2])
-				require.NoError(t, err)
-				require.Equal(t, "video/MP2T", h.Get("Content-Type"))
-				require.Equal(t, "max-age=3600", h.Get("Cache-Control"))
-
-			case "fmp4":
-				re := regexp.MustCompile(`^#EXTM3U\n` +
-					`#EXT-X-VERSION:10\n` +
-					`#EXT-X-TARGETDURATION:4\n` +
-					`#EXT-X-MEDIA-SEQUENCE:0\n` +
-					`#EXT-X-MAP:URI="(.*?_init.mp4\?key=value)"\n` +
-					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
-					`#EXTINF:4.00000,\n` +
-					`(.*?_seg0\.mp4\?key=value)\n` +
-					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
-					`#EXTINF:1.00000,\n` +
-					`(.*?_seg1\.mp4\?key=value)\n$`)
-				require.Regexp(t, re, string(byts))
-				ma := re.FindStringSubmatch(string(byts))
-
-				_, h, err := doRequest(m, ma[1])
-				require.NoError(t, err)
-				require.Equal(t, "video/mp4", h.Get("Content-Type"))
-				require.Equal(t, "max-age=30", h.Get("Cache-Control"))
-
-				_, h, err = doRequest(m, ma[3])
-				require.NoError(t, err)
-				require.Equal(t, "video/mp4", h.Get("Content-Type"))
-				require.Equal(t, "max-age=3600", h.Get("Cache-Control"))
-
-			case "lowLatency":
-				re := regexp.MustCompile(
-					`^#EXTM3U\n` +
-						`#EXT-X-VERSION:10\n` +
-						`#EXT-X-TARGETDURATION:4\n` +
-						`#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=5\.00000,CAN-SKIP-UNTIL=24\.00000\n` +
-						`#EXT-X-PART-INF:PART-TARGET=2\.00000\n` +
-						`#EXT-X-MEDIA-SEQUENCE:2\n` +
-						`#EXT-X-MAP:URI="(.*?_init\.mp4\?key=value)"\n` +
-						`#EXT-X-GAP\n` +
-						`#EXTINF:4.00000,\n` +
-						`gap.mp4\n` +
-						`#EXT-X-GAP\n` +
-						`#EXTINF:4.00000,\n` +
-						`gap.mp4\n` +
-						`#EXT-X-GAP\n` +
-						`#EXTINF:4.00000,\n` +
-						`gap.mp4\n` +
-						`#EXT-X-GAP\n` +
-						`#EXTINF:4.00000,\n` +
-						`gap.mp4\n` +
-						`#EXT-X-GAP\n` +
-						`#EXTINF:4.00000,\n` +
-						`gap.mp4\n` +
-						`#EXT-X-PROGRAM-DATE-TIME:2010-01-01T01:01:02Z\n` +
-						`#EXT-X-PART:DURATION=2.00000,URI="(.*?_part0\.mp4\?key=value)",INDEPENDENT=YES\n` +
-						`#EXT-X-PART:DURATION=2.00000,URI="(.*?_part1\.mp4\?key=value)"\n` +
-						`#EXTINF:4.00000,\n` +
-						`(.*?_seg7\.mp4\?key=value)\n` +
-						`#EXT-X-PROGRAM-DATE-TIME:2010-01-01T01:01:06Z\n` +
-						`#EXT-X-PART:DURATION=1.00000,URI="(.*?_part2\.mp4\?key=value)",INDEPENDENT=YES\n` +
-						`#EXTINF:1.00000,\n` +
-						`(.*?_seg8\.mp4\?key=value)\n` +
-						`#EXT-X-PRELOAD-HINT:TYPE=PART,URI="(.*?_part3\.mp4\?key=value)"\n$`)
-				require.Regexp(t, re, string(byts))
-				ma := re.FindStringSubmatch(string(byts))
-
-				_, h, err := doRequest(m, ma[4])
-				require.NoError(t, err)
-				require.Equal(t, "video/mp4", h.Get("Content-Type"))
-				require.Equal(t, "max-age=3600", h.Get("Cache-Control"))
-
-				recv := make(chan struct{})
-
-				go func() {
-					_, _, err2 := doRequest(m, ma[5])
-					require.NoError(t, err2)
-					close(recv)
-				}()
-
-				d = 9 * time.Second
-				err = m.WriteH264(testTime.Add(d-1*time.Second), d, [][]byte{
-					{1}, // non-IDR
-				})
-				require.NoError(t, err)
-
-				<-recv
-			}
-		})
-	}
-}
-
-func TestMuxerVideoOnly(t *testing.T) {
-	for _, ca := range []string{
-		"mpegts",
-		"fmp4",
-	} {
-		t.Run(ca, func(t *testing.T) {
-			var v MuxerVariant
-			if ca == "mpegts" {
-				v = MuxerVariantMPEGTS
-			} else {
-				v = MuxerVariantFMP4
-			}
-
-			m := &Muxer{
-				Variant:            v,
-				SegmentCount:       3,
-				SegmentMinDuration: 1 * time.Second,
-				VideoTrack:         testVideoTrack,
-			}
-
-			err := m.Start()
-			require.NoError(t, err)
-			defer m.Close()
-
+		case "video-only":
 			// access unit with IDR
 			d := 2 * time.Second
 			err = m.WriteH264(testTime.Add(d-2*time.Second), d, [][]byte{
@@ -373,99 +214,9 @@ func TestMuxerVideoOnly(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			byts, _, err := doRequest(m, "index.m3u8")
-			require.NoError(t, err)
-
-			if ca == "mpegts" {
-				require.Equal(t, "#EXTM3U\n"+
-					"#EXT-X-VERSION:3\n"+
-					"#EXT-X-INDEPENDENT-SEGMENTS\n"+
-					"\n"+
-					"#EXT-X-STREAM-INF:BANDWIDTH=4512,AVERAGE-BANDWIDTH=1804,"+
-					"CODECS=\"avc1.42c028\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
-					"main_stream.m3u8\n", string(byts))
-			} else {
-				require.Equal(t, "#EXTM3U\n"+
-					"#EXT-X-VERSION:9\n"+
-					"#EXT-X-INDEPENDENT-SEGMENTS\n"+
-					"\n"+
-					"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=403,"+
-					"CODECS=\"avc1.42c028\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
-					"main_stream.m3u8\n", string(byts))
-			}
-
-			byts, _, err = doRequest(m, "main_stream.m3u8")
-			require.NoError(t, err)
-
-			var re *regexp.Regexp
-			if ca == "mpegts" {
-				re = regexp.MustCompile(`^#EXTM3U\n` +
-					`#EXT-X-VERSION:3\n` +
-					`#EXT-X-ALLOW-CACHE:NO\n` +
-					`#EXT-X-TARGETDURATION:4\n` +
-					`#EXT-X-MEDIA-SEQUENCE:0\n` +
-					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
-					`#EXTINF:4.00000,\n` +
-					`(.*?_seg0\.ts)\n` +
-					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
-					`#EXTINF:1.00000,\n` +
-					`(.*?_seg1\.ts)\n$`)
-			} else {
-				re = regexp.MustCompile(`^#EXTM3U\n` +
-					`#EXT-X-VERSION:10\n` +
-					`#EXT-X-TARGETDURATION:4\n` +
-					`#EXT-X-MEDIA-SEQUENCE:0\n` +
-					`#EXT-X-MAP:URI="(.*?_init.mp4)"\n` +
-					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
-					`#EXTINF:4.00000,\n` +
-					`(.*?_seg0\.mp4)\n` +
-					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
-					`#EXTINF:1.00000,\n` +
-					`(.*?_seg1\.mp4)\n$`)
-			}
-			require.Regexp(t, re, string(byts))
-			ma := re.FindStringSubmatch(string(byts))
-
-			if ca == "mpegts" {
-				_, _, err := doRequest(m, ma[2])
-				require.NoError(t, err)
-			} else {
-				_, _, err := doRequest(m, ma[1])
-				require.NoError(t, err)
-
-				_, _, err = doRequest(m, ma[3])
-				require.NoError(t, err)
-			}
-		})
-	}
-}
-
-func TestMuxerAudioOnly(t *testing.T) {
-	for _, ca := range []string{
-		"mpegts",
-		"fmp4",
-	} {
-		t.Run(ca, func(t *testing.T) {
-			var v MuxerVariant
-			if ca == "mpegts" {
-				v = MuxerVariantMPEGTS
-			} else {
-				v = MuxerVariantFMP4
-			}
-
-			m := &Muxer{
-				Variant:            v,
-				SegmentCount:       3,
-				SegmentMinDuration: 1 * time.Second,
-				AudioTrack:         testAudioTrack,
-			}
-
-			err := m.Start()
-			require.NoError(t, err)
-			defer m.Close()
-
+		case "audio-only":
 			for i := 0; i < 100; i++ {
-				d := 1 * time.Second
+				d := time.Duration(i) * 4 * time.Millisecond
 				err = m.WriteMPEG4Audio(testTime.Add(d-1*time.Second), d, [][]byte{{
 					0x01, 0x02, 0x03, 0x04,
 				}})
@@ -483,66 +234,361 @@ func TestMuxerAudioOnly(t *testing.T) {
 				0x01, 0x02, 0x03, 0x04,
 			}})
 			require.NoError(t, err)
+		}
 
-			byts, _, err := doRequest(m, "index.m3u8")
-			require.NoError(t, err)
+		return m
+	}
 
-			if ca == "mpegts" {
-				require.Equal(t, "#EXTM3U\n"+
-					"#EXT-X-VERSION:3\n"+
-					"#EXT-X-INDEPENDENT-SEGMENTS\n"+
-					"\n"+
-					"#EXT-X-STREAM-INF:BANDWIDTH=451200,AVERAGE-BANDWIDTH=451200,CODECS=\"mp4a.40.2\"\n"+
-					"main_stream.m3u8\n", string(byts))
-			} else {
-				require.Equal(t, "#EXTM3U\n"+
-					"#EXT-X-VERSION:9\n"+
-					"#EXT-X-INDEPENDENT-SEGMENTS\n"+
-					"\n"+
-					"#EXT-X-STREAM-INF:BANDWIDTH=10368,AVERAGE-BANDWIDTH=5616,CODECS=\"mp4a.40.2\"\n"+
-					"main_stream.m3u8\n", string(byts))
-			}
+	checkMultivariantPlaylist := func(t *testing.T, m *Muxer, variant string, stream string) {
+		byts, h, err := doRequest(m, "/index.m3u8?key=value")
+		require.NoError(t, err)
+		require.Equal(t, "application/vnd.apple.mpegurl", h.Get("Content-Type"))
+		require.Equal(t, "max-age=30", h.Get("Cache-Control"))
 
-			byts, _, err = doRequest(m, "main_stream.m3u8")
-			require.NoError(t, err)
+		switch {
+		case variant == "mpegts" && stream == "video+audio":
+			require.Equal(t, "#EXTM3U\n"+
+				"#EXT-X-VERSION:3\n"+
+				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
+				"\n"+
+				"#EXT-X-STREAM-INF:BANDWIDTH=4512,AVERAGE-BANDWIDTH=3008,"+
+				"CODECS=\"avc1.42c028,mp4a.40.2\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
+				"main_stream.m3u8?key=value\n", string(byts))
 
-			var re *regexp.Regexp
-			if ca == "mpegts" {
-				re = regexp.MustCompile(`^#EXTM3U\n` +
-					`#EXT-X-VERSION:3\n` +
-					`#EXT-X-ALLOW-CACHE:NO\n` +
-					`#EXT-X-TARGETDURATION:1\n` +
-					`#EXT-X-MEDIA-SEQUENCE:0\n` +
-					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
-					`#EXTINF:1.00000,\n` +
-					`(.*?_seg0\.ts)\n$`)
-			} else {
-				re = regexp.MustCompile(`^#EXTM3U\n` +
-					`#EXT-X-VERSION:10\n` +
-					`#EXT-X-TARGETDURATION:1\n` +
-					`#EXT-X-MEDIA-SEQUENCE:0\n` +
-					`#EXT-X-MAP:URI="(.*?_init.mp4)"\n` +
-					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
-					`#EXTINF:1.00000,\n` +
-					`(.*?_seg0\.mp4)\n` +
-					`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
-					`#EXTINF:1.00000,\n` +
-					`(.*?_seg1\.mp4)\n$`)
-			}
+		case variant == "fmp4" && stream == "video+audio":
+			require.Equal(t, "#EXTM3U\n"+
+				"#EXT-X-VERSION:9\n"+
+				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
+				"\n"+
+				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",URI=\"audio_stream.m3u8?key=value\"\n"+
+				"\n"+
+				"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=436,CODECS=\"avc1.42c028,mp4a.40.2\","+
+				"RESOLUTION=1920x1080,FRAME-RATE=30.000,AUDIO=\"audio\"\n"+
+				"video_stream.m3u8?key=value\n", string(byts))
+
+		case variant == "lowLatency" && stream == "video+audio":
+			require.Equal(t, "#EXTM3U\n"+
+				"#EXT-X-VERSION:9\n"+
+				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
+				"\n"+
+				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",URI=\"audio_stream.m3u8?key=value\"\n"+
+				"\n"+
+				"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=584,CODECS=\"avc1.42c028,mp4a.40.2\","+
+				"RESOLUTION=1920x1080,FRAME-RATE=30.000,AUDIO=\"audio\"\n"+
+				"video_stream.m3u8?key=value\n", string(byts))
+
+		case variant == "mpegts" && stream == "video-only":
+			require.Equal(t, "#EXTM3U\n"+
+				"#EXT-X-VERSION:3\n"+
+				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
+				"\n"+
+				"#EXT-X-STREAM-INF:BANDWIDTH=4512,AVERAGE-BANDWIDTH=1804,"+
+				"CODECS=\"avc1.42c028\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
+				"main_stream.m3u8?key=value\n", string(byts))
+
+		case variant == "fmp4" && stream == "video-only":
+			require.Equal(t, "#EXTM3U\n"+
+				"#EXT-X-VERSION:9\n"+
+				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
+				"\n"+
+				"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=403,CODECS=\"avc1.42c028\","+
+				"RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
+				"video_stream.m3u8?key=value\n", string(byts))
+
+		case variant == "lowLatency" && stream == "video-only":
+			require.Equal(t, "#EXTM3U\n"+
+				"#EXT-X-VERSION:9\n"+
+				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
+				"\n"+
+				"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=403,CODECS=\"avc1.42c028\","+
+				"RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
+				"video_stream.m3u8?key=value\n", string(byts))
+
+		case variant == "mpegts" && stream == "audio-only":
+			require.Equal(t, "#EXTM3U\n"+
+				"#EXT-X-VERSION:3\n"+
+				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
+				"\n"+
+				"#EXT-X-STREAM-INF:BANDWIDTH=225600,AVERAGE-BANDWIDTH=225600,CODECS=\"mp4a.40.2\"\n"+
+				"main_stream.m3u8?key=value\n", string(byts))
+
+		case variant == "fmp4" && stream == "audio-only":
+			require.Equal(t, "#EXTM3U\n"+
+				"#EXT-X-VERSION:9\n"+
+				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
+				"\n"+
+				"#EXT-X-STREAM-INF:BANDWIDTH=5184,AVERAGE-BANDWIDTH=3744,CODECS=\"mp4a.40.2\"\n"+
+				"audio_stream.m3u8?key=value\n", string(byts))
+
+		case variant == "lowLatency" && stream == "audio-only":
+			require.Equal(t, "#EXTM3U\n"+
+				"#EXT-X-VERSION:9\n"+
+				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
+				"\n"+
+				"#EXT-X-STREAM-INF:BANDWIDTH=5568,AVERAGE-BANDWIDTH=4000,CODECS=\"mp4a.40.2\"\n"+
+				"audio_stream.m3u8?key=value\n", string(byts))
+		}
+	}
+
+	checkMainMediaPlaylist := func(t *testing.T, m *Muxer, variant string, stream string) {
+		var u string
+
+		switch {
+		case variant == "mpegts":
+			u = "main_stream.m3u8?key=value"
+
+		case stream == "audio-only":
+			u = "audio_stream.m3u8?key=value"
+
+		default:
+			u = "video_stream.m3u8?key=value"
+		}
+
+		byts, h, err := doRequest(m, u)
+		require.NoError(t, err)
+		require.Equal(t, "application/vnd.apple.mpegurl", h.Get("Content-Type"))
+		require.Equal(t, "no-cache", h.Get("Cache-Control"))
+
+		switch {
+		case variant == "mpegts" && (stream == "video+audio" || stream == "video-only"):
+			re := regexp.MustCompile(`^#EXTM3U\n` +
+				`#EXT-X-VERSION:3\n` +
+				`#EXT-X-ALLOW-CACHE:NO\n` +
+				`#EXT-X-TARGETDURATION:4\n` +
+				`#EXT-X-MEDIA-SEQUENCE:0\n` +
+				`#EXT-X-PROGRAM-DATE-TIME:.*?\n` +
+				`#EXTINF:4.00000,\n` +
+				`(.*?_seg0\.ts\?key=value)\n` +
+				`#EXT-X-PROGRAM-DATE-TIME:.*?\n` +
+				`#EXTINF:1.00000,\n` +
+				`(.*?_seg1\.ts\?key=value)\n$`)
 			require.Regexp(t, re, string(byts))
-			ma := re.FindStringSubmatch(string(byts))
 
-			if ca == "mpegts" {
-				_, _, err := doRequest(m, ma[2])
-				require.NoError(t, err)
-			} else {
-				_, _, err := doRequest(m, ma[1])
-				require.NoError(t, err)
+		case variant == "mpegts" && stream == "audio-only":
+			re := regexp.MustCompile(`^#EXTM3U\n` +
+				`#EXT-X-VERSION:3\n` +
+				`#EXT-X-ALLOW-CACHE:NO\n` +
+				`#EXT-X-TARGETDURATION:2\n` +
+				`#EXT-X-MEDIA-SEQUENCE:0\n` +
+				`#EXT-X-PROGRAM-DATE-TIME:.*?\n` +
+				`#EXTINF:2.00000,\n` +
+				`(.*?_seg0\.ts\?key=value)\n$`)
+			require.Regexp(t, re, string(byts))
 
-				_, _, err = doRequest(m, ma[3])
-				require.NoError(t, err)
-			}
-		})
+		case variant == "fmp4" && (stream == "video+audio" || stream == "video-only"):
+			re := regexp.MustCompile(`^#EXTM3U\n` +
+				`#EXT-X-VERSION:10\n` +
+				`#EXT-X-TARGETDURATION:4\n` +
+				`#EXT-X-MEDIA-SEQUENCE:0\n` +
+				`#EXT-X-MAP:URI="(.*?_init.mp4\?key=value)"\n` +
+				`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
+				`#EXTINF:4.00000,\n` +
+				`(.*?_seg0\.mp4\?key=value)\n` +
+				`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
+				`#EXTINF:1.00000,\n` +
+				`(.*?_seg1\.mp4\?key=value)\n$`)
+			require.Regexp(t, re, string(byts))
+
+		case variant == "fmp4" && stream == "audio-only":
+			re := regexp.MustCompile(`^#EXTM3U\n` +
+				`#EXT-X-VERSION:10\n` +
+				`#EXT-X-TARGETDURATION:2\n` +
+				`#EXT-X-MEDIA-SEQUENCE:0\n` +
+				`#EXT-X-MAP:URI="(.*?_init.mp4\?key=value)"\n` +
+				`#EXT-X-PROGRAM-DATE-TIME:.*?\n` +
+				`#EXTINF:2.00000,\n` +
+				`(.*?_seg0\.mp4\?key=value)\n` +
+				`#EXT-X-PROGRAM-DATE-TIME:.*?\n` +
+				`#EXTINF:1.00000,\n` +
+				`(.*?_seg1.mp4\?key=value)\n$`)
+			require.Regexp(t, re, string(byts))
+
+		case variant == "lowLatency" && stream == "video+audio":
+			re := regexp.MustCompile(`^#EXTM3U\n` +
+				`#EXT-X-VERSION:10\n` +
+				`#EXT-X-TARGETDURATION:4\n` +
+				`#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=5\.00000,CAN-SKIP-UNTIL=24\.00000\n` +
+				`#EXT-X-PART-INF:PART-TARGET=2\.00000\n` +
+				`#EXT-X-MEDIA-SEQUENCE:2\n` +
+				`#EXT-X-MAP:URI="(.*?_init\.mp4\?key=value)"\n` +
+				`#EXT-X-GAP\n` +
+				`#EXTINF:4.00000,\n` +
+				`gap.mp4\n` +
+				`#EXT-X-GAP\n` +
+				`#EXTINF:4.00000,\n` +
+				`gap.mp4\n` +
+				`#EXT-X-GAP\n` +
+				`#EXTINF:4.00000,\n` +
+				`gap.mp4\n` +
+				`#EXT-X-GAP\n` +
+				`#EXTINF:4.00000,\n` +
+				`gap.mp4\n` +
+				`#EXT-X-GAP\n` +
+				`#EXTINF:4.00000,\n` +
+				`gap.mp4\n` +
+				`#EXT-X-PROGRAM-DATE-TIME:2010-01-01T01:01:02Z\n` +
+				`#EXT-X-PART:DURATION=2.00000,URI="(.*?_part0\.mp4\?key=value)",INDEPENDENT=YES\n` +
+				`#EXT-X-PART:DURATION=2.00000,URI="(.*?_part1\.mp4\?key=value)"\n` +
+				`#EXTINF:4.00000,\n` +
+				`(.*?_seg7\.mp4\?key=value)\n` +
+				`#EXT-X-PROGRAM-DATE-TIME:2010-01-01T01:01:06Z\n` +
+				`#EXT-X-PART:DURATION=1.00000,URI="(.*?_part2\.mp4\?key=value)",INDEPENDENT=YES\n` +
+				`#EXTINF:1.00000,\n` +
+				`(.*?_seg8\.mp4\?key=value)\n` +
+				`#EXT-X-PRELOAD-HINT:TYPE=PART,URI="(.*?_part3\.mp4\?key=value)"\n$`)
+			require.Regexp(t, re, string(byts))
+
+		case variant == "lowLatency" && stream == "video-only":
+			re := regexp.MustCompile(`^#EXTM3U\n` +
+				`#EXT-X-VERSION:10\n` +
+				`#EXT-X-TARGETDURATION:4\n` +
+				`#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=10\.00000,CAN-SKIP-UNTIL=24\.00000\n` +
+				`#EXT-X-PART-INF:PART-TARGET=4\.00000\n` +
+				`#EXT-X-MEDIA-SEQUENCE:2\n` +
+				`#EXT-X-MAP:URI="(.*?_init\.mp4\?key=value)"\n` +
+				`#EXT-X-GAP\n` +
+				`#EXTINF:4.00000,\n` +
+				`gap.mp4\n` +
+				`#EXT-X-GAP\n` +
+				`#EXTINF:4.00000,\n` +
+				`gap.mp4\n` +
+				`#EXT-X-GAP\n` +
+				`#EXTINF:4.00000,\n` +
+				`gap.mp4\n` +
+				`#EXT-X-GAP\n` +
+				`#EXTINF:4.00000,\n` +
+				`gap.mp4\n` +
+				`#EXT-X-GAP\n` +
+				`#EXTINF:4.00000,\n` +
+				`gap.mp4\n` +
+				`#EXT-X-PROGRAM-DATE-TIME:.+?\n` +
+				`#EXT-X-PART:DURATION=4.00000,URI="(.*?_part0\.mp4\?key=value)",INDEPENDENT=YES\n` +
+				`#EXTINF:4.00000,\n` +
+				`(.*?_seg7\.mp4\?key=value)\n` +
+				`#EXT-X-PROGRAM-DATE-TIME:.+?\n` +
+				`#EXT-X-PART:DURATION=1.00000,URI="(.*?_part1\.mp4\?key=value)",INDEPENDENT=YES\n` +
+				`#EXTINF:1.00000,\n` +
+				`(.*?_seg8\.mp4\?key=value)\n` +
+				`#EXT-X-PRELOAD-HINT:TYPE=PART,URI="(.*?_part2\.mp4\?key=value)"\n$`)
+			require.Regexp(t, re, string(byts))
+
+		case variant == "lowLatency" && stream == "audio-only":
+			re := regexp.MustCompile(`^#EXTM3U\n` +
+				`#EXT-X-VERSION:10\n` +
+				`#EXT-X-TARGETDURATION:2\n` +
+				`#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=4\.50000,CAN-SKIP-UNTIL=12\.00000\n` +
+				`#EXT-X-PART-INF:PART-TARGET=1\.80000\n` +
+				`#EXT-X-MEDIA-SEQUENCE:2\n` +
+				`#EXT-X-MAP:URI="(.*?_init\.mp4\?key=value)"\n` +
+				`#EXT-X-GAP\n` +
+				`#EXTINF:2.00000,\n` +
+				`gap.mp4\n` +
+				`#EXT-X-GAP\n` +
+				`#EXTINF:2.00000,\n` +
+				`gap.mp4\n` +
+				`#EXT-X-GAP\n` +
+				`#EXTINF:2.00000,\n` +
+				`gap.mp4\n` +
+				`#EXT-X-GAP\n` +
+				`#EXTINF:2.00000,\n` +
+				`gap.mp4\n` +
+				`#EXT-X-GAP\n` +
+				`#EXTINF:2.00000,\n` +
+				`gap.mp4\n` +
+				`#EXT-X-PROGRAM-DATE-TIME:.+?\n` +
+				`#EXT-X-PART:DURATION=0\.20000,URI="(.*?_part0\.mp4\?key=value)",INDEPENDENT=YES\n` +
+				`#EXT-X-PART:DURATION=1\.80000,URI="(.*?_part1\.mp4\?key=value)",INDEPENDENT=YES\n` +
+				`#EXTINF:2.00000,\n` +
+				`(.*?_seg7\.mp4\?key=value)\n` +
+				`#EXT-X-PROGRAM-DATE-TIME:.+?\n` +
+				`#EXT-X-PART:DURATION=1.00000,URI="(.*?_part2\.mp4\?key=value)",INDEPENDENT=YES\n` +
+				`#EXTINF:1.00000,\n` +
+				`(.*?_seg8\.mp4\?key=value)\n` +
+				`#EXT-X-PRELOAD-HINT:TYPE=PART,URI="(.*?_part3\.mp4\?key=value)"\n$`)
+			require.Regexp(t, re, string(byts))
+		}
+	}
+
+	checkRenditionPlaylist := func(t *testing.T, m *Muxer, variant string) {
+		byts, h, err := doRequest(m, "audio_stream.m3u8?key=value")
+		require.NoError(t, err)
+		require.Equal(t, "application/vnd.apple.mpegurl", h.Get("Content-Type"))
+		require.Equal(t, "no-cache", h.Get("Cache-Control"))
+
+		switch {
+		case variant == "fmp4":
+			re := regexp.MustCompile(`^#EXTM3U\n` +
+				`#EXT-X-VERSION:10\n` +
+				`#EXT-X-TARGETDURATION:4\n` +
+				`#EXT-X-MEDIA-SEQUENCE:0\n` +
+				`#EXT-X-MAP:URI="(.*?_init.mp4\?key=value)"\n` +
+				`#EXT-X-PROGRAM-DATE-TIME:.*?\n` +
+				`#EXTINF:4.00000,\n` +
+				`(.*?_seg0\.mp4\?key=value)\n` +
+				`#EXT-X-PROGRAM-DATE-TIME:.*?\n` +
+				`#EXTINF:1.00000,\n` +
+				`(.*?_seg1.mp4\?key=value)\n$`)
+			require.Regexp(t, re, string(byts))
+
+		case variant == "lowLatency":
+			re := regexp.MustCompile(`^#EXTM3U\n` +
+				`#EXT-X-VERSION:10\n` +
+				`#EXT-X-TARGETDURATION:4\n` +
+				`#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=5\.00000,CAN-SKIP-UNTIL=24\.00000\n` +
+				`#EXT-X-PART-INF:PART-TARGET=2\.00000\n` +
+				`#EXT-X-MEDIA-SEQUENCE:2\n` +
+				`#EXT-X-MAP:URI="(.*?_init\.mp4\?key=value)"\n` +
+				`#EXT-X-GAP\n` +
+				`#EXTINF:4.00000,\n` +
+				`gap.mp4\n` +
+				`#EXT-X-GAP\n` +
+				`#EXTINF:4.00000,\n` +
+				`gap.mp4\n` +
+				`#EXT-X-GAP\n` +
+				`#EXTINF:4.00000,\n` +
+				`gap.mp4\n` +
+				`#EXT-X-GAP\n` +
+				`#EXTINF:4.00000,\n` +
+				`gap.mp4\n` +
+				`#EXT-X-GAP\n` +
+				`#EXTINF:4.00000,\n` +
+				`gap.mp4\n` +
+				`#EXT-X-PROGRAM-DATE-TIME:.+?\n` +
+				`#EXT-X-PART:DURATION=2\.00000,URI="(.*?_part0\.mp4\?key=value)"\n` +
+				`#EXT-X-PART:DURATION=2\.00000,URI="(.*?_part1\.mp4\?key=value)",INDEPENDENT=YES\n` +
+				`#EXTINF:4.00000,\n` +
+				`(.*?_seg7\.mp4\?key=value)\n` +
+				`#EXT-X-PROGRAM-DATE-TIME:.+?\n` +
+				`#EXT-X-PART:DURATION=1.00000,URI="(.*?_part2\.mp4\?key=value)"\n` +
+				`#EXTINF:1.00000,\n` +
+				`(.*?_seg8\.mp4\?key=value)\n` +
+				`#EXT-X-PRELOAD-HINT:TYPE=PART,URI="(.*?_part3\.mp4\?key=value)"\n$`)
+			require.Regexp(t, re, string(byts))
+		}
+	}
+
+	for _, variant := range []string{
+		"mpegts",
+		"fmp4",
+		"lowLatency",
+	} {
+		for _, stream := range []string{
+			"video+audio",
+			"video-only",
+			"audio-only",
+		} {
+			t.Run(variant+"_"+stream, func(t *testing.T) {
+				m := createMuxer(t, variant, stream)
+				defer m.Close()
+
+				checkMultivariantPlaylist(t, m, variant, stream)
+				checkMainMediaPlaylist(t, m, variant, stream)
+
+				if stream == "video+audio" && (variant == "fmp4" || variant == "lowLatency") {
+					checkRenditionPlaylist(t, m, variant)
+				}
+			})
+		}
 	}
 }
 
@@ -685,7 +731,14 @@ func TestMuxerSaveToDisk(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			byts, _, err := doRequest(m, "main_stream.m3u8")
+			var u string
+			if ca == "mpegts" {
+				u = "main_stream.m3u8"
+			} else {
+				u = "video_stream.m3u8"
+			}
+
+			byts, _, err := doRequest(m, u)
 			require.NoError(t, err)
 
 			var re *regexp.Regexp
@@ -777,9 +830,9 @@ func TestMuxerDynamicParams(t *testing.T) {
 		"\n"+
 		"#EXT-X-STREAM-INF:BANDWIDTH=1144,AVERAGE-BANDWIDTH=1028,"+
 		"CODECS=\"avc1.42c028\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
-		"main_stream.m3u8\n", string(bu))
+		"video_stream.m3u8\n", string(bu))
 
-	byts, _, err := doRequest(m, "main_stream.m3u8")
+	byts, _, err := doRequest(m, "video_stream.m3u8")
 	require.NoError(t, err)
 	re := regexp.MustCompile(`^#EXTM3U\n` +
 		`#EXT-X-VERSION:10\n` +
@@ -833,9 +886,9 @@ func TestMuxerDynamicParams(t *testing.T) {
 		"\n"+
 		"#EXT-X-STREAM-INF:BANDWIDTH=912,AVERAGE-BANDWIDTH=752,"+
 		"CODECS=\"avc1.64001f\",RESOLUTION=1280x720,FRAME-RATE=30.000\n"+
-		"main_stream.m3u8\n", string(bu))
+		"video_stream.m3u8\n", string(bu))
 
-	byts, _, err = doRequest(m, "main_stream.m3u8")
+	byts, _, err = doRequest(m, "video_stream.m3u8")
 	require.NoError(t, err)
 	re = regexp.MustCompile(`^#EXTM3U\n` +
 		`#EXT-X-VERSION:10\n` +
@@ -964,11 +1017,12 @@ func TestMuxerFMP4NegativeTimestamp(t *testing.T) {
 		"#EXT-X-VERSION:9\n"+
 		"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 		"\n"+
-		"#EXT-X-STREAM-INF:BANDWIDTH=996,AVERAGE-BANDWIDTH=726,"+
-		"CODECS=\"avc1.42c028,mp4a.40.2\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
-		"main_stream.m3u8\n", string(bu))
+		`#EXT-X-MEDIA:TYPE="AUDIO",GROUP-ID="audio",URI="audio_stream.m3u8"`+"\n"+
+		"\n"+
+		`#EXT-X-STREAM-INF:BANDWIDTH=644,AVERAGE-BANDWIDTH=550,CODECS="avc1.42c028,mp4a.40.2",RESOLUTION=1920x1080,FRAME-RATE=30.000,AUDIO="audio"`+"\n"+
+		"video_stream.m3u8\n", string(bu))
 
-	byts, _, err := doRequest(m, "main_stream.m3u8")
+	byts, _, err := doRequest(m, "video_stream.m3u8")
 	require.NoError(t, err)
 	re := regexp.MustCompile(`^#EXTM3U\n` +
 		`#EXT-X-VERSION:10\n` +
@@ -987,51 +1041,83 @@ func TestMuxerFMP4NegativeTimestamp(t *testing.T) {
 	bu, _, err = doRequest(m, ma[3])
 	require.NoError(t, err)
 
-	var parts fmp4.Parts
-	err = parts.Unmarshal(bu)
+	func() {
+		var parts fmp4.Parts
+		err = parts.Unmarshal(bu)
+		require.NoError(t, err)
+
+		require.Equal(t, fmp4.Parts{{
+			Tracks: []*fmp4.PartTrack{
+				{
+					ID:       1,
+					BaseTime: 90000,
+					Samples: []*fmp4.PartSample{
+						{
+							Duration: 90000,
+							Payload: []byte{
+								0x00, 0x00, 0x00, 0x19, 0x67, 0x42, 0xc0, 0x28,
+								0xd9, 0x00, 0x78, 0x02, 0x27, 0xe5, 0x84, 0x00,
+								0x00, 0x03, 0x00, 0x04, 0x00, 0x00, 0x03, 0x00,
+								0xf0, 0x3c, 0x60, 0xc9, 0x20, 0x00, 0x00, 0x00,
+								0x01, 0x05, 0x00, 0x00, 0x00, 0x01, 0x01,
+							},
+						},
+						{
+							Duration: 90000,
+							Payload: []byte{
+								0x00, 0x00, 0x00, 0x01, 0x05, 0x00, 0x00, 0x00,
+								0x01, 0x02,
+							},
+						},
+					},
+				},
+			},
+		}}, parts)
+	}()
+
+	byts, _, err = doRequest(m, "audio_stream.m3u8")
+	require.NoError(t, err)
+	re = regexp.MustCompile(`^#EXTM3U\n` +
+		`#EXT-X-VERSION:10\n` +
+		`#EXT-X-TARGETDURATION:2\n` +
+		`#EXT-X-MEDIA-SEQUENCE:0\n` +
+		`#EXT-X-MAP:URI="(.*?_init.mp4)"\n` +
+		`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
+		`#EXTINF:2.00000,\n` +
+		`(.*?_seg0\.mp4)\n` +
+		`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
+		`#EXTINF:2.00000,\n` +
+		`(.*?_seg1\.mp4)\n$`)
+	require.Regexp(t, re, string(byts))
+	ma = re.FindStringSubmatch(string(byts))
+
+	bu, _, err = doRequest(m, ma[3])
 	require.NoError(t, err)
 
-	require.Equal(t, fmp4.Parts{{
-		Tracks: []*fmp4.PartTrack{
-			{
-				ID:       1,
-				BaseTime: 90000,
-				Samples: []*fmp4.PartSample{
-					{
-						Duration: 90000,
-						Payload: []byte{
-							0x00, 0x00, 0x00, 0x19, 0x67, 0x42, 0xc0, 0x28,
-							0xd9, 0x00, 0x78, 0x02, 0x27, 0xe5, 0x84, 0x00,
-							0x00, 0x03, 0x00, 0x04, 0x00, 0x00, 0x03, 0x00,
-							0xf0, 0x3c, 0x60, 0xc9, 0x20, 0x00, 0x00, 0x00,
-							0x01, 0x05, 0x00, 0x00, 0x00, 0x01, 0x01,
+	func() {
+		var parts fmp4.Parts
+		err = parts.Unmarshal(bu)
+		require.NoError(t, err)
+
+		require.Equal(t, fmp4.Parts{{
+			Tracks: []*fmp4.PartTrack{
+				{
+					ID:       1,
+					BaseTime: 44100,
+					Samples: []*fmp4.PartSample{
+						{
+							Duration: 44100,
+							Payload:  []byte{1, 2, 3, 4},
 						},
-					},
-					{
-						Duration: 90000,
-						Payload: []byte{
-							0x00, 0x00, 0x00, 0x01, 0x05, 0x00, 0x00, 0x00,
-							0x01, 0x02,
+						{
+							Duration: 44100,
+							Payload:  []byte{5, 6, 7, 8},
 						},
 					},
 				},
 			},
-			{
-				ID:       2,
-				BaseTime: 44100,
-				Samples: []*fmp4.PartSample{
-					{
-						Duration: 44100,
-						Payload:  []byte{1, 2, 3, 4},
-					},
-					{
-						Duration: 44100,
-						Payload:  []byte{5, 6, 7, 8},
-					},
-				},
-			},
-		},
-	}}, parts)
+		}}, parts)
+	}()
 }
 
 func TestMuxerFMP4SequenceNumber(t *testing.T) {
@@ -1065,7 +1151,17 @@ func TestMuxerFMP4SequenceNumber(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	byts, _, err := doRequest(m, "main_stream.m3u8")
+	byts, _, err := doRequest(m, "index.m3u8")
+	require.NoError(t, err)
+	require.Equal(t, "#EXTM3U\n"+
+		"#EXT-X-VERSION:9\n"+
+		"#EXT-X-INDEPENDENT-SEGMENTS\n"+
+		"\n"+
+		"#EXT-X-STREAM-INF:BANDWIDTH=964,AVERAGE-BANDWIDTH=964,"+
+		"CODECS=\"avc1.42c028\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
+		"video_stream.m3u8\n", string(byts))
+
+	byts, _, err = doRequest(m, "video_stream.m3u8")
 	require.NoError(t, err)
 	re := regexp.MustCompile(`^#EXTM3U\n` +
 		`#EXT-X-VERSION:10\n` +
@@ -1177,13 +1273,23 @@ func TestMuxerExpiredSegment(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	byts, _, err := doRequest(m, "index.m3u8")
+	require.NoError(t, err)
+	require.Equal(t, "#EXTM3U\n"+
+		"#EXT-X-VERSION:9\n"+
+		"#EXT-X-INDEPENDENT-SEGMENTS\n"+
+		"\n"+
+		"#EXT-X-STREAM-INF:BANDWIDTH=1144,AVERAGE-BANDWIDTH=1144,"+
+		"CODECS=\"avc1.42c028\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
+		"video_stream.m3u8\n", string(byts))
+
 	v := url.Values{}
 	v.Set("_HLS_msn", "1")
 	v.Set("_HLS_part", "0")
 
 	r := &http.Request{
 		URL: &url.URL{
-			Path:     "main_stream.m3u8",
+			Path:     "video_stream.m3u8",
 			RawQuery: v.Encode(),
 		},
 	}
@@ -1217,7 +1323,17 @@ func TestMuxerPreloadHint(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	byts, _, err := doRequest(m, "main_stream.m3u8")
+	byts, _, err := doRequest(m, "index.m3u8")
+	require.NoError(t, err)
+	require.Equal(t, "#EXTM3U\n"+
+		"#EXT-X-VERSION:9\n"+
+		"#EXT-X-INDEPENDENT-SEGMENTS\n"+
+		"\n"+
+		"#EXT-X-STREAM-INF:BANDWIDTH=1144,AVERAGE-BANDWIDTH=1144,"+
+		"CODECS=\"avc1.42c028\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
+		"video_stream.m3u8\n", string(byts))
+
+	byts, _, err = doRequest(m, "video_stream.m3u8")
 	require.NoError(t, err)
 
 	re := regexp.MustCompile(`^#EXTM3U\n` +

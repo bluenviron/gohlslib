@@ -18,7 +18,7 @@ type muxerPart struct {
 
 	path          string
 	isIndependent bool
-	finalDuration time.Duration
+	endDTS        time.Duration
 }
 
 func (p *muxerPart) initialize() {
@@ -29,8 +29,8 @@ func (p *muxerPart) reader() (io.ReadCloser, error) {
 	return p.storage.Reader()
 }
 
-func (p *muxerPart) computeDuration(endDTS time.Duration) time.Duration {
-	return endDTS - p.startDTS
+func (p *muxerPart) getDuration() time.Duration {
+	return p.endDTS - p.startDTS
 }
 
 func (p *muxerPart) finalize(endDTS time.Duration) error {
@@ -56,7 +56,7 @@ func (p *muxerPart) finalize(endDTS time.Duration) error {
 		return err
 	}
 
-	p.finalDuration = p.computeDuration(endDTS)
+	p.endDTS = endDTS
 
 	return nil
 }
@@ -67,7 +67,7 @@ func (p *muxerPart) writeSample(track *muxerTrack, sample *fmp4AugmentedSample) 
 		track.fmp4StartDTS = sample.dts
 	}
 
-	if track.isLeading && !sample.IsNonSyncSample {
+	if (track.isLeading || len(track.stream.tracks) == 1) && !sample.IsNonSyncSample {
 		p.isIndependent = true
 	}
 
