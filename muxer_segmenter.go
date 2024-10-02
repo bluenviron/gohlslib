@@ -51,6 +51,12 @@ func findCompatiblePartDuration(
 	return i
 }
 
+type fmp4AugmentedSample struct {
+	fmp4.PartSample
+	dts time.Duration
+	ntp time.Time
+}
+
 type muxerSegmenter struct {
 	muxer *Muxer // TODO: remove
 
