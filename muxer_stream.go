@@ -423,7 +423,7 @@ func (s *muxerStream) generateMediaPlaylistFMP4(
 					}
 
 					plse.Parts = append(plse.Parts, &playlist.MediaPart{
-						Duration:    part.finalDuration,
+						Duration:    part.getDuration(),
 						URI:         u,
 						Independent: part.isIndependent,
 					})
@@ -449,7 +449,7 @@ func (s *muxerStream) generateMediaPlaylistFMP4(
 			}
 
 			pl.Parts = append(pl.Parts, &playlist.MediaPart{
-				Duration:    part.finalDuration,
+				Duration:    part.getDuration(),
 				URI:         u,
 				Independent: part.isIndependent,
 			})
