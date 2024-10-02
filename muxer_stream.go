@@ -177,7 +177,7 @@ func (s *muxerStream) populateMultivariantPlaylist(
 			GroupID:    "audio",
 			Name:       s.id,
 			Autoselect: true,
-			URI:        &uri,
+			Default:    s.isDefaultRendition,
 		}
 
 		// draft-pantos-hls-rfc8216bis:

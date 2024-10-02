@@ -267,7 +267,7 @@ func (m *Muxer) Start() error {
 				id = "audio" + strconv.FormatInt(int64(i+1), 10)
 			}
 
-			isRendition := !track.isLeading || !isVideo(track.Codec)
+			isRendition := !track.isLeading || (!isVideo(track.Codec) && len(m.Tracks) > 1)
 
 			var isDefaultRendition bool
 			if isRendition && !defaultRenditionChosen {
