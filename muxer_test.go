@@ -107,27 +107,25 @@ func TestMuxer(t *testing.T) {
 			segmentCount = 7
 		}
 
-		var videoTrack *Track
-		var audioTrack *Track
+		var tracks []*Track
 
 		switch stream {
 		case "video+audio":
-			videoTrack = testVideoTrack
-			audioTrack = testAudioTrack
+			tracks = append(tracks, testVideoTrack)
+			tracks = append(tracks, testAudioTrack)
 
 		case "video-only":
-			videoTrack = testVideoTrack
+			tracks = append(tracks, testVideoTrack)
 
 		case "audio-only":
-			audioTrack = testAudioTrack
+			tracks = append(tracks, testAudioTrack)
 		}
 
 		m := &Muxer{
 			Variant:            v,
 			SegmentCount:       segmentCount,
 			SegmentMinDuration: 1 * time.Second,
-			VideoTrack:         videoTrack,
-			AudioTrack:         audioTrack,
+			Tracks:             tracks,
 		}
 
 		err := m.Start()
@@ -217,7 +215,7 @@ func TestMuxer(t *testing.T) {
 		case "audio-only":
 			for i := 0; i < 100; i++ {
 				d := time.Duration(i) * 4 * time.Millisecond
-				err = m.WriteMPEG4Audio(testTime.Add(d-1*time.Second), d, [][]byte{{
+				err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second), d, [][]byte{{
 					0x01, 0x02, 0x03, 0x04,
 				}})
 				require.NoError(t, err)

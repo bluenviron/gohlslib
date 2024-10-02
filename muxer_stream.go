@@ -176,10 +176,19 @@ func (s *muxerStream) populateMultivariantPlaylist(
 			Type:       playlist.MultivariantRenditionTypeAudio,
 			GroupID:    "audio",
 			Name:       s.id,
-			Default:    s.isDefaultRendition,
 			Autoselect: true,
 			URI:        &uri,
 		}
+
+		// draft-pantos-hls-rfc8216bis:
+		// If the media type is VIDEO or AUDIO, a missing URI attribute
+		// indicates that the media data for this Rendition is included in the
+		// Media Playlist of any EXT-X-STREAM-INF tag referencing this EXT-
+		// X-MEDIA tag.
+		if !s.isLeading {
+			r.URI = &uri
+		}
+
 		pl.Renditions = append(pl.Renditions, r)
 	}
 
