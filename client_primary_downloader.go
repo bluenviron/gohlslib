@@ -222,8 +222,8 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 				return fmt.Errorf("audio playlist with id \"%s\" not found", leadingPlaylist.Audio)
 			}
 
-			if audioPlaylist.URI != "" {
-				u, err = clientAbsoluteURL(d.primaryPlaylistURL, audioPlaylist.URI)
+			if audioPlaylist.URI != nil {
+				u, err = clientAbsoluteURL(d.primaryPlaylistURL, *audioPlaylist.URI)
 				if err != nil {
 					return err
 				}

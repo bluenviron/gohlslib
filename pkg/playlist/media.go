@@ -42,57 +42,57 @@ const (
 
 // Media is a media playlist.
 type Media struct {
-	// #EXT-X-VERSION
+	// EXT-X-VERSION
 	// required
 	Version int
 
-	// #EXT-X-INDEPENDENT-SEGMENTS
+	// EXT-X-INDEPENDENT-SEGMENTS
 	IndependentSegments bool
 
-	// #EXT-X-START
+	// EXT-X-START
 	Start *MediaStart
 
-	// #EXT-X-ALLOWCACHE
+	// EXT-X-ALLOWCACHE
 	// removed since v7
 	AllowCache *bool
 
-	// #EXT-X-TARGETDURATION
+	// EXT-X-TARGETDURATION
 	// required
 	TargetDuration int
 
-	// #EXT-X-SERVER-CONTROL
+	// EXT-X-SERVER-CONTROL
 	ServerControl *MediaServerControl
 
-	// #EXT-X-PART-INF
+	// EXT-X-PART-INF
 	PartInf *MediaPartInf
 
-	// #EXT-X-MEDIA-SEQUENCE
+	// EXT-X-MEDIA-SEQUENCE
 	// required
 	MediaSequence int
 
-	// #EXT-X-DISCONTINUITY-SEQUENCE
+	// EXT-X-DISCONTINUITY-SEQUENCE
 	DiscontinuitySequence *int
 
-	// #EXT-X-PLAYLIST-TYPE
+	// EXT-X-PLAYLIST-TYPE
 	PlaylistType *MediaPlaylistType
 
-	// #EXT-X-MAP
+	// EXT-X-MAP
 	Map *MediaMap
 
-	// #EXT-X-SKIP
+	// EXT-X-SKIP
 	Skip *MediaSkip
 
 	// segments
 	// at least one is required
 	Segments []*MediaSegment
 
-	// #EXT-X-PART
+	// EXT-X-PART
 	Parts []*MediaPart
 
-	// #EXT-X-PRELOAD-HINT
+	// EXT-X-PRELOAD-HINT
 	PreloadHint *MediaPreloadHint
 
-	// #EXT-X-ENDLIST
+	// EXT-X-ENDLIST
 	Endlist bool
 }
 
@@ -233,6 +233,12 @@ func (m *Media) Unmarshal(buf []byte) error {
 				return err
 			}
 
+		case line == "#EXT-X-DISCONTINUITY":
+			curSegment.Discontinuity = true
+
+		case line == "#EXT-X-GAP":
+			curSegment.Gap = true
+
 		case strings.HasPrefix(line, "#EXT-X-PROGRAM-DATE-TIME:"):
 			line = line[len("#EXT-X-PROGRAM-DATE-TIME:"):]
 
@@ -243,9 +249,6 @@ func (m *Media) Unmarshal(buf []byte) error {
 			}
 
 			curSegment.DateTime = &tmp
-
-		case line == "#EXT-X-GAP":
-			curSegment.Gap = true
 
 		case strings.HasPrefix(line, "#EXT-X-BITRATE:"):
 			line = line[len("#EXT-X-BITRATE:"):]

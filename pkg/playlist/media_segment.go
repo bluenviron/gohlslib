@@ -10,29 +10,32 @@ import (
 
 // MediaSegment is a segment of a media playlist.
 type MediaSegment struct {
-	// #EXTINF
+	// EXTINF
 	// required
 	Duration time.Duration
 	Title    string
 
-	// segment URI.
+	// URI.
 	// required
 	URI string
 
-	// #EXT-X-PROGRAM-DATE-TIME
-	DateTime *time.Time // optional
+	// EXT-X-DISCONTINUITY
+	Discontinuity bool
 
-	// #EXT-X-GAP
-	Gap bool // optional
+	// EXT-X-GAP
+	Gap bool
 
-	// #EXT-X-BITRATE
+	// EXT-X-PROGRAM-DATE-TIME
+	DateTime *time.Time
+
+	// EXT-X-BITRATE
 	Bitrate *int
 
-	// #EXT-X-BYTERANGE
+	// EXT-X-BYTERANGE
 	ByteRangeLength *uint64
 	ByteRangeStart  *uint64
 
-	// #EXT-X-PART
+	// EXT-X-PART
 	Parts []*MediaPart
 }
 
@@ -50,12 +53,16 @@ func (s MediaSegment) validate() error {
 func (s MediaSegment) marshal() string {
 	ret := ""
 
-	if s.DateTime != nil {
-		ret += "#EXT-X-PROGRAM-DATE-TIME:" + s.DateTime.Format(timeRFC3339Millis) + "\n"
+	if s.Discontinuity {
+		ret += "#EXT-X-DISCONTINUITY\n"
 	}
 
 	if s.Gap {
 		ret += "#EXT-X-GAP\n"
+	}
+
+	if s.DateTime != nil {
+		ret += "#EXT-X-PROGRAM-DATE-TIME:" + s.DateTime.Format(timeRFC3339Millis) + "\n"
 	}
 
 	if s.Bitrate != nil {

@@ -10,21 +10,21 @@ import (
 
 // Multivariant is a multivariant playlist.
 type Multivariant struct {
-	// #EXT-X-VERSION
+	// EXT-X-VERSION
 	// required
 	Version int
 
-	// #EXT-X-INDEPENDENT-SEGMENTS
+	// EXT-X-INDEPENDENT-SEGMENTS
 	IndependentSegments bool
 
-	// #EXT-X-START
+	// EXT-X-START
 	Start *MultivariantStart
 
-	// #EXT-X-STREAM-INF
+	// EXT-X-STREAM-INF
 	// at least one is required
 	Variants []*MultivariantVariant
 
-	// #EXT-X-MEDIA
+	// EXT-X-MEDIA
 	Renditions []*MultivariantRendition
 }
 

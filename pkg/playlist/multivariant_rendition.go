@@ -27,14 +27,6 @@ type MultivariantRendition struct {
 	// required
 	GroupID string
 
-	// URI
-	// required for all types except CLOSED-CAPTIONS
-	URI string
-
-	// INSTREAM-ID
-	// required for CLOSED-CAPTIONS
-	InstreamID string
-
 	// NAME
 	// required
 	Name string
@@ -42,17 +34,26 @@ type MultivariantRendition struct {
 	// LANGUAGE
 	Language string
 
-	// DEFAULT
-	Default bool
-
 	// AUTOSELECT
 	Autoselect bool
 
+	// DEFAULT
+	Default bool
+
 	// FORCED
-	Forced *bool
+	Forced bool
 
 	// CHANNELS
-	Channels string
+	// for AUDIO only
+	Channels *string
+
+	// URI
+	// must not be present for CLOSED-CAPTIONS
+	URI *string
+
+	// INSTREAM-ID
+	// for CLOSED-CAPTIONS only
+	InStreamID *string
 }
 
 func (t *MultivariantRendition) unmarshal(v string) error {
@@ -89,17 +90,19 @@ func (t *MultivariantRendition) unmarshal(v string) error {
 			t.Autoselect = (val == "YES")
 
 		case "FORCED":
-			v := (val == "YES")
-			t.Forced = &v
+			t.Forced = (val == "YES")
 
 		case "CHANNELS":
-			t.Channels = val
+			v := val
+			t.Channels = &v
 
 		case "URI":
-			t.URI = val
+			v := val
+			t.URI = &v
 
 		case "INSTREAM-ID":
-			t.InstreamID = val
+			v := val
+			t.InStreamID = &v
 		}
 	}
 
@@ -117,12 +120,12 @@ func (t *MultivariantRendition) unmarshal(v string) error {
 	// type is SUBTITLES, but OPTIONAL if the media type is VIDEO or AUDIO.
 	switch t.Type {
 	case MultivariantRenditionTypeClosedCaptions:
-		if t.URI != "" {
+		if t.URI != nil {
 			return fmt.Errorf("URI is forbidden for type CLOSED-CAPTIONS")
 		}
 
 	case MultivariantRenditionTypeSubtitles:
-		if t.URI == "" {
+		if t.URI == nil {
 			return fmt.Errorf("URI is required for type SUBTITLES")
 		}
 
@@ -132,11 +135,17 @@ func (t *MultivariantRendition) unmarshal(v string) error {
 	// This attribute is REQUIRED if the TYPE attribute is CLOSED-CAPTIONS
 	// For all other TYPE values, the INSTREAM-ID MUST NOT be specified.
 	if t.Type == MultivariantRenditionTypeClosedCaptions {
-		if t.InstreamID == "" {
+		if t.InStreamID == nil {
 			return fmt.Errorf("missing INSTREAM-ID")
 		}
-	} else if t.InstreamID != "" {
-		return fmt.Errorf("INSTREAM-ID is forbidden with type %s", t.Type)
+	} else if t.InStreamID != nil {
+		return fmt.Errorf("INSTREAM-ID is forbidden for type %s", t.Type)
+	}
+
+	// The CHANNELS attribute MUST NOT be present unless the TYPE is
+	// AUDIO.
+	if t.Channels != nil && t.Type != MultivariantRenditionTypeAudio {
+		return fmt.Errorf("CHANNELS is forbidden for type %s", t.Type)
 	}
 
 	return nil
@@ -153,29 +162,28 @@ func (t MultivariantRendition) marshal() string {
 		ret += ",NAME=\"" + t.Name + "\""
 	}
 
-	if t.Default {
-		ret += ",DEFAULT=YES"
-	}
-
 	if t.Autoselect {
 		ret += ",AUTOSELECT=YES"
 	}
 
-	if t.Forced != nil {
-		ret += ",FORCED="
-		if *t.Forced {
-			ret += "YES"
-		} else {
-			ret += "NO"
-		}
+	if t.Default {
+		ret += ",DEFAULT=YES"
 	}
 
-	if t.Channels != "" {
-		ret += ",CHANNELS=\"" + t.Channels + "\""
+	if t.Forced {
+		ret += ",FORCED=YES"
 	}
 
-	if t.URI != "" {
-		ret += ",URI=\"" + t.URI + "\""
+	if t.Channels != nil {
+		ret += ",CHANNELS=\"" + *t.Channels + "\""
+	}
+
+	if t.URI != nil {
+		ret += ",URI=\"" + *t.URI + "\""
+	}
+
+	if t.InStreamID != nil {
+		ret += ",INSTREAM-ID=\"" + *t.InStreamID + "\""
 	}
 
 	ret += "\n"
