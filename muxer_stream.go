@@ -108,8 +108,6 @@ type muxerStream struct {
 	nextSegment            muxerSegment
 	nextPart               *muxerPart // low-latency only
 	initFilePresent        bool       // fmp4 only
-	targetDuration         int
-	partTargetDuration     time.Duration
 }
 
 func (s *muxerStream) initialize() {
@@ -390,7 +388,7 @@ func (s *muxerStream) generateMediaPlaylistMPEGTS(
 	pl := &playlist.Media{
 		Version:        3,
 		AllowCache:     boolPtr(false),
-		TargetDuration: s.targetDuration,
+		TargetDuration: s.muxer.targetDuration,
 		MediaSequence:  s.muxer.segmentDeleteCount,
 	}
 
@@ -416,18 +414,17 @@ func (s *muxerStream) generateMediaPlaylistFMP4(
 	isDeltaUpdate bool,
 	rawQuery string,
 ) ([]byte, error) {
-	targetDuration := targetDuration(s.segments)
-	skipBoundary := time.Duration(targetDuration) * 6 * time.Second
+	skipBoundary := time.Duration(s.muxer.targetDuration) * 6 * time.Second
 	rawQuery = filterOutHLSParams(rawQuery)
 
 	pl := &playlist.Media{
 		Version:        10,
-		TargetDuration: targetDuration,
+		TargetDuration: s.muxer.targetDuration,
 		MediaSequence:  s.muxer.segmentDeleteCount,
 	}
 
 	if s.muxer.Variant == MuxerVariantLowLatency {
-		partHoldBack := (s.partTargetDuration * 25) / 10
+		partHoldBack := (s.muxer.partTargetDuration * 25) / 10
 
 		pl.ServerControl = &playlist.MediaServerControl{
 			CanBlockReload: true,
@@ -436,7 +433,7 @@ func (s *muxerStream) generateMediaPlaylistFMP4(
 		}
 
 		pl.PartInf = &playlist.MediaPartInf{
-			PartTarget: s.partTargetDuration,
+			PartTarget: s.muxer.partTargetDuration,
 		}
 	}
 
@@ -669,13 +666,15 @@ func (s *muxerStream) rotateParts(nextDTS time.Duration, createNew bool) error {
 	// part target duration cannot, since
 	// "The duration of a Partial Segment MUST be at least 85% of the Part Target Duration"
 	// so it's better to reset it every time.
-	partTargetDuration := partTargetDuration(s.segments, part.segment.parts)
-	if s.partTargetDuration == 0 {
-		s.partTargetDuration = partTargetDuration
-	} else if partTargetDuration != s.partTargetDuration {
-		s.muxer.OnEncodeError(fmt.Errorf("part duration changed from %v to %v - this will cause an error in iOS clients",
-			s.partTargetDuration, partTargetDuration))
-		s.partTargetDuration = partTargetDuration
+	if s == s.muxer.streams[0] {
+		partTargetDuration := partTargetDuration(s.segments, part.segment.parts)
+		if s.muxer.partTargetDuration == 0 {
+			s.muxer.partTargetDuration = partTargetDuration
+		} else if partTargetDuration != s.muxer.partTargetDuration {
+			s.muxer.OnEncodeError(fmt.Errorf("part duration changed from %v to %v - this will cause an error in iOS clients",
+				s.muxer.partTargetDuration, partTargetDuration))
+			s.muxer.partTargetDuration = partTargetDuration
+		}
 	}
 
 	if createNew {
@@ -769,13 +768,15 @@ func (s *muxerStream) rotateSegments(
 		}
 	}
 
-	targetDuration := targetDuration(s.segments)
-	if s.targetDuration == 0 {
-		s.targetDuration = targetDuration
-	} else if targetDuration > s.targetDuration {
-		s.muxer.OnEncodeError(fmt.Errorf("segment duration changed from %ds to %ds - this will cause an error in iOS clients",
-			s.targetDuration, targetDuration))
-		s.targetDuration = targetDuration
+	if s == s.muxer.streams[0] {
+		targetDuration := targetDuration(s.segments)
+		if s.muxer.targetDuration == 0 {
+			s.muxer.targetDuration = targetDuration
+		} else if targetDuration > s.muxer.targetDuration {
+			s.muxer.OnEncodeError(fmt.Errorf("segment duration changed from %ds to %ds - this will cause an error in iOS clients",
+				s.muxer.targetDuration, targetDuration))
+			s.muxer.targetDuration = targetDuration
+		}
 	}
 
 	// create next segment
