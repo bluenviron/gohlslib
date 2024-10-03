@@ -140,6 +140,8 @@ type Muxer struct {
 	nextSegmentID      uint64
 	nextPartID         uint64 // low-latency only
 	segmentDeleteCount int
+	targetDuration     int
+	partTargetDuration time.Duration
 }
 
 // Start initializes the muxer.
