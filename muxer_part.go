@@ -46,7 +46,6 @@ func (p *muxerPart) finalize(endDTS time.Duration) error {
 				Samples:  track.fmp4Samples,
 			})
 
-			track.fmp4StartDTSFilled = false
 			track.fmp4Samples = nil
 		}
 	}
@@ -62,8 +61,7 @@ func (p *muxerPart) finalize(endDTS time.Duration) error {
 }
 
 func (p *muxerPart) writeSample(track *muxerTrack, sample *fmp4AugmentedSample) {
-	if !track.fmp4StartDTSFilled {
-		track.fmp4StartDTSFilled = true
+	if track.fmp4Samples == nil {
 		track.fmp4StartDTS = sample.dts
 	}
 
