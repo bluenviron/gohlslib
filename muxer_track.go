@@ -23,7 +23,6 @@ type muxerTrack struct {
 	fmp4TimeScale             uint32               // fmp4 only
 	fmp4NextSample            *fmp4AugmentedSample // fmp4 only
 	fmp4Samples               []*fmp4.PartSample   // fmp4 only
-	fmp4StartDTSFilled        bool                 // fmp4 only
 	fmp4StartDTS              time.Duration        // fmp4 only
 }
 
