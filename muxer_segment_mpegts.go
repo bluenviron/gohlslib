@@ -9,10 +9,6 @@ import (
 	"github.com/bluenviron/gohlslib/v2/pkg/storage"
 )
 
-func durationGoToMPEGTS(v time.Duration) int64 {
-	return int64(v.Seconds() * 90000)
-}
-
 type muxerSegmentMPEGTS struct {
 	segmentMaxSize uint64
 	prefix         string
@@ -86,8 +82,8 @@ func (s *muxerSegmentMPEGTS) finalize(endDTS time.Duration) error {
 
 func (s *muxerSegmentMPEGTS) writeH264(
 	track *muxerTrack,
-	pts time.Duration,
-	dts time.Duration,
+	pts int64,
+	dts int64,
 	idrPresent bool,
 	au [][]byte,
 ) error {
@@ -102,8 +98,8 @@ func (s *muxerSegmentMPEGTS) writeH264(
 
 	err := s.stream.mpegtsWriter.WriteH264(
 		track.mpegtsTrack,
-		durationGoToMPEGTS(pts),
-		durationGoToMPEGTS(dts),
+		multiplyAndDivide(pts, 90000, int64(track.ClockRate)),
+		multiplyAndDivide(dts, 90000, int64(track.ClockRate)),
 		idrPresent,
 		au,
 	)
@@ -111,14 +107,14 @@ func (s *muxerSegmentMPEGTS) writeH264(
 		return err
 	}
 
-	s.endDTS = dts
+	s.endDTS = timestampToDuration(dts, track.ClockRate)
 
 	return nil
 }
 
 func (s *muxerSegmentMPEGTS) writeMPEG4Audio(
 	track *muxerTrack,
-	pts time.Duration,
+	pts int64,
 	aus [][]byte,
 ) error {
 	size := uint64(0)
@@ -133,7 +129,7 @@ func (s *muxerSegmentMPEGTS) writeMPEG4Audio(
 
 	err := s.stream.mpegtsWriter.WriteMPEG4Audio(
 		track.mpegtsTrack,
-		durationGoToMPEGTS(pts),
+		multiplyAndDivide(pts, 90000, int64(track.ClockRate)),
 		aus,
 	)
 	if err != nil {
@@ -142,7 +138,7 @@ func (s *muxerSegmentMPEGTS) writeMPEG4Audio(
 
 	if track.isLeading {
 		s.audioAUCount++
-		s.endDTS = pts
+		s.endDTS = timestampToDuration(pts, track.ClockRate)
 	}
 
 	return nil

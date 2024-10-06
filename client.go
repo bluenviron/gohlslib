@@ -48,23 +48,23 @@ type ClientOnRequestFunc func(*http.Request)
 type ClientOnTracksFunc func([]*Track) error
 
 // ClientOnDataAV1Func is the prototype of the function passed to OnDataAV1().
-type ClientOnDataAV1Func func(pts time.Duration, tu [][]byte)
+type ClientOnDataAV1Func func(pts int64, tu [][]byte)
 
 // ClientOnDataVP9Func is the prototype of the function passed to OnDataVP9().
-type ClientOnDataVP9Func func(pts time.Duration, frame []byte)
+type ClientOnDataVP9Func func(pts int64, frame []byte)
 
 // ClientOnDataH26xFunc is the prototype of the function passed to OnDataH26x().
-type ClientOnDataH26xFunc func(pts time.Duration, dts time.Duration, au [][]byte)
+type ClientOnDataH26xFunc func(pts int64, dts int64, au [][]byte)
 
 // ClientOnDataMPEG4AudioFunc is the prototype of the function passed to OnDataMPEG4Audio().
-type ClientOnDataMPEG4AudioFunc func(pts time.Duration, aus [][]byte)
+type ClientOnDataMPEG4AudioFunc func(pts int64, aus [][]byte)
 
 // ClientOnDataOpusFunc is the prototype of the function passed to OnDataOpus().
-type ClientOnDataOpusFunc func(pts time.Duration, packets [][]byte)
+type ClientOnDataOpusFunc func(pts int64, packets [][]byte)
 
 type clientOnStreamTracksFunc func(ctx context.Context, isLeading bool, tracks []*Track) ([]*clientTrack, bool)
 
-type clientOnDataFunc func(pts time.Duration, dts time.Duration, data [][]byte)
+type clientOnDataFunc func(pts int64, dts int64, data [][]byte)
 
 func clientAbsoluteURL(base *url.URL, relative string) (*url.URL, error) {
 	u, err := url.Parse(relative)
@@ -186,35 +186,35 @@ func (c *Client) Wait() chan error {
 
 // OnDataAV1 sets a callback that is called when data from an AV1 track is received.
 func (c *Client) OnDataAV1(track *Track, cb ClientOnDataAV1Func) {
-	c.tracks[track].onData = func(pts time.Duration, _ time.Duration, data [][]byte) {
+	c.tracks[track].onData = func(pts int64, _ int64, data [][]byte) {
 		cb(pts, data)
 	}
 }
 
 // OnDataVP9 sets a callback that is called when data from a VP9 track is received.
 func (c *Client) OnDataVP9(track *Track, cb ClientOnDataVP9Func) {
-	c.tracks[track].onData = func(pts time.Duration, _ time.Duration, data [][]byte) {
+	c.tracks[track].onData = func(pts int64, _ int64, data [][]byte) {
 		cb(pts, data[0])
 	}
 }
 
 // OnDataH26x sets a callback that is called when data from an H26x track is received.
 func (c *Client) OnDataH26x(track *Track, cb ClientOnDataH26xFunc) {
-	c.tracks[track].onData = func(pts time.Duration, dts time.Duration, data [][]byte) {
+	c.tracks[track].onData = func(pts int64, dts int64, data [][]byte) {
 		cb(pts, dts, data)
 	}
 }
 
 // OnDataMPEG4Audio sets a callback that is called when data from a MPEG-4 Audio track is received.
 func (c *Client) OnDataMPEG4Audio(track *Track, cb ClientOnDataMPEG4AudioFunc) {
-	c.tracks[track].onData = func(pts time.Duration, _ time.Duration, data [][]byte) {
+	c.tracks[track].onData = func(pts int64, _ int64, data [][]byte) {
 		cb(pts, data)
 	}
 }
 
 // OnDataOpus sets a callback that is called when data from an Opus track is received.
 func (c *Client) OnDataOpus(track *Track, cb ClientOnDataOpusFunc) {
-	c.tracks[track].onData = func(pts time.Duration, _ time.Duration, data [][]byte) {
+	c.tracks[track].onData = func(pts int64, _ int64, data [][]byte) {
 		cb(pts, data)
 	}
 }
@@ -267,7 +267,7 @@ func (c *Client) setTracks(tracks []*Track) (map[*Track]*clientTrack, error) {
 	for _, track := range tracks {
 		c.tracks[track] = &clientTrack{
 			track:  track,
-			onData: func(_, _ time.Duration, _ [][]byte) {},
+			onData: func(_, _ int64, _ [][]byte) {},
 		}
 	}
 

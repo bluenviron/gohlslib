@@ -7,8 +7,8 @@ import (
 )
 
 type procEntryMPEGTS struct {
-	pts  time.Duration
-	dts  time.Duration
+	pts  int64
+	dts  int64
 	ntp  time.Time
 	data [][]byte
 }

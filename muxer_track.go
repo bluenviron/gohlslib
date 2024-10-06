@@ -1,8 +1,6 @@
 package gohlslib
 
 import (
-	"time"
-
 	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
 	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
 	"github.com/bluenviron/mediacommon/pkg/codecs/h265"
@@ -17,13 +15,12 @@ type muxerTrack struct {
 	isLeading bool
 
 	firstRandomAccessReceived bool
-	h264DTSExtractor          *h264.DTSExtractor
-	h265DTSExtractor          *h265.DTSExtractor
+	h264DTSExtractor          *h264.DTSExtractor2
+	h265DTSExtractor          *h265.DTSExtractor2
 	mpegtsTrack               *mpegts.Track        // mpegts only
-	fmp4TimeScale             uint32               // fmp4 only
 	fmp4NextSample            *fmp4AugmentedSample // fmp4 only
 	fmp4Samples               []*fmp4.PartSample   // fmp4 only
-	fmp4StartDTS              time.Duration        // fmp4 only
+	fmp4StartDTS              int64                // fmp4 only
 }
 
 func (t *muxerTrack) initialize() {
@@ -31,7 +28,5 @@ func (t *muxerTrack) initialize() {
 		t.mpegtsTrack = &mpegts.Track{
 			Codec: codecs.ToMPEGTS(t.Codec),
 		}
-	} else {
-		t.fmp4TimeScale = fmp4TimeScale(t.Codec)
 	}
 }

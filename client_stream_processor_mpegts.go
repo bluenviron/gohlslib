@@ -162,9 +162,11 @@ func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, firs
 	leadingTrackID := mpegtsPickLeadingTrack(p.reader.Tracks())
 
 	tracks := make([]*Track, len(p.reader.Tracks()))
+
 	for i, mpegtsTrack := range p.reader.Tracks() {
 		tracks[i] = &Track{
-			Codec: codecs.FromMPEGTS(mpegtsTrack.Codec),
+			Codec:     codecs.FromMPEGTS(mpegtsTrack.Codec),
+			ClockRate: 90000,
 		}
 	}
 
@@ -180,7 +182,7 @@ func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, firs
 
 	ntpAvailable := false
 	var ntpAbsolute time.Time
-	var ntpRelative time.Duration
+	var ntpRelative int64
 
 	for i, mpegtsTrack := range p.reader.Tracks() {
 		track := p.clientStreamTracks[i]
@@ -225,7 +227,9 @@ func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, firs
 
 			ntp := time.Time{}
 			if ntpAvailable {
-				ntp = ntpAbsolute.Add(dts - ntpRelative)
+				diff := dts - ntpRelative
+				diffDur := timestampToDuration(diff, 90000)
+				ntp = ntpAbsolute.Add(diffDur)
 			}
 
 			return trackProc.push(ctx, &procEntryMPEGTS{

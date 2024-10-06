@@ -648,7 +648,16 @@ func (s *muxerStream) rotateParts(nextDTS time.Duration, createNew bool) error {
 		s.muxer.server.pathHandlers[partPath] = func(w http.ResponseWriter, r *http.Request) {
 			s.muxer.mutex.Lock()
 
-			for !s.muxer.closed && s.muxer.nextPartID <= partID {
+			for {
+				if s.muxer.closed {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+
+				if s.muxer.nextPartID > partID {
+					break
+				}
+
 				s.muxer.cond.Wait()
 			}
 

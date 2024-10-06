@@ -331,7 +331,7 @@ func (m *Muxer) Close() {
 func (m *Muxer) WriteAV1(
 	track *Track,
 	ntp time.Time,
-	pts time.Duration,
+	pts int64,
 	tu [][]byte,
 ) error {
 	return m.segmenter.writeAV1(m.mtracksByTrack[track], ntp, pts, tu)
@@ -341,7 +341,7 @@ func (m *Muxer) WriteAV1(
 func (m *Muxer) WriteVP9(
 	track *Track,
 	ntp time.Time,
-	pts time.Duration,
+	pts int64,
 	frame []byte,
 ) error {
 	return m.segmenter.writeVP9(m.mtracksByTrack[track], ntp, pts, frame)
@@ -351,7 +351,7 @@ func (m *Muxer) WriteVP9(
 func (m *Muxer) WriteH265(
 	track *Track,
 	ntp time.Time,
-	pts time.Duration,
+	pts int64,
 	au [][]byte,
 ) error {
 	return m.segmenter.writeH265(m.mtracksByTrack[track], ntp, pts, au)
@@ -361,7 +361,7 @@ func (m *Muxer) WriteH265(
 func (m *Muxer) WriteH264(
 	track *Track,
 	ntp time.Time,
-	pts time.Duration,
+	pts int64,
 	au [][]byte,
 ) error {
 	return m.segmenter.writeH264(m.mtracksByTrack[track], ntp, pts, au)
@@ -371,7 +371,7 @@ func (m *Muxer) WriteH264(
 func (m *Muxer) WriteOpus(
 	track *Track,
 	ntp time.Time,
-	pts time.Duration,
+	pts int64,
 	packets [][]byte,
 ) error {
 	return m.segmenter.writeOpus(m.mtracksByTrack[track], ntp, pts, packets)
@@ -381,7 +381,7 @@ func (m *Muxer) WriteOpus(
 func (m *Muxer) WriteMPEG4Audio(
 	track *Track,
 	ntp time.Time,
-	pts time.Duration,
+	pts int64,
 	aus [][]byte,
 ) error {
 	return m.segmenter.writeMPEG4Audio(m.mtracksByTrack[track], ntp, pts, aus)

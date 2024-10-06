@@ -104,7 +104,15 @@ func (s *muxerServer) handleMultivariantPlaylist(w http.ResponseWriter, r *http.
 		s.muxer.mutex.Lock()
 		defer s.muxer.mutex.Unlock()
 
-		for !s.muxer.closed && !s.muxer.streams[0].hasContent() {
+		for {
+			if s.muxer.closed {
+				return nil
+			}
+
+			if s.muxer.streams[0].hasContent() {
+				break
+			}
+
 			s.muxer.cond.Wait()
 		}
 

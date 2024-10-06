@@ -42,7 +42,7 @@ func (p *muxerPart) finalize(endDTS time.Duration) error {
 		if track.fmp4Samples != nil {
 			part.Tracks = append(part.Tracks, &fmp4.PartTrack{
 				ID:       1 + i,
-				BaseTime: durationGoToMp4(track.fmp4StartDTS, track.fmp4TimeScale),
+				BaseTime: uint64(track.fmp4StartDTS),
 				Samples:  track.fmp4Samples,
 			})
 

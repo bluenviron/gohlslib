@@ -2,6 +2,7 @@ package main
 
 import (
 	_ "embed"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -20,6 +21,15 @@ import (
 //go:embed index.html
 var index []byte
 
+func findH264Track(r *mpegts.Reader) *mpegts.Track {
+	for _, track := range r.Tracks() {
+		if _, ok := track.Codec.(*mpegts.CodecH264); ok {
+			return track
+		}
+	}
+	return nil
+}
+
 // handleIndex wraps an HTTP handler and serves the home page
 func handleIndex(wrapped http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -36,7 +46,8 @@ func handleIndex(wrapped http.HandlerFunc) http.HandlerFunc {
 
 func main() {
 	videoTrack := &gohlslib.Track{
-		Codec: &codecs.H264{},
+		Codec:     &codecs.H264{},
+		ClockRate: 90000,
 	}
 
 	// create the HLS muxer
@@ -75,34 +86,28 @@ func main() {
 		panic(err)
 	}
 
-	var timeDec *mpegts.TimeDecoder
-
 	// find the H264 track
-	found := false
-	for _, track := range r.Tracks() {
-		if _, ok := track.Codec.(*mpegts.CodecH264); ok {
-			// setup a callback that is called once a H264 access unit is received
-			r.OnDataH264(track, func(rawPTS int64, _ int64, au [][]byte) error {
-				// decode the time
-				if timeDec == nil {
-					timeDec = mpegts.NewTimeDecoder(rawPTS)
-				}
-				pts := timeDec.Decode(rawPTS)
+	track := findH264Track(r)
+	if track == nil {
+		panic(fmt.Errorf("H264 track not found"))
+	}
 
-				// pass the access unit to the HLS muxer
-				log.Printf("visit http://localhost:8080 - encoding access unit with PTS = %v", pts)
-				mux.WriteH264(videoTrack, time.Now(), pts, au)
+	var timeDec *mpegts.TimeDecoder2
 
-				return nil
-			})
-			found = true
-			break
+	// setup a callback that is called when a H264 access unit is received
+	r.OnDataH264(track, func(rawPTS int64, _ int64, au [][]byte) error {
+		// decode the time
+		if timeDec == nil {
+			timeDec = mpegts.NewTimeDecoder2(rawPTS)
 		}
-	}
+		pts := timeDec.Decode(rawPTS)
 
-	if !found {
-		panic("H264 track not found")
-	}
+		// pass the access unit to the HLS muxer
+		log.Printf("visit http://localhost:8080 - encoding access unit with PTS = %v", pts)
+		mux.WriteH264(videoTrack, time.Now(), pts, au)
+
+		return nil
+	})
 
 	// read from the MPEG-TS stream
 	for {

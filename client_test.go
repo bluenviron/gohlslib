@@ -408,12 +408,20 @@ func TestClient(t *testing.T) {
 							pps = testPPS
 						}
 
+						var audioClockRate int
+						if format == "fmp4" {
+							audioClockRate = 44100
+						} else {
+							audioClockRate = 90000
+						}
+
 						require.Equal(t, []*Track{
 							{
 								Codec: &codecs.H264{
 									SPS: sps,
 									PPS: pps,
 								},
+								ClockRate: 90000,
 							},
 							{
 								Codec: &codecs.MPEG4Audio{
@@ -423,14 +431,15 @@ func TestClient(t *testing.T) {
 										ChannelCount: 2,
 									},
 								},
+								ClockRate: audioClockRate,
 							},
 						}, tracks)
 
-						c.OnDataH26x(tracks[0], func(pts time.Duration, dts time.Duration, au [][]byte) {
+						c.OnDataH26x(tracks[0], func(pts int64, dts int64, au [][]byte) {
 							switch videoCount {
 							case 0:
-								require.Equal(t, time.Duration(0), dts)
-								require.Equal(t, 2*time.Second, pts)
+								require.Equal(t, int64(0), dts)
+								require.Equal(t, int64(2*90000), pts)
 								require.Equal(t, [][]byte{
 									{7, 1, 2, 3},
 									{8},
@@ -441,16 +450,16 @@ func TestClient(t *testing.T) {
 								require.Equal(t, time.Date(2015, time.February, 5, 1, 2, 2, 0, time.UTC), ntp)
 
 							case 1:
-								require.Equal(t, 33333333*time.Nanosecond, dts)
-								require.Equal(t, 2*time.Second+33333333*time.Nanosecond, pts)
+								require.Equal(t, int64(3000), dts)
+								require.Equal(t, int64(2*90000+3000), pts)
 								require.Equal(t, [][]byte{{1, 4, 5, 6}}, au)
 								ntp, ok := c.AbsoluteTime(tracks[0])
 								require.Equal(t, true, ok)
 								require.Equal(t, time.Date(2015, time.February, 5, 1, 2, 2, 33333333, time.UTC), ntp)
 
 							case 2:
-								require.Equal(t, 66666666*time.Nanosecond, dts)
-								require.Equal(t, 66666666*time.Nanosecond, pts)
+								require.Equal(t, int64(6000), dts)
+								require.Equal(t, int64(6000), pts)
 								require.Equal(t, [][]byte{{4}}, au)
 								_, ok := c.AbsoluteTime(tracks[0])
 								require.Equal(t, false, ok)
@@ -459,17 +468,17 @@ func TestClient(t *testing.T) {
 							videoCount++
 						})
 
-						c.OnDataMPEG4Audio(tracks[1], func(pts time.Duration, aus [][]byte) {
+						c.OnDataMPEG4Audio(tracks[1], func(pts int64, aus [][]byte) {
 							switch audioCount {
 							case 0:
-								require.Equal(t, 0*time.Second, pts)
+								require.Equal(t, int64(0), pts)
 								require.Equal(t, [][]byte{{1, 2, 3, 4}}, aus)
 								ntp, ok := c.AbsoluteTime(tracks[1])
 								require.Equal(t, true, ok)
 								require.Equal(t, time.Date(2015, time.February, 5, 1, 2, 2, 0, time.UTC), ntp)
 
 							case 1:
-								require.Equal(t, 33333333*time.Nanosecond, pts)
+								require.Equal(t, int64(0.0333336*float64(tracks[1].ClockRate)), pts)
 								require.Equal(t, [][]byte{{5, 6, 7, 8}}, aus)
 								ntp, ok := c.AbsoluteTime(tracks[1])
 								require.Equal(t, true, ok)
@@ -516,6 +525,7 @@ func TestClientFMP4MultiRenditions(t *testing.T) {
 					"#EXT-X-INDEPENDENT-SEGMENTS\n" +
 					"#EXT-X-TARGETDURATION:2\n" +
 					"#EXT-X-MAP:URI=\"init_video.mp4\"\n" +
+					"#EXT-X-PROGRAM-DATE-TIME:2015-02-05T01:02:02Z\n" +
 					"#EXTINF:2,\n" +
 					"segment_video.mp4\n" +
 					"#EXT-X-ENDLIST\n"))
@@ -529,6 +539,7 @@ func TestClientFMP4MultiRenditions(t *testing.T) {
 					"#EXT-X-INDEPENDENT-SEGMENTS\n" +
 					"#EXT-X-TARGETDURATION:2\n" +
 					"#EXT-X-MAP:URI=\"init_audio.mp4\"\n" +
+					"#EXT-X-PROGRAM-DATE-TIME:2015-02-05T01:02:02Z\n" +
 					"#EXTINF:2,\n" +
 					"segment_audio.mp4\n" +
 					"#EXT-X-ENDLIST"))
@@ -589,7 +600,8 @@ func TestClientFMP4MultiRenditions(t *testing.T) {
 				err := mp4ToWriter(&fmp4.Part{
 					Tracks: []*fmp4.PartTrack{
 						{
-							ID: 1,
+							ID:       1,
+							BaseTime: 3000,
 							Samples: []*fmp4.PartSample{{
 								Duration: 44100,
 								Payload:  []byte{1, 2, 3, 4},
@@ -627,30 +639,38 @@ func TestClientFMP4MultiRenditions(t *testing.T) {
 						SPS: testSPS,
 						PPS: testPPS,
 					},
+					ClockRate: 90000,
 				},
 				{
 					Codec: &codecs.MPEG4Audio{
 						Config: testConfig,
 					},
+					ClockRate: 44100,
 				},
 			}, tracks)
 
-			c.OnDataH26x(tracks[0], func(pts time.Duration, dts time.Duration, au [][]byte) {
-				require.Equal(t, 3*time.Second, pts)
-				require.Equal(t, time.Duration(0), dts)
+			c.OnDataH26x(tracks[0], func(pts int64, dts int64, au [][]byte) {
+				require.Equal(t, int64(3*90000), pts)
+				require.Equal(t, int64(0), dts)
 				require.Equal(t, [][]byte{
 					{7, 1, 2, 3},
 					{8},
 					{5},
 				}, au)
+				ntp, ok := c.AbsoluteTime(tracks[0])
+				require.Equal(t, true, ok)
+				require.Equal(t, time.Date(2015, time.February, 5, 1, 2, 2, 0, time.UTC), ntp)
 				packetRecv <- struct{}{}
 			})
 
-			c.OnDataMPEG4Audio(tracks[1], func(pts time.Duration, aus [][]byte) {
-				require.Equal(t, 0*time.Second, pts)
+			c.OnDataMPEG4Audio(tracks[1], func(pts int64, aus [][]byte) {
+				require.Equal(t, int64(3000), pts)
 				require.Equal(t, [][]byte{
 					{1, 2, 3, 4},
 				}, aus)
+				ntp, ok := c.AbsoluteTime(tracks[1])
+				require.Equal(t, true, ok)
+				require.Equal(t, time.Date(2015, time.February, 5, 1, 2, 2, 34693877, time.UTC), ntp)
 				packetRecv <- struct{}{}
 			})
 
@@ -820,17 +840,18 @@ func TestClientFMP4LowLatency(t *testing.T) {
 						SPS: testSPS,
 						PPS: testPPS,
 					},
+					ClockRate: 90000,
 				},
 			}, tracks)
 
-			c.OnDataH26x(tracks[0], func(pts time.Duration, dts time.Duration, au [][]byte) {
+			c.OnDataH26x(tracks[0], func(pts int64, dts int64, au [][]byte) {
 				switch recvCount {
 				case 0:
 					ntp, ok := c.AbsoluteTime(tracks[0])
 					require.Equal(t, true, ok)
 					require.Equal(t, time.Date(2015, time.February, 5, 1, 2, 4, 0, time.UTC), ntp)
-					require.Equal(t, 0*time.Second, pts)
-					require.Equal(t, time.Duration(0), dts)
+					require.Equal(t, int64(0), pts)
+					require.Equal(t, int64(0), dts)
 					require.Equal(t, [][]byte{
 						{7, 1, 2, 3},
 						{8},
@@ -841,16 +862,16 @@ func TestClientFMP4LowLatency(t *testing.T) {
 					ntp, ok := c.AbsoluteTime(tracks[0])
 					require.Equal(t, true, ok)
 					require.Equal(t, time.Date(2015, time.February, 5, 1, 2, 4, 33333333, time.UTC), ntp)
-					require.Equal(t, 33333333*time.Nanosecond, pts)
-					require.Equal(t, 33333333*time.Nanosecond, dts)
+					require.Equal(t, int64(3000), pts)
+					require.Equal(t, int64(3000), dts)
 					require.Equal(t, [][]byte{{1, 4, 5, 6}}, au)
 
 				case 2:
 					ntp, ok := c.AbsoluteTime(tracks[0])
 					require.Equal(t, true, ok)
 					require.Equal(t, time.Date(2015, time.February, 5, 1, 2, 4, 66666666, time.UTC), ntp)
-					require.Equal(t, 66666666*time.Nanosecond, pts)
-					require.Equal(t, 66666666*time.Nanosecond, dts)
+					require.Equal(t, int64(6000), pts)
+					require.Equal(t, int64(6000), dts)
 					require.Equal(t, [][]byte{{1, 7, 8, 9}}, au)
 
 				default:

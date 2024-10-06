@@ -80,7 +80,7 @@ func main() {
 		saveCount := 0
 
 		// set a callback that is called when data is received
-		c.OnDataH26x(track, func(pts time.Duration, dts time.Duration, au [][]byte) {
+		c.OnDataH26x(track, func(pts int64, dts int64, au [][]byte) {
 			log.Printf("received access unit with pts = %v\n", pts)
 
 			for _, nalu := range au {

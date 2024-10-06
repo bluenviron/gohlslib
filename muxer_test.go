@@ -42,6 +42,7 @@ var testVideoTrack = &Track{
 		SPS: testSPS,
 		PPS: []byte{0x08},
 	},
+	ClockRate: 90000,
 }
 
 var testAudioTrack = &Track{
@@ -52,6 +53,7 @@ var testAudioTrack = &Track{
 			ChannelCount: 2,
 		},
 	},
+	ClockRate: 44100,
 }
 
 var testAudioTrack2 = &Track{
@@ -62,6 +64,7 @@ var testAudioTrack2 = &Track{
 			ChannelCount: 2,
 		},
 	},
+	ClockRate: 44100,
 }
 
 type dummyResponseWriter struct {
@@ -153,166 +156,216 @@ func TestMuxer(t *testing.T) {
 		switch stream {
 		case "video+audio":
 			d := 1 * time.Second
-			err = m.WriteH264(testVideoTrack, testTime.Add(d-1*time.Second), d, [][]byte{
-				{1}, // non-IDR
-			})
+			err = m.WriteH264(testVideoTrack, testTime.Add(d-1*time.Second),
+				int64(d)*int64(testVideoTrack.ClockRate)/int64(time.Second),
+				[][]byte{
+					{1}, // non-IDR
+				})
 			require.NoError(t, err)
 
 			d = 2 * time.Second
-			err = m.WriteH264(testVideoTrack, testTime.Add(d-1*time.Second), d, [][]byte{
-				testSPS, // SPS
-				{8},     // PPS
-				{5},     // IDR
-			})
+			err = m.WriteH264(testVideoTrack, testTime.Add(d-1*time.Second),
+				int64(d)*int64(testVideoTrack.ClockRate)/int64(time.Second),
+				[][]byte{
+					testSPS, // SPS
+					{8},     // PPS
+					{5},     // IDR
+				})
 			require.NoError(t, err)
 
 			d = 3 * time.Second
-			err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second), d, [][]byte{{
-				0x01, 0x02, 0x03, 0x04,
-			}})
+			err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second),
+				int64(d)*int64(testAudioTrack.ClockRate)/int64(time.Second),
+				[][]byte{{
+					0x01, 0x02, 0x03, 0x04,
+				}})
 			require.NoError(t, err)
 
 			d = 3500 * time.Millisecond
-			err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second), d, [][]byte{{
-				0x01, 0x02, 0x03, 0x04,
-			}})
+			err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second),
+				int64(d)*int64(testAudioTrack.ClockRate)/int64(time.Second),
+				[][]byte{{
+					0x01, 0x02, 0x03, 0x04,
+				}})
 			require.NoError(t, err)
 
 			d = 4 * time.Second
-			err = m.WriteH264(testVideoTrack, testTime.Add(d-1*time.Second), d, [][]byte{
-				{1}, // non-IDR
-			})
+			err = m.WriteH264(testVideoTrack, testTime.Add(d-1*time.Second),
+				int64(d)*int64(testVideoTrack.ClockRate)/int64(time.Second),
+				[][]byte{
+					{1}, // non-IDR
+				})
 			require.NoError(t, err)
 
 			d = 4500 * time.Millisecond
-			err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second), d, [][]byte{{
-				0x01, 0x02, 0x03, 0x04,
-			}})
+			err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second),
+				int64(d)*int64(testAudioTrack.ClockRate)/int64(time.Second),
+				[][]byte{{
+					0x01, 0x02, 0x03, 0x04,
+				}})
 			require.NoError(t, err)
 
 			d = 6 * time.Second
-			err = m.WriteH264(testVideoTrack, testTime.Add(d-1*time.Second), d, [][]byte{
-				{5}, // IDR
-			})
+			err = m.WriteH264(testVideoTrack, testTime.Add(d-1*time.Second),
+				int64(d)*int64(testVideoTrack.ClockRate)/int64(time.Second),
+				[][]byte{
+					{5}, // IDR
+				})
 			require.NoError(t, err)
 
 			d = 7 * time.Second
-			err = m.WriteH264(testVideoTrack, testTime.Add(d-1*time.Second), d, [][]byte{
-				{5}, // IDR
-			})
+			err = m.WriteH264(testVideoTrack, testTime.Add(d-1*time.Second),
+				int64(d)*int64(testVideoTrack.ClockRate)/int64(time.Second),
+				[][]byte{
+					{5}, // IDR
+				})
 			require.NoError(t, err)
 
 		case "video":
 			d := 2 * time.Second
-			err = m.WriteH264(testVideoTrack, testTime.Add(d-2*time.Second), d, [][]byte{
-				testSPS, // SPS
-				{8},     // PPS
-				{5},     // IDR
-			})
+			err = m.WriteH264(testVideoTrack, testTime.Add(d-2*time.Second),
+				int64(d)*int64(testVideoTrack.ClockRate)/int64(time.Second),
+				[][]byte{
+					testSPS, // SPS
+					{8},     // PPS
+					{5},     // IDR
+				})
 			require.NoError(t, err)
 
 			d = 6 * time.Second
-			err = m.WriteH264(testVideoTrack, testTime.Add(d-2*time.Second), d, [][]byte{
-				{5}, // IDR
-			})
+			err = m.WriteH264(testVideoTrack, testTime.Add(d-2*time.Second),
+				int64(d)*int64(testVideoTrack.ClockRate)/int64(time.Second),
+				[][]byte{
+					{5}, // IDR
+				})
 			require.NoError(t, err)
 
 			d = 7 * time.Second
-			err = m.WriteH264(testVideoTrack, testTime.Add(d-2*time.Second), d, [][]byte{
-				{5}, // IDR
-			})
+			err = m.WriteH264(testVideoTrack, testTime.Add(d-2*time.Second),
+				int64(d)*int64(testVideoTrack.ClockRate)/int64(time.Second),
+				[][]byte{
+					{5}, // IDR
+				})
 			require.NoError(t, err)
 
 		case "audio":
 			for i := 0; i < 100; i++ {
 				d := time.Duration(i) * 4 * time.Millisecond
-				err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second), d, [][]byte{{
-					0x01, 0x02, 0x03, 0x04,
-				}})
+				err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second),
+					int64(d)*int64(testAudioTrack.ClockRate)/int64(time.Second),
+					[][]byte{{
+						0x01, 0x02, 0x03, 0x04,
+					}})
 				require.NoError(t, err)
 			}
 
 			d := 2 * time.Second
-			err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second), d, [][]byte{{
-				0x01, 0x02, 0x03, 0x04,
-			}})
+			err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second),
+				int64(d)*int64(testAudioTrack.ClockRate)/int64(time.Second),
+				[][]byte{{
+					0x01, 0x02, 0x03, 0x04,
+				}})
 			require.NoError(t, err)
 
 			d = 3 * time.Second
-			err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second), d, [][]byte{{
-				0x01, 0x02, 0x03, 0x04,
-			}})
+			err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second),
+				int64(d)*int64(testAudioTrack.ClockRate)/int64(time.Second),
+				[][]byte{{
+					0x01, 0x02, 0x03, 0x04,
+				}})
 			require.NoError(t, err)
 
 		case "video+multiaudio":
 			d := 2 * time.Second
-			err = m.WriteH264(testVideoTrack, testTime.Add(d-1*time.Second), d, [][]byte{
-				testSPS, // SPS
-				{8},     // PPS
-				{5},     // IDR
-			})
+			err = m.WriteH264(testVideoTrack, testTime.Add(d-1*time.Second),
+				int64(d)*int64(testVideoTrack.ClockRate)/int64(time.Second),
+				[][]byte{
+					testSPS, // SPS
+					{8},     // PPS
+					{5},     // IDR
+				})
 			require.NoError(t, err)
 
 			d = 3 * time.Second
-			err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second), d, [][]byte{{
-				0x01, 0x02, 0x03, 0x04,
-			}})
+			err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second),
+				int64(d)*int64(testAudioTrack.ClockRate)/int64(time.Second),
+				[][]byte{{
+					0x01, 0x02, 0x03, 0x04,
+				}})
 			require.NoError(t, err)
 
 			d = 3500 * time.Millisecond
-			err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second), d, [][]byte{{
-				0x01, 0x02, 0x03, 0x04,
-			}})
+			err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second),
+				int64(d)*int64(testAudioTrack.ClockRate)/int64(time.Second),
+				[][]byte{{
+					0x01, 0x02, 0x03, 0x04,
+				}})
 			require.NoError(t, err)
 
 			d = 2 * time.Second
-			err = m.WriteMPEG4Audio(testAudioTrack2, testTime.Add(d-1*time.Second), d, [][]byte{{
-				0x01, 0x02, 0x03, 0x04,
-			}})
+			err = m.WriteMPEG4Audio(testAudioTrack2, testTime.Add(d-1*time.Second),
+				int64(d)*int64(testAudioTrack.ClockRate)/int64(time.Second),
+				[][]byte{{
+					0x01, 0x02, 0x03, 0x04,
+				}})
 			require.NoError(t, err)
 
 			d = 2500 * time.Millisecond
-			err = m.WriteMPEG4Audio(testAudioTrack2, testTime.Add(d-1*time.Second), d, [][]byte{{
-				0x01, 0x02, 0x03, 0x04,
-			}})
+			err = m.WriteMPEG4Audio(testAudioTrack2, testTime.Add(d-1*time.Second),
+				int64(d)*int64(testAudioTrack.ClockRate)/int64(time.Second),
+				[][]byte{{
+					0x01, 0x02, 0x03, 0x04,
+				}})
 			require.NoError(t, err)
 
 			d = 6 * time.Second
-			err = m.WriteH264(testVideoTrack, testTime.Add(d-1*time.Second), d, [][]byte{
-				{5}, // IDR
-			})
+			err = m.WriteH264(testVideoTrack, testTime.Add(d-1*time.Second),
+				int64(d)*int64(testVideoTrack.ClockRate)/int64(time.Second),
+				[][]byte{
+					{5}, // IDR
+				})
 			require.NoError(t, err)
 
 			d = 7 * time.Second
-			err = m.WriteH264(testVideoTrack, testTime.Add(d-1*time.Second), d, [][]byte{
-				{5}, // IDR
-			})
+			err = m.WriteH264(testVideoTrack, testTime.Add(d-1*time.Second),
+				int64(d)*int64(testVideoTrack.ClockRate)/int64(time.Second),
+				[][]byte{
+					{5}, // IDR
+				})
 			require.NoError(t, err)
 
 		case "multiaudio":
 			for i := 0; i < 100; i++ {
 				d := time.Duration(i) * 4 * time.Millisecond
-				err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second), d, [][]byte{{
-					0x01, 0x02, 0x03, 0x04,
-				}})
+				err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second),
+					int64(d)*int64(testAudioTrack.ClockRate)/int64(time.Second),
+					[][]byte{{
+						0x01, 0x02, 0x03, 0x04,
+					}})
 				require.NoError(t, err)
 
-				err = m.WriteMPEG4Audio(testAudioTrack2, testTime.Add(d-1*time.Second), d, [][]byte{{
-					0x01, 0x02, 0x03, 0x04,
-				}})
+				err = m.WriteMPEG4Audio(testAudioTrack2, testTime.Add(d-1*time.Second),
+					int64(d)*int64(testAudioTrack.ClockRate)/int64(time.Second),
+					[][]byte{{
+						0x01, 0x02, 0x03, 0x04,
+					}})
 				require.NoError(t, err)
 			}
 
 			d := 2 * time.Second
-			err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second), d, [][]byte{{
-				0x01, 0x02, 0x03, 0x04,
-			}})
+			err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second),
+				int64(d)*int64(testAudioTrack.ClockRate)/int64(time.Second),
+				[][]byte{{
+					0x01, 0x02, 0x03, 0x04,
+				}})
 			require.NoError(t, err)
 
 			d = 3 * time.Second
-			err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second), d, [][]byte{{
-				0x01, 0x02, 0x03, 0x04,
-			}})
+			err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second),
+				int64(d)*int64(testAudioTrack.ClockRate)/int64(time.Second),
+				[][]byte{{
+					0x01, 0x02, 0x03, 0x04,
+				}})
 			require.NoError(t, err)
 		}
 
@@ -718,9 +771,7 @@ func TestMuxerCloseBeforeData(t *testing.T) {
 		Variant:            MuxerVariantFMP4,
 		SegmentCount:       3,
 		SegmentMinDuration: 1 * time.Second,
-		Tracks: []*Track{{
-			Codec: &codecs.AV1{},
-		}},
+		Tracks:             []*Track{testVideoTrack},
 	}
 
 	err := m.Start()
@@ -731,7 +782,7 @@ func TestMuxerCloseBeforeData(t *testing.T) {
 	b, _, _ := doRequest(m, "index.m3u8")
 	require.Equal(t, []byte(nil), b)
 
-	b, _, _ = doRequest(m, "main_stream.m3u8")
+	b, _, _ = doRequest(m, "video1_stream.m3u8")
 	require.Equal(t, []byte(nil), b)
 
 	b, _, _ = doRequest(m, m.prefix+"_init.mp4")
@@ -751,7 +802,7 @@ func TestMuxerMaxSegmentSize(t *testing.T) {
 	require.NoError(t, err)
 	defer m.Close()
 
-	err = m.WriteH264(testVideoTrack, testTime, 2*time.Second, [][]byte{
+	err = m.WriteH264(testVideoTrack, testTime, int64(2*time.Second)*int64(testVideoTrack.ClockRate)/int64(time.Second), [][]byte{
 		testSPS,
 		{5}, // IDR
 	})
@@ -777,7 +828,7 @@ func TestMuxerDoubleRead(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = m.WriteH264(testVideoTrack, testTime, 2*time.Second, [][]byte{
+	err = m.WriteH264(testVideoTrack, testTime, int64(2*time.Second)*int64(testVideoTrack.ClockRate)/int64(time.Second), [][]byte{
 		{5}, // IDR
 		{2},
 	})
@@ -840,13 +891,13 @@ func TestMuxerSaveToDisk(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			err = m.WriteH264(testVideoTrack, testTime, 2*time.Second, [][]byte{
+			err = m.WriteH264(testVideoTrack, testTime, 2*90000, [][]byte{
 				{5}, // IDR
 				{2},
 			})
 			require.NoError(t, err)
 
-			err = m.WriteH264(testVideoTrack, testTime, 3*time.Second, [][]byte{
+			err = m.WriteH264(testVideoTrack, testTime, 3*90000, [][]byte{
 				{5}, // IDR
 				{2},
 			})
@@ -931,13 +982,13 @@ func TestMuxerDynamicParams(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = m.WriteH264(testVideoTrack, testTime, 1*time.Second, [][]byte{
+	err = m.WriteH264(testVideoTrack, testTime, 1*90000, [][]byte{
 		{5}, // IDR
 		{2},
 	})
 	require.NoError(t, err)
 
-	err = m.WriteH264(testVideoTrack, testTime, 2*time.Second, [][]byte{
+	err = m.WriteH264(testVideoTrack, testTime, 2*90000, [][]byte{
 		{5}, // IDR
 		{2},
 	})
@@ -987,14 +1038,14 @@ func TestMuxerDynamicParams(t *testing.T) {
 		0xcb,
 	}
 
-	err = m.WriteH264(testVideoTrack, testTime, 3*time.Second, [][]byte{
+	err = m.WriteH264(testVideoTrack, testTime, 3*90000, [][]byte{
 		testSPS2,
 		{0x65, 0x88, 0x84, 0x00, 0x33, 0xff}, // IDR
 		{2},
 	})
 	require.NoError(t, err)
 
-	err = m.WriteH264(testVideoTrack, testTime, 5*time.Second, [][]byte{
+	err = m.WriteH264(testVideoTrack, testTime, 5*90000, [][]byte{
 		{0x65, 0x88, 0x84, 0x00, 0x33, 0xff}, // IDR
 	})
 	require.NoError(t, err)
@@ -1055,7 +1106,7 @@ func TestMuxerFMP4ZeroDuration(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = m.WriteH264(testVideoTrack, time.Now(), 1*time.Nanosecond, [][]byte{
+	err = m.WriteH264(testVideoTrack, time.Now(), 1, [][]byte{
 		testSPS, // SPS
 		{8},     // PPS
 		{5},     // IDR
@@ -1075,60 +1126,78 @@ func TestMuxerFMP4NegativeTimestamp(t *testing.T) {
 	require.NoError(t, err)
 	defer m.Close()
 
-	err = m.WriteMPEG4Audio(testAudioTrack, testTime, -9*time.Second, [][]byte{
-		{1, 2, 3, 4},
-	})
+	err = m.WriteMPEG4Audio(testAudioTrack, testTime,
+		-9*44100,
+		[][]byte{
+			{1, 2, 3, 4},
+		})
 	require.NoError(t, err)
 
 	// this is skipped
-	err = m.WriteH264(testVideoTrack, testTime, -11*time.Second, [][]byte{
-		testSPS,
-		{5}, // IDR
-		{1},
-	})
+	err = m.WriteH264(testVideoTrack, testTime,
+		-11*90000,
+		[][]byte{
+			testSPS,
+			{5}, // IDR
+			{1},
+		})
 	require.NoError(t, err)
 
-	err = m.WriteH264(testVideoTrack, testTime, -9*time.Second, [][]byte{
-		testSPS,
-		{5}, // IDR
-		{1},
-	})
+	err = m.WriteH264(testVideoTrack, testTime,
+		-9*90000,
+		[][]byte{
+			testSPS,
+			{5}, // IDR
+			{1},
+		})
 	require.NoError(t, err)
 
-	err = m.WriteH264(testVideoTrack, testTime, -8*time.Second, [][]byte{
-		{5}, // IDR
-		{2},
-	})
+	err = m.WriteH264(testVideoTrack, testTime,
+		-8*90000,
+		[][]byte{
+			{5}, // IDR
+			{2},
+		})
 	require.NoError(t, err)
 
 	// this is skipped
-	err = m.WriteMPEG4Audio(testAudioTrack, testTime, -11*time.Second, [][]byte{
-		{1, 2, 3, 4},
-	})
+	err = m.WriteMPEG4Audio(testAudioTrack, testTime,
+		-11*44100,
+		[][]byte{
+			{1, 2, 3, 4},
+		})
 	require.NoError(t, err)
 
-	err = m.WriteMPEG4Audio(testAudioTrack, testTime, -8*time.Second, [][]byte{
-		{5, 6, 7, 8},
-	})
+	err = m.WriteMPEG4Audio(testAudioTrack, testTime,
+		-8*44100,
+		[][]byte{
+			{5, 6, 7, 8},
+		})
 	require.NoError(t, err)
 
-	err = m.WriteMPEG4Audio(testAudioTrack, testTime, -7*time.Second, [][]byte{
-		{9, 10, 11, 12},
-	})
+	err = m.WriteMPEG4Audio(testAudioTrack, testTime,
+		-7*44100,
+		[][]byte{
+			{9, 10, 11, 12},
+		})
 	require.NoError(t, err)
 
 	// switch segment
-	err = m.WriteH264(testVideoTrack, testTime, -7*time.Second, [][]byte{
-		{5}, // IDR
-		{3},
-	})
+	err = m.WriteH264(testVideoTrack, testTime,
+		-7*90000,
+		[][]byte{
+			{5}, // IDR
+			{3},
+		})
 	require.NoError(t, err)
 
 	// switch segment
-	err = m.WriteH264(testVideoTrack, testTime, -5*time.Second, [][]byte{
-		{5}, // IDR
-		{3},
-	})
+	err = m.WriteH264(testVideoTrack, testTime,
+		-5*90000,
+		[][]byte{
+			{5}, // IDR
+			{3},
+		})
 	require.NoError(t, err)
 
 	bu, _, err := doRequest(m, "index.m3u8")
@@ -1260,15 +1329,18 @@ func TestMuxerFMP4SequenceNumber(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < 3; i++ {
-		err = m.WriteH264(testVideoTrack, testTime, (1+time.Duration(i))*time.Second, [][]byte{
-			{1}, // non IDR
-		})
+		err = m.WriteH264(testVideoTrack, testTime,
+			(1+int64(i))*90000, [][]byte{
+				{1}, // non IDR
+			})
 		require.NoError(t, err)
 	}
 
-	err = m.WriteH264(testVideoTrack, testTime, 4*time.Second, [][]byte{
-		{5}, // IDR
-	})
+	err = m.WriteH264(testVideoTrack, testTime,
+		4*90000,
+		[][]byte{
+			{5}, // IDR
+		})
 	require.NoError(t, err)
 
 	byts, _, err := doRequest(m, "index.m3u8")
@@ -1356,11 +1428,13 @@ func TestMuxerInvalidFolder(t *testing.T) {
 			defer m.Close()
 
 			for i := 0; i < 2; i++ {
-				err := m.WriteH264(testVideoTrack, testTime, time.Duration(i)*time.Second, [][]byte{
-					testSPS, // SPS
-					{8},     // PPS
-					{5},     // IDR
-				})
+				err := m.WriteH264(testVideoTrack, testTime,
+					int64(i)*90000,
+					[][]byte{
+						testSPS, // SPS
+						{8},     // PPS
+						{5},     // IDR
+					})
 
 				if ca == "mpegts" || i == 1 {
 					require.Error(t, err)
@@ -1385,11 +1459,13 @@ func TestMuxerExpiredSegment(t *testing.T) {
 	defer m.Close()
 
 	for i := 0; i < 2; i++ {
-		err := m.WriteH264(testVideoTrack, testTime, time.Duration(i)*time.Second, [][]byte{
-			testSPS, // SPS
-			{8},     // PPS
-			{5},     // IDR
-		})
+		err := m.WriteH264(testVideoTrack, testTime,
+			int64(i)*90000,
+			[][]byte{
+				testSPS, // SPS
+				{8},     // PPS
+				{5},     // IDR
+			})
 		require.NoError(t, err)
 	}
 
@@ -1435,11 +1511,13 @@ func TestMuxerPreloadHint(t *testing.T) {
 	defer m.Close()
 
 	for i := 0; i < 2; i++ {
-		err := m.WriteH264(testVideoTrack, testTime, time.Duration(i)*time.Second, [][]byte{
-			testSPS, // SPS
-			{8},     // PPS
-			{5},     // IDR
-		})
+		err := m.WriteH264(testVideoTrack, testTime,
+			int64(i)*90000,
+			[][]byte{
+				testSPS, // SPS
+				{8},     // PPS
+				{5},     // IDR
+			})
 		require.NoError(t, err)
 	}
 
@@ -1503,9 +1581,11 @@ func TestMuxerPreloadHint(t *testing.T) {
 	case <-time.After(500 * time.Millisecond):
 	}
 
-	err = m.WriteH264(testVideoTrack, testTime, 3*time.Second, [][]byte{
-		{5}, // IDR
-	})
+	err = m.WriteH264(testVideoTrack, testTime,
+		3*90000,
+		[][]byte{
+			{5}, // IDR
+		})
 	require.NoError(t, err)
 
 	byts = <-preloadDone
