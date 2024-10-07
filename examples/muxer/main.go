@@ -92,20 +92,17 @@ func main() {
 		panic(fmt.Errorf("H264 track not found"))
 	}
 
-	var timeDec *mpegts.TimeDecoder2
+	timeDec := mpegts.NewTimeDecoder2()
 
 	// setup a callback that is called when a H264 access unit is received
-	r.OnDataH264(track, func(rawPTS int64, _ int64, au [][]byte) error {
-		// decode the time
-		if timeDec == nil {
-			timeDec = mpegts.NewTimeDecoder2(rawPTS)
-		}
-		pts := timeDec.Decode(rawPTS)
+	r.OnDataH264(track, func(pts int64, _ int64, au [][]byte) error {
+		// decode timestamp
+		pts = timeDec.Decode(pts)
+
+		log.Printf("visit http://localhost:8080 - encoding access unit with PTS = %v", pts)
 
 		// pass the access unit to the HLS muxer
-		log.Printf("visit http://localhost:8080 - encoding access unit with PTS = %v", pts)
 		mux.WriteH264(videoTrack, time.Now(), pts, au)
-
 		return nil
 	})
 
