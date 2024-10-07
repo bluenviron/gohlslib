@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
 
@@ -121,30 +120,24 @@ func (p *clientStreamProcessorFMP4) processSegment(ctx context.Context, seg *seg
 		return err
 	}
 
-	ntpAvailable := false
-	var ntpAbsolute time.Time
-	var ntpRelative int64
-	var leadingClockRate int
-
-	partTrack := findFirstPartTrackOfLeadingTrack(parts, p.leadingTrackID)
-	if partTrack == nil {
+	leadingPartTrack := findFirstPartTrackOfLeadingTrack(parts, p.leadingTrackID)
+	if leadingPartTrack == nil {
 		return fmt.Errorf("could not find data of leading track")
 	}
 
 	if p.trackProcessors == nil {
-		err := p.initializeTrackProcessors(ctx, partTrack)
+		err := p.initializeTrackProcessors(ctx, leadingPartTrack)
 		if err != nil {
 			return err
 		}
 	}
 
-	leadingTrackProc := p.trackProcessors[partTrack.ID]
-	leadingClockRate = leadingTrackProc.track.track.ClockRate
-
-	if seg.dateTime != nil {
-		ntpAvailable = true
-		ntpAbsolute = *seg.dateTime
-		ntpRelative = p.timeConv.convert(int64(partTrack.BaseTime), leadingClockRate)
+	if p.isLeading {
+		if seg.dateTime != nil {
+			leadingPartTrackProc := p.trackProcessors[leadingPartTrack.ID]
+			dts := p.timeConv.convert(int64(leadingPartTrack.BaseTime), leadingPartTrackProc.track.track.ClockRate)
+			p.timeConv.setNTP(*seg.dateTime, dts, leadingPartTrackProc.track.track.ClockRate)
+		}
 	}
 
 	partTrackCount := 0
@@ -156,11 +149,13 @@ func (p *clientStreamProcessorFMP4) processSegment(ctx context.Context, seg *seg
 				continue
 			}
 
+			dts := p.timeConv.convert(int64(partTrack.BaseTime), trackProc.track.track.ClockRate)
+			ntp := p.timeConv.getNTP(dts, trackProc.track.track.ClockRate)
+
 			err := trackProc.push(ctx, &procEntryFMP4{
-				ntpAvailable: ntpAvailable,
-				ntpAbsolute:  ntpAbsolute,
-				ntpRelative:  multiplyAndDivide(ntpRelative, int64(trackProc.track.track.ClockRate), int64(leadingClockRate)),
-				partTrack:    partTrack,
+				partTrack: partTrack,
+				dts:       dts,
+				ntp:       ntp,
 			})
 			if err != nil {
 				return err
@@ -223,7 +218,6 @@ func (p *clientStreamProcessorFMP4) initializeTrackProcessors(
 	for i, track := range p.clientStreamTracks {
 		trackProc := &clientTrackProcessorFMP4{
 			track:                track,
-			timeConv:             p.timeConv,
 			onPartTrackProcessed: p.onPartTrackProcessed,
 		}
 		err := trackProc.initialize()
