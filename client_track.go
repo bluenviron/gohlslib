@@ -9,22 +9,22 @@ import (
 type clientTrack struct {
 	track            *Track
 	onData           clientOnDataFunc
-	lastAbsoluteTime time.Time
+	lastAbsoluteTime *time.Time
 	startRTC         time.Time
 }
 
 func (t *clientTrack) absoluteTime() (time.Time, bool) {
-	if t.lastAbsoluteTime == zero {
+	if t.lastAbsoluteTime == nil {
 		return zero, false
 	}
-	return t.lastAbsoluteTime, true
+	return *t.lastAbsoluteTime, true
 }
 
 func (t *clientTrack) handleData(
 	ctx context.Context,
 	pts int64,
 	dts int64,
-	ntp time.Time,
+	ntp *time.Time,
 	data [][]byte,
 ) error {
 	// silently discard packets prior to the first packet of the leading track

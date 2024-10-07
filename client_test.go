@@ -461,8 +461,9 @@ func TestClient(t *testing.T) {
 								require.Equal(t, int64(6000), dts)
 								require.Equal(t, int64(6000), pts)
 								require.Equal(t, [][]byte{{4}}, au)
-								_, ok := c.AbsoluteTime(tracks[0])
-								require.Equal(t, false, ok)
+								ntp, ok := c.AbsoluteTime(tracks[0])
+								require.Equal(t, true, ok)
+								require.Equal(t, time.Date(2015, time.February, 5, 1, 2, 2, 66666666, time.UTC), ntp)
 								close(videoRecv)
 							}
 							videoCount++
@@ -539,7 +540,7 @@ func TestClientFMP4MultiRenditions(t *testing.T) {
 					"#EXT-X-INDEPENDENT-SEGMENTS\n" +
 					"#EXT-X-TARGETDURATION:2\n" +
 					"#EXT-X-MAP:URI=\"init_audio.mp4\"\n" +
-					"#EXT-X-PROGRAM-DATE-TIME:2015-02-05T01:02:02Z\n" +
+					"#EXT-X-PROGRAM-DATE-TIME:2014-02-05T01:02:02Z\n" +
 					"#EXTINF:2,\n" +
 					"segment_audio.mp4\n" +
 					"#EXT-X-ENDLIST"))
@@ -601,7 +602,7 @@ func TestClientFMP4MultiRenditions(t *testing.T) {
 					Tracks: []*fmp4.PartTrack{
 						{
 							ID:       1,
-							BaseTime: 3000,
+							BaseTime: 44100 / 2, // +0.5 sec
 							Samples: []*fmp4.PartSample{{
 								Duration: 44100,
 								Payload:  []byte{1, 2, 3, 4},
@@ -664,13 +665,13 @@ func TestClientFMP4MultiRenditions(t *testing.T) {
 			})
 
 			c.OnDataMPEG4Audio(tracks[1], func(pts int64, aus [][]byte) {
-				require.Equal(t, int64(3000), pts)
+				require.Equal(t, int64(22050), pts)
 				require.Equal(t, [][]byte{
 					{1, 2, 3, 4},
 				}, aus)
 				ntp, ok := c.AbsoluteTime(tracks[1])
 				require.Equal(t, true, ok)
-				require.Equal(t, time.Date(2015, time.February, 5, 1, 2, 2, 34693877, time.UTC), ntp)
+				require.Equal(t, time.Date(2015, time.February, 5, 1, 2, 2, 500000000, time.UTC), ntp)
 				packetRecv <- struct{}{}
 			})
 

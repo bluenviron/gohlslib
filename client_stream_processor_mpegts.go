@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"time"
 
 	"github.com/asticode/go-astits"
 
@@ -180,10 +179,6 @@ func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, firs
 		return fmt.Errorf("terminated")
 	}
 
-	ntpAvailable := false
-	var ntpAbsolute time.Time
-	var ntpRelative int64
-
 	for i, mpegtsTrack := range p.reader.Tracks() {
 		track := p.clientStreamTracks[i]
 		isLeadingTrack := (i == leadingTrackID)
@@ -213,24 +208,15 @@ func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, firs
 			pts := p.timeConv.convert(rawPTS)
 			dts := p.timeConv.convert(rawDTS)
 
-			if isLeadingTrack && !p.dateTimeProcessed {
+			if !p.dateTimeProcessed && p.isLeading && isLeadingTrack {
 				p.dateTimeProcessed = true
 
 				if p.curSegment.dateTime != nil {
-					ntpAvailable = true
-					ntpAbsolute = *p.curSegment.dateTime
-					ntpRelative = dts
-				} else {
-					ntpAvailable = false
+					p.timeConv.setNTP(*p.curSegment.dateTime, dts)
 				}
 			}
 
-			ntp := time.Time{}
-			if ntpAvailable {
-				diff := dts - ntpRelative
-				diffDur := timestampToDuration(diff, 90000)
-				ntp = ntpAbsolute.Add(diffDur)
-			}
+			ntp := p.timeConv.getNTP(dts)
 
 			return trackProc.push(ctx, &procEntryMPEGTS{
 				pts:  pts,
