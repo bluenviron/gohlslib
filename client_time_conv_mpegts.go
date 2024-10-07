@@ -14,7 +14,8 @@ type clientTimeConvMPEGTS struct {
 }
 
 func (ts *clientTimeConvMPEGTS) initialize() {
-	ts.td = mpegts.NewTimeDecoder2(ts.startDTS)
+	ts.td = mpegts.NewTimeDecoder2()
+	ts.td.Decode(ts.startDTS)
 }
 
 func (ts *clientTimeConvMPEGTS) convert(v int64) int64 {
