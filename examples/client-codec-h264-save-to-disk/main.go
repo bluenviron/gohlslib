@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"time"
 
 	"github.com/bluenviron/gohlslib/v2"
 	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
@@ -49,7 +48,7 @@ func main() {
 		}
 
 		// set a callback that is called when data is received
-		c.OnDataH26x(track, func(pts time.Duration, dts time.Duration, au [][]byte) {
+		c.OnDataH26x(track, func(pts int64, dts int64, au [][]byte) {
 			log.Printf("received access unit with pts = %v\n", pts)
 
 			// send data to the MPEG-TS muxer

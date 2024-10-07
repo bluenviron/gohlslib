@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"time"
 
 	"github.com/bluenviron/gohlslib/v2"
 	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
@@ -28,28 +27,28 @@ func main() {
 			// set a callback that is called when data is received
 			switch track.Codec.(type) {
 			case *codecs.AV1:
-				c.OnDataAV1(track, func(pts time.Duration, tu [][]byte) {
+				c.OnDataAV1(track, func(pts int64, tu [][]byte) {
 					ntp, ntpAvailable := c.AbsoluteTime(ttrack)
 					log.Printf("received data from track %T, pts = %v, ntp available = %v, ntp = %v\n",
 						ttrack.Codec, pts, ntpAvailable, ntp)
 				})
 
 			case *codecs.H264, *codecs.H265:
-				c.OnDataH26x(track, func(pts time.Duration, dts time.Duration, au [][]byte) {
+				c.OnDataH26x(track, func(pts int64, dts int64, au [][]byte) {
 					ntp, ntpAvailable := c.AbsoluteTime(ttrack)
 					log.Printf("received data from track %T, pts = %v, ntp available = %v, ntp = %v\n",
 						ttrack.Codec, pts, ntpAvailable, ntp)
 				})
 
 			case *codecs.MPEG4Audio:
-				c.OnDataMPEG4Audio(track, func(pts time.Duration, aus [][]byte) {
+				c.OnDataMPEG4Audio(track, func(pts int64, aus [][]byte) {
 					ntp, ntpAvailable := c.AbsoluteTime(ttrack)
 					log.Printf("received data from track %T, pts = %v, ntp available = %v, ntp = %v\n",
 						ttrack.Codec, pts, ntpAvailable, ntp)
 				})
 
 			case *codecs.Opus:
-				c.OnDataOpus(track, func(pts time.Duration, packets [][]byte) {
+				c.OnDataOpus(track, func(pts int64, packets [][]byte) {
 					ntp, ntpAvailable := c.AbsoluteTime(ttrack)
 					log.Printf("received data from track %T, pts = %v, ntp available = %v, ntp = %v\n",
 						ttrack.Codec, pts, ntpAvailable, ntp)

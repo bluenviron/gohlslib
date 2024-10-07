@@ -3,15 +3,10 @@ package main
 import (
 	"bufio"
 	"os"
-	"time"
 
 	"github.com/bluenviron/mediacommon/pkg/codecs/mpeg4audio"
 	"github.com/bluenviron/mediacommon/pkg/formats/mpegts"
 )
-
-func durationGoToMPEGTS(v time.Duration) int64 {
-	return int64(v.Seconds() * 90000)
-}
 
 // mpegtsMuxer allows to save a MPEG4-audio stream into a MPEG-TS file.
 type mpegtsMuxer struct {
@@ -51,6 +46,6 @@ func (e *mpegtsMuxer) close() {
 }
 
 // writeMPEG4Audio writes MPEG-4 audio access units into MPEG-TS.
-func (e *mpegtsMuxer) writeMPEG4Audio(aus [][]byte, pts time.Duration) error {
-	return e.w.WriteMPEG4Audio(e.track, durationGoToMPEGTS(pts), aus)
+func (e *mpegtsMuxer) writeMPEG4Audio(aus [][]byte, pts int64) error {
+	return e.w.WriteMPEG4Audio(e.track, pts, aus)
 }

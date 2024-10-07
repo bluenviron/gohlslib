@@ -22,8 +22,8 @@ func (t *clientTrack) absoluteTime() (time.Time, bool) {
 
 func (t *clientTrack) handleData(
 	ctx context.Context,
-	pts time.Duration,
-	dts time.Duration,
+	pts int64,
+	dts int64,
 	ntp time.Time,
 	data [][]byte,
 ) error {
@@ -34,8 +34,9 @@ func (t *clientTrack) handleData(
 
 	// synchronize time
 	elapsed := time.Since(t.startRTC)
-	if dts > elapsed {
-		diff := dts - elapsed
+	dtsDuration := timestampToDuration(dts, t.track.ClockRate)
+	if dtsDuration > elapsed {
+		diff := dtsDuration - elapsed
 		if diff > clientMaxDTSRTCDiff {
 			return fmt.Errorf("difference between DTS and RTC is too big")
 		}

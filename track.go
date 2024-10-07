@@ -6,5 +6,6 @@ import (
 
 // Track is a HLS track.
 type Track struct {
-	codecs.Codec
+	Codec     codecs.Codec
+	ClockRate int
 }

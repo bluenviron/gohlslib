@@ -77,9 +77,11 @@ func (p *clientStreamProcessorFMP4) run(ctx context.Context) error {
 	p.leadingTrackID = fmp4PickLeadingTrack(&p.init)
 
 	tracks := make([]*Track, len(p.init.Tracks))
+
 	for i, track := range p.init.Tracks {
 		tracks[i] = &Track{
-			Codec: codecs.FromFMP4(track.Codec),
+			Codec:     codecs.FromFMP4(track.Codec),
+			ClockRate: int(track.TimeScale),
 		}
 	}
 
@@ -121,26 +123,28 @@ func (p *clientStreamProcessorFMP4) processSegment(ctx context.Context, seg *seg
 
 	ntpAvailable := false
 	var ntpAbsolute time.Time
-	var ntpRelative time.Duration
+	var ntpRelative int64
+	var leadingClockRate int
 
-	if p.trackProcessors == nil || seg.dateTime != nil {
-		partTrack := findFirstPartTrackOfLeadingTrack(parts, p.leadingTrackID)
-		if partTrack == nil {
-			return fmt.Errorf("could not find data of leading track")
-		}
+	partTrack := findFirstPartTrackOfLeadingTrack(parts, p.leadingTrackID)
+	if partTrack == nil {
+		return fmt.Errorf("could not find data of leading track")
+	}
 
-		if p.trackProcessors == nil {
-			err := p.initializeTrackProcessors(ctx, partTrack)
-			if err != nil {
-				return err
-			}
+	if p.trackProcessors == nil {
+		err := p.initializeTrackProcessors(ctx, partTrack)
+		if err != nil {
+			return err
 		}
+	}
 
-		if seg.dateTime != nil {
-			ntpAvailable = true
-			ntpAbsolute = *seg.dateTime
-			ntpRelative = p.timeConv.convert(partTrack.BaseTime, p.timeConv.leadingTimeScale)
-		}
+	leadingTrackProc := p.trackProcessors[partTrack.ID]
+	leadingClockRate = leadingTrackProc.track.track.ClockRate
+
+	if seg.dateTime != nil {
+		ntpAvailable = true
+		ntpAbsolute = *seg.dateTime
+		ntpRelative = p.timeConv.convert(int64(partTrack.BaseTime), leadingClockRate)
 	}
 
 	partTrackCount := 0
@@ -155,7 +159,7 @@ func (p *clientStreamProcessorFMP4) processSegment(ctx context.Context, seg *seg
 			err := trackProc.push(ctx, &procEntryFMP4{
 				ntpAvailable: ntpAvailable,
 				ntpAbsolute:  ntpAbsolute,
-				ntpRelative:  ntpRelative,
+				ntpRelative:  multiplyAndDivide(ntpRelative, int64(trackProc.track.track.ClockRate), int64(leadingClockRate)),
 				partTrack:    partTrack,
 			})
 			if err != nil {
@@ -196,8 +200,8 @@ func (p *clientStreamProcessorFMP4) initializeTrackProcessors(
 		timeScale := findTimeScaleOfLeadingTrack(p.init.Tracks, p.leadingTrackID)
 
 		p.timeConv = &clientTimeConvFMP4{
-			leadingTimeScale: timeScale,
-			initialBaseTime:  partTrack.BaseTime,
+			leadingTimeScale: int64(timeScale),
+			leadingBaseTime:  int64(partTrack.BaseTime),
 		}
 		p.timeConv.initialize()
 
@@ -219,7 +223,6 @@ func (p *clientStreamProcessorFMP4) initializeTrackProcessors(
 	for i, track := range p.clientStreamTracks {
 		trackProc := &clientTrackProcessorFMP4{
 			track:                track,
-			timeScale:            p.init.Tracks[i].TimeScale,
 			timeConv:             p.timeConv,
 			onPartTrackProcessed: p.onPartTrackProcessed,
 		}

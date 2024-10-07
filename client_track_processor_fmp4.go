@@ -12,13 +12,12 @@ import (
 type procEntryFMP4 struct {
 	ntpAvailable bool
 	ntpAbsolute  time.Time
-	ntpRelative  time.Duration
+	ntpRelative  int64
 	partTrack    *fmp4.PartTrack
 }
 
 type clientTrackProcessorFMP4 struct {
 	track                *clientTrack
-	timeScale            uint32
 	timeConv             *clientTimeConvFMP4
 	onPartTrackProcessed func(ctx context.Context)
 
@@ -77,7 +76,7 @@ func (t *clientTrackProcessorFMP4) run(ctx context.Context) error {
 }
 
 func (t *clientTrackProcessorFMP4) process(ctx context.Context, entry *procEntryFMP4) error {
-	rawDTS := entry.partTrack.BaseTime
+	rawDTS := int64(entry.partTrack.BaseTime)
 
 	for _, sample := range entry.partTrack.Samples {
 		data, err := t.decodePayload(sample)
@@ -85,13 +84,16 @@ func (t *clientTrackProcessorFMP4) process(ctx context.Context, entry *procEntry
 			return err
 		}
 
-		pts := t.timeConv.convert(rawDTS+uint64(sample.PTSOffset), t.timeScale)
-		dts := t.timeConv.convert(rawDTS, t.timeScale)
-		rawDTS += uint64(sample.Duration)
+		dts := t.timeConv.convert(rawDTS, t.track.track.ClockRate)
+		pts := dts + int64(sample.PTSOffset)
+		rawDTS += int64(sample.Duration)
 
 		ntp := time.Time{}
 		if entry.ntpAvailable {
-			ntp = entry.ntpAbsolute.Add(dts - entry.ntpRelative)
+			trackNTPRelative := multiplyAndDivide(entry.ntpRelative, int64(t.track.track.ClockRate), t.timeConv.leadingTimeScale)
+			diff := dts - trackNTPRelative
+			diffDur := timestampToDuration(diff, t.track.track.ClockRate)
+			ntp = entry.ntpAbsolute.Add(diffDur)
 		}
 
 		err = t.track.handleData(ctx, pts, dts, ntp, data)
