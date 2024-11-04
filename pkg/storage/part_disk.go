@@ -26,7 +26,7 @@ func newPartDisk(s *fileDisk, offset uint64) *partDisk {
 func (p *partDisk) Writer() io.WriteSeeker {
 	// write on both disk and RAM
 	return &doubleWriter{
-		w1: newOffsetWriter(p.s.f, int64(p.offset)),
+		w1: io.NewOffsetWriter(p.s.f, int64(p.offset)),
 		w2: p.buffer,
 	}
 }

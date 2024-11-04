@@ -393,7 +393,8 @@ func TestMuxer(t *testing.T) {
 				"#EXT-X-VERSION:9\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 				"\n"+
-				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",NAME=\"audio2\",AUTOSELECT=YES,DEFAULT=YES,URI=\"audio2_stream.m3u8?key=value\"\n"+
+				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\","+
+				"NAME=\"audio2\",AUTOSELECT=YES,DEFAULT=YES,URI=\"audio2_stream.m3u8?key=value\"\n"+
 				"\n"+
 				"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=436,CODECS=\"avc1.42c028,mp4a.40.2\","+
 				"RESOLUTION=1920x1080,FRAME-RATE=30.000,AUDIO=\"audio\"\n"+
@@ -404,7 +405,8 @@ func TestMuxer(t *testing.T) {
 				"#EXT-X-VERSION:9\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 				"\n"+
-				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",NAME=\"audio2\",AUTOSELECT=YES,DEFAULT=YES,URI=\"audio2_stream.m3u8?key=value\"\n"+
+				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\","+
+				"NAME=\"audio2\",AUTOSELECT=YES,DEFAULT=YES,URI=\"audio2_stream.m3u8?key=value\"\n"+
 				"\n"+
 				"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=584,CODECS=\"avc1.42c028,mp4a.40.2\","+
 				"RESOLUTION=1920x1080,FRAME-RATE=30.000,AUDIO=\"audio\"\n"+
@@ -466,10 +468,13 @@ func TestMuxer(t *testing.T) {
 				"#EXT-X-VERSION:9\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 				"\n"+
-				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",NAME=\"audio2\",AUTOSELECT=YES,DEFAULT=YES,URI=\"audio2_stream.m3u8?key=value\"\n"+
-				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",NAME=\"audio3\",AUTOSELECT=YES,URI=\"audio3_stream.m3u8?key=value\"\n"+
+				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\","+
+				"NAME=\"audio2\",AUTOSELECT=YES,DEFAULT=YES,URI=\"audio2_stream.m3u8?key=value\"\n"+
+				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\","+
+				"NAME=\"audio3\",AUTOSELECT=YES,URI=\"audio3_stream.m3u8?key=value\"\n"+
 				"\n"+
-				"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=403,CODECS=\"avc1.42c028,mp4a.40.2\",RESOLUTION=1920x1080,FRAME-RATE=30.000,AUDIO=\"audio\"\n"+
+				"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=403,"+
+				"CODECS=\"avc1.42c028,mp4a.40.2\",RESOLUTION=1920x1080,FRAME-RATE=30.000,AUDIO=\"audio\"\n"+
 				"video1_stream.m3u8?key=value\n", string(byts))
 
 		case stream == "multiaudio" && variant == "fmp4":
@@ -478,7 +483,8 @@ func TestMuxer(t *testing.T) {
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 				"\n"+
 				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",NAME=\"audio1\",AUTOSELECT=YES,DEFAULT=YES\n"+
-				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",NAME=\"audio2\",AUTOSELECT=YES,URI=\"audio2_stream.m3u8?key=value\"\n"+
+				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",NAME=\"audio2\","+
+				"AUTOSELECT=YES,URI=\"audio2_stream.m3u8?key=value\"\n"+
 				"\n"+
 				"#EXT-X-STREAM-INF:BANDWIDTH=5184,AVERAGE-BANDWIDTH=3744,CODECS=\"mp4a.40.2\",AUDIO=\"audio\"\n"+
 				"audio1_stream.m3u8?key=value\n", string(byts))
@@ -489,7 +495,8 @@ func TestMuxer(t *testing.T) {
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 				"\n"+
 				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",NAME=\"audio1\",AUTOSELECT=YES,DEFAULT=YES\n"+
-				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",NAME=\"audio2\",AUTOSELECT=YES,URI=\"audio2_stream.m3u8?key=value\"\n"+
+				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",NAME=\"audio2\","+
+				"AUTOSELECT=YES,URI=\"audio2_stream.m3u8?key=value\"\n"+
 				"\n"+
 				"#EXT-X-STREAM-INF:BANDWIDTH=5568,AVERAGE-BANDWIDTH=4000,CODECS=\"mp4a.40.2\",AUDIO=\"audio\"\n"+
 				"audio1_stream.m3u8?key=value\n", string(byts))
@@ -802,10 +809,14 @@ func TestMuxerMaxSegmentSize(t *testing.T) {
 	require.NoError(t, err)
 	defer m.Close()
 
-	err = m.WriteH264(testVideoTrack, testTime, int64(2*time.Second)*int64(testVideoTrack.ClockRate)/int64(time.Second), [][]byte{
-		testSPS,
-		{5}, // IDR
-	})
+	err = m.WriteH264(
+		testVideoTrack,
+		testTime,
+		int64(2*time.Second)*int64(testVideoTrack.ClockRate)/int64(time.Second),
+		[][]byte{
+			testSPS,
+			{5}, // IDR
+		})
 	require.EqualError(t, err, "reached maximum segment size")
 }
 
@@ -828,10 +839,14 @@ func TestMuxerDoubleRead(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = m.WriteH264(testVideoTrack, testTime, int64(2*time.Second)*int64(testVideoTrack.ClockRate)/int64(time.Second), [][]byte{
-		{5}, // IDR
-		{2},
-	})
+	err = m.WriteH264(
+		testVideoTrack,
+		testTime,
+		int64(2*time.Second)*int64(testVideoTrack.ClockRate)/int64(time.Second),
+		[][]byte{
+			{5}, // IDR
+			{2},
+		})
 	require.NoError(t, err)
 
 	byts, _, err := doRequest(m, "main_stream.m3u8")
@@ -1208,7 +1223,8 @@ func TestMuxerFMP4NegativeTimestamp(t *testing.T) {
 		"\n"+
 		`#EXT-X-MEDIA:TYPE="AUDIO",GROUP-ID="audio",NAME="audio2",AUTOSELECT=YES,DEFAULT=YES,URI="audio2_stream.m3u8"`+"\n"+
 		"\n"+
-		`#EXT-X-STREAM-INF:BANDWIDTH=644,AVERAGE-BANDWIDTH=550,CODECS="avc1.42c028,mp4a.40.2",RESOLUTION=1920x1080,FRAME-RATE=30.000,AUDIO="audio"`+"\n"+
+		`#EXT-X-STREAM-INF:BANDWIDTH=644,AVERAGE-BANDWIDTH=550,`+
+		`CODECS="avc1.42c028,mp4a.40.2",RESOLUTION=1920x1080,FRAME-RATE=30.000,AUDIO="audio"`+"\n"+
 		"video1_stream.m3u8\n", string(bu))
 
 	byts, _, err := doRequest(m, "video1_stream.m3u8")
@@ -1459,7 +1475,7 @@ func TestMuxerExpiredSegment(t *testing.T) {
 	defer m.Close()
 
 	for i := 0; i < 2; i++ {
-		err := m.WriteH264(testVideoTrack, testTime,
+		err = m.WriteH264(testVideoTrack, testTime,
 			int64(i)*90000,
 			[][]byte{
 				testSPS, // SPS
@@ -1511,14 +1527,14 @@ func TestMuxerPreloadHint(t *testing.T) {
 	defer m.Close()
 
 	for i := 0; i < 2; i++ {
-		err := m.WriteH264(testVideoTrack, testTime,
+		err2 := m.WriteH264(testVideoTrack, testTime,
 			int64(i)*90000,
 			[][]byte{
 				testSPS, // SPS
 				{8},     // PPS
 				{5},     // IDR
 			})
-		require.NoError(t, err)
+		require.NoError(t, err2)
 	}
 
 	byts, _, err := doRequest(m, "index.m3u8")
@@ -1570,9 +1586,9 @@ func TestMuxerPreloadHint(t *testing.T) {
 	preloadDone := make(chan []byte)
 
 	go func() {
-		byts, _, err := doRequest(m, ma[1])
-		require.NoError(t, err)
-		preloadDone <- byts
+		byts2, _, err2 := doRequest(m, ma[1])
+		require.NoError(t, err2)
+		preloadDone <- byts2
 	}()
 
 	select {

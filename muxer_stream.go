@@ -382,7 +382,7 @@ func (s *muxerStream) handleMediaPlaylist(w http.ResponseWriter, r *http.Request
 }
 
 func (s *muxerStream) generateMediaPlaylistMPEGTS(
-	isDeltaUpdate bool,
+	_ bool,
 	rawQuery string,
 ) ([]byte, error) {
 	pl := &playlist.Media{
@@ -728,8 +728,8 @@ func (s *muxerStream) rotateSegments(
 	s.segments = append(s.segments, segment)
 
 	s.muxer.server.pathHandlers[segment.getPath()] = func(w http.ResponseWriter, _ *http.Request) {
-		r, err := segment.reader()
-		if err != nil {
+		r, err2 := segment.reader()
+		if err2 != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -771,7 +771,7 @@ func (s *muxerStream) rotateSegments(
 
 	// regenerate init files only if missing or codec parameters have changed
 	if s.muxer.Variant != MuxerVariantMPEGTS && (!s.initFilePresent || segment.isFromForcedRotation()) {
-		err := s.generateAndCacheInitFile()
+		err = s.generateAndCacheInitFile()
 		if err != nil {
 			return err
 		}
@@ -782,7 +782,8 @@ func (s *muxerStream) rotateSegments(
 		if s.muxer.targetDuration == 0 {
 			s.muxer.targetDuration = targetDuration
 		} else if targetDuration > s.muxer.targetDuration {
-			s.muxer.OnEncodeError(fmt.Errorf("segment duration changed from %ds to %ds - this will cause an error in iOS clients",
+			s.muxer.OnEncodeError(fmt.Errorf(
+				"segment duration changed from %ds to %ds - this will cause an error in iOS clients",
 				s.muxer.targetDuration, targetDuration))
 			s.muxer.targetDuration = targetDuration
 		}
