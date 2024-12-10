@@ -93,12 +93,14 @@ type generateMediaPlaylistFunc func(
 ) ([]byte, error)
 
 type muxerStream struct {
-	muxer              *Muxer // TODO: remove
-	tracks             []*muxerTrack
-	id                 string
-	isLeading          bool
-	isRendition        bool
-	isDefaultRendition bool
+	muxer       *Muxer // TODO: remove
+	tracks      []*muxerTrack
+	id          string
+	isLeading   bool
+	isRendition bool
+	name        string
+	language    string
+	isDefault   bool
 
 	generateMediaPlaylist generateMediaPlaylistFunc
 
@@ -220,9 +222,10 @@ func (s *muxerStream) populateMultivariantPlaylist(
 		r := &playlist.MultivariantRendition{
 			Type:       playlist.MultivariantRenditionTypeAudio,
 			GroupID:    "audio",
-			Name:       s.id,
+			Name:       s.name,
+			Language:   s.language,
 			Autoselect: true,
-			Default:    s.isDefaultRendition,
+			Default:    s.isDefault,
 		}
 
 		// draft-pantos-hls-rfc8216bis:

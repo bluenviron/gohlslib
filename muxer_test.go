@@ -57,6 +57,8 @@ var testAudioTrack = &Track{
 }
 
 var testAudioTrack2 = &Track{
+	Name:     "German",
+	Language: "de",
 	Codec: &codecs.MPEG4Audio{
 		Config: mpeg4audio.Config{
 			Type:         2,
@@ -102,7 +104,7 @@ func doRequest(m *Muxer, pathAndQuery string) ([]byte, http.Header, error) {
 }
 
 func TestMuxer(t *testing.T) {
-	createMuxer := func(t *testing.T, variant string, stream string) *Muxer {
+	createMuxer := func(t *testing.T, variant string, content string) *Muxer {
 		var v MuxerVariant
 		var segmentCount int
 
@@ -122,7 +124,7 @@ func TestMuxer(t *testing.T) {
 
 		var tracks []*Track
 
-		switch stream {
+		switch content {
 		case "video+audio":
 			tracks = append(tracks, testVideoTrack)
 			tracks = append(tracks, testAudioTrack)
@@ -153,7 +155,7 @@ func TestMuxer(t *testing.T) {
 		err := m.Start()
 		require.NoError(t, err)
 
-		switch stream {
+		switch content {
 		case "video+audio":
 			d := 1 * time.Second
 			err = m.WriteH264(testVideoTrack, testTime.Add(d-1*time.Second),
@@ -372,14 +374,14 @@ func TestMuxer(t *testing.T) {
 		return m
 	}
 
-	checkMultivariantPlaylist := func(t *testing.T, m *Muxer, variant string, stream string) {
+	checkMultivariantPlaylist := func(t *testing.T, m *Muxer, variant string, content string) {
 		byts, h, err := doRequest(m, "/index.m3u8?key=value")
 		require.NoError(t, err)
 		require.Equal(t, "application/vnd.apple.mpegurl", h.Get("Content-Type"))
 		require.Equal(t, "max-age=30", h.Get("Cache-Control"))
 
 		switch {
-		case stream == "video+audio" && variant == "mpegts":
+		case content == "video+audio" && variant == "mpegts":
 			require.Equal(t, "#EXTM3U\n"+
 				"#EXT-X-VERSION:3\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
@@ -388,7 +390,7 @@ func TestMuxer(t *testing.T) {
 				"CODECS=\"avc1.42c028,mp4a.40.2\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
 				"main_stream.m3u8?key=value\n", string(byts))
 
-		case stream == "video+audio" && variant == "fmp4":
+		case content == "video+audio" && variant == "fmp4":
 			require.Equal(t, "#EXTM3U\n"+
 				"#EXT-X-VERSION:9\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
@@ -400,7 +402,7 @@ func TestMuxer(t *testing.T) {
 				"RESOLUTION=1920x1080,FRAME-RATE=30.000,AUDIO=\"audio\"\n"+
 				"video1_stream.m3u8?key=value\n", string(byts))
 
-		case stream == "video+audio" && variant == "lowLatency":
+		case content == "video+audio" && variant == "lowLatency":
 			require.Equal(t, "#EXTM3U\n"+
 				"#EXT-X-VERSION:9\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
@@ -412,7 +414,7 @@ func TestMuxer(t *testing.T) {
 				"RESOLUTION=1920x1080,FRAME-RATE=30.000,AUDIO=\"audio\"\n"+
 				"video1_stream.m3u8?key=value\n", string(byts))
 
-		case stream == "video" && variant == "mpegts":
+		case content == "video" && variant == "mpegts":
 			require.Equal(t, "#EXTM3U\n"+
 				"#EXT-X-VERSION:3\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
@@ -421,7 +423,7 @@ func TestMuxer(t *testing.T) {
 				"CODECS=\"avc1.42c028\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
 				"main_stream.m3u8?key=value\n", string(byts))
 
-		case stream == "video" && variant == "fmp4":
+		case content == "video" && variant == "fmp4":
 			require.Equal(t, "#EXTM3U\n"+
 				"#EXT-X-VERSION:9\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
@@ -430,7 +432,7 @@ func TestMuxer(t *testing.T) {
 				"RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
 				"video1_stream.m3u8?key=value\n", string(byts))
 
-		case stream == "video" && variant == "lowLatency":
+		case content == "video" && variant == "lowLatency":
 			require.Equal(t, "#EXTM3U\n"+
 				"#EXT-X-VERSION:9\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
@@ -439,7 +441,7 @@ func TestMuxer(t *testing.T) {
 				"RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
 				"video1_stream.m3u8?key=value\n", string(byts))
 
-		case stream == "audio" && variant == "mpegts":
+		case content == "audio" && variant == "mpegts":
 			require.Equal(t, "#EXTM3U\n"+
 				"#EXT-X-VERSION:3\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
@@ -447,7 +449,7 @@ func TestMuxer(t *testing.T) {
 				"#EXT-X-STREAM-INF:BANDWIDTH=225600,AVERAGE-BANDWIDTH=225600,CODECS=\"mp4a.40.2\"\n"+
 				"main_stream.m3u8?key=value\n", string(byts))
 
-		case stream == "audio" && variant == "fmp4":
+		case content == "audio" && variant == "fmp4":
 			require.Equal(t, "#EXTM3U\n"+
 				"#EXT-X-VERSION:9\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
@@ -455,7 +457,7 @@ func TestMuxer(t *testing.T) {
 				"#EXT-X-STREAM-INF:BANDWIDTH=5184,AVERAGE-BANDWIDTH=3744,CODECS=\"mp4a.40.2\"\n"+
 				"audio1_stream.m3u8?key=value\n", string(byts))
 
-		case stream == "audio" && variant == "lowLatency":
+		case content == "audio" && variant == "lowLatency":
 			require.Equal(t, "#EXTM3U\n"+
 				"#EXT-X-VERSION:9\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
@@ -463,7 +465,7 @@ func TestMuxer(t *testing.T) {
 				"#EXT-X-STREAM-INF:BANDWIDTH=5568,AVERAGE-BANDWIDTH=4000,CODECS=\"mp4a.40.2\"\n"+
 				"audio1_stream.m3u8?key=value\n", string(byts))
 
-		case stream == "video+multiaudio" && (variant == "fmp4" || variant == "lowLatency"):
+		case content == "video+multiaudio" && (variant == "fmp4" || variant == "lowLatency"):
 			require.Equal(t, "#EXTM3U\n"+
 				"#EXT-X-VERSION:9\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
@@ -471,31 +473,31 @@ func TestMuxer(t *testing.T) {
 				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\","+
 				"NAME=\"audio2\",AUTOSELECT=YES,DEFAULT=YES,URI=\"audio2_stream.m3u8?key=value\"\n"+
 				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\","+
-				"NAME=\"audio3\",AUTOSELECT=YES,URI=\"audio3_stream.m3u8?key=value\"\n"+
+				"LANGUAGE=\"de\",NAME=\"German\",AUTOSELECT=YES,URI=\"audio3_stream.m3u8?key=value\"\n"+
 				"\n"+
 				"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=403,"+
 				"CODECS=\"avc1.42c028,mp4a.40.2\",RESOLUTION=1920x1080,FRAME-RATE=30.000,AUDIO=\"audio\"\n"+
 				"video1_stream.m3u8?key=value\n", string(byts))
 
-		case stream == "multiaudio" && variant == "fmp4":
+		case content == "multiaudio" && variant == "fmp4":
 			require.Equal(t, "#EXTM3U\n"+
 				"#EXT-X-VERSION:9\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 				"\n"+
 				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",NAME=\"audio1\",AUTOSELECT=YES,DEFAULT=YES\n"+
-				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",NAME=\"audio2\","+
+				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",LANGUAGE=\"de\",NAME=\"German\","+
 				"AUTOSELECT=YES,URI=\"audio2_stream.m3u8?key=value\"\n"+
 				"\n"+
 				"#EXT-X-STREAM-INF:BANDWIDTH=5184,AVERAGE-BANDWIDTH=3744,CODECS=\"mp4a.40.2\",AUDIO=\"audio\"\n"+
 				"audio1_stream.m3u8?key=value\n", string(byts))
 
-		case stream == "multiaudio" && variant == "lowLatency":
+		case content == "multiaudio" && variant == "lowLatency":
 			require.Equal(t, "#EXTM3U\n"+
 				"#EXT-X-VERSION:9\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 				"\n"+
 				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",NAME=\"audio1\",AUTOSELECT=YES,DEFAULT=YES\n"+
-				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",NAME=\"audio2\","+
+				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",LANGUAGE=\"de\",NAME=\"German\","+
 				"AUTOSELECT=YES,URI=\"audio2_stream.m3u8?key=value\"\n"+
 				"\n"+
 				"#EXT-X-STREAM-INF:BANDWIDTH=5568,AVERAGE-BANDWIDTH=4000,CODECS=\"mp4a.40.2\",AUDIO=\"audio\"\n"+
@@ -503,14 +505,14 @@ func TestMuxer(t *testing.T) {
 		}
 	}
 
-	checkPlaylist1 := func(t *testing.T, m *Muxer, variant string, stream string) {
+	checkPlaylist1 := func(t *testing.T, m *Muxer, variant string, content string) {
 		var u string
 
 		switch {
 		case variant == "mpegts":
 			u = "main_stream.m3u8?key=value"
 
-		case stream == "audio" || stream == "multiaudio":
+		case content == "audio" || content == "multiaudio":
 			u = "audio1_stream.m3u8?key=value"
 
 		default:
@@ -523,7 +525,7 @@ func TestMuxer(t *testing.T) {
 		require.Equal(t, "no-cache", h.Get("Cache-Control"))
 
 		switch {
-		case variant == "mpegts" && (stream == "video+audio" || stream == "video"):
+		case variant == "mpegts" && (content == "video+audio" || content == "video"):
 			re := regexp.MustCompile(`^#EXTM3U\n` +
 				`#EXT-X-VERSION:3\n` +
 				`#EXT-X-ALLOW-CACHE:NO\n` +
@@ -537,7 +539,7 @@ func TestMuxer(t *testing.T) {
 				`(.*?_seg1\.ts\?key=value)\n$`)
 			require.Regexp(t, re, string(byts))
 
-		case variant == "mpegts" && stream == "audio":
+		case variant == "mpegts" && content == "audio":
 			re := regexp.MustCompile(`^#EXTM3U\n` +
 				`#EXT-X-VERSION:3\n` +
 				`#EXT-X-ALLOW-CACHE:NO\n` +
@@ -548,7 +550,7 @@ func TestMuxer(t *testing.T) {
 				`(.*?_seg0\.ts\?key=value)\n$`)
 			require.Regexp(t, re, string(byts))
 
-		case variant == "fmp4" && (stream == "video+audio" || stream == "video"):
+		case variant == "fmp4" && (content == "video+audio" || content == "video"):
 			re := regexp.MustCompile(`^#EXTM3U\n` +
 				`#EXT-X-VERSION:10\n` +
 				`#EXT-X-TARGETDURATION:4\n` +
@@ -562,7 +564,7 @@ func TestMuxer(t *testing.T) {
 				`(.*?_seg1\.mp4\?key=value)\n$`)
 			require.Regexp(t, re, string(byts))
 
-		case variant == "fmp4" && stream == "audio":
+		case variant == "fmp4" && content == "audio":
 			re := regexp.MustCompile(`^#EXTM3U\n` +
 				`#EXT-X-VERSION:10\n` +
 				`#EXT-X-TARGETDURATION:2\n` +
@@ -576,7 +578,7 @@ func TestMuxer(t *testing.T) {
 				`(.*?_seg1.mp4\?key=value)\n$`)
 			require.Regexp(t, re, string(byts))
 
-		case variant == "lowLatency" && stream == "video+audio":
+		case variant == "lowLatency" && content == "video+audio":
 			re := regexp.MustCompile(`^#EXTM3U\n` +
 				`#EXT-X-VERSION:10\n` +
 				`#EXT-X-TARGETDURATION:4\n` +
@@ -611,7 +613,7 @@ func TestMuxer(t *testing.T) {
 				`#EXT-X-PRELOAD-HINT:TYPE=PART,URI="(.*?_part3\.mp4\?key=value)"\n$`)
 			require.Regexp(t, re, string(byts))
 
-		case variant == "lowLatency" && stream == "video":
+		case variant == "lowLatency" && content == "video":
 			re := regexp.MustCompile(`^#EXTM3U\n` +
 				`#EXT-X-VERSION:10\n` +
 				`#EXT-X-TARGETDURATION:4\n` +
@@ -645,7 +647,7 @@ func TestMuxer(t *testing.T) {
 				`#EXT-X-PRELOAD-HINT:TYPE=PART,URI="(.*?_part2\.mp4\?key=value)"\n$`)
 			require.Regexp(t, re, string(byts))
 
-		case variant == "lowLatency" && stream == "audio":
+		case variant == "lowLatency" && content == "audio":
 			re := regexp.MustCompile(`^#EXTM3U\n` +
 				`#EXT-X-VERSION:10\n` +
 				`#EXT-X-TARGETDURATION:2\n` +
@@ -745,28 +747,26 @@ func TestMuxer(t *testing.T) {
 		"fmp4",
 		"lowLatency",
 	} {
-		for _, stream := range []string{
+		for _, content := range []string{
 			"video+audio",
 			"video",
 			"audio",
 			"video+multiaudio",
 			"multiaudio",
 		} {
-			if variant == "mpegts" && (stream == "video+multiaudio" || stream == "multiaudio") {
+			if variant == "mpegts" && (content == "video+multiaudio" || content == "multiaudio") {
 				continue
 			}
 
-			t.Run(variant+"_"+stream, func(t *testing.T) {
-				m := createMuxer(t, variant, stream)
+			t.Run(variant+"_"+content, func(t *testing.T) {
+				m := createMuxer(t, variant, content)
 				defer m.Close()
 
-				checkMultivariantPlaylist(t, m, variant, stream)
-				checkPlaylist1(t, m, variant, stream)
+				checkMultivariantPlaylist(t, m, variant, content)
+				checkPlaylist1(t, m, variant, content)
 
-				if variant == "fmp4" || variant == "lowLatency" {
-					if stream == "video+audio" {
-						checkPlaylist2(t, m, variant)
-					}
+				if (variant == "fmp4" || variant == "lowLatency") && content == "video+audio" {
+					checkPlaylist2(t, m, variant)
 				}
 			})
 		}
