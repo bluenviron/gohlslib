@@ -209,6 +209,17 @@ func (m *Muxer) Start() error {
 		}
 	}
 
+	hasDefaultAudio := false
+
+	for _, track := range m.Tracks {
+		if !isVideo(track.Codec) && track.IsDefault {
+			if hasDefaultAudio {
+				return fmt.Errorf("multiple default audio tracks are not supported")
+			}
+			hasDefaultAudio = true
+		}
+	}
+
 	switch m.Variant {
 	case MuxerVariantLowLatency:
 		if m.SegmentCount < 7 {
@@ -262,7 +273,7 @@ func (m *Muxer) Start() error {
 		m.streams = append(m.streams, stream)
 
 	default:
-		defaultRenditionChosen := false
+		defaultAudioChosen := false
 
 		for i, track := range m.mtracks {
 			var id string
@@ -273,22 +284,35 @@ func (m *Muxer) Start() error {
 			}
 
 			isRendition := !track.isLeading || (!isVideo(track.Codec) && len(m.Tracks) > 1)
+			isDefault := false
+			name := ""
 
-			var isDefaultRendition bool
-			if isRendition && !defaultRenditionChosen {
-				isDefaultRendition = true
-				defaultRenditionChosen = true
-			} else {
-				isDefaultRendition = false
+			if isRendition {
+				if !hasDefaultAudio {
+					if !defaultAudioChosen {
+						defaultAudioChosen = true
+						isDefault = true
+					}
+				} else {
+					isDefault = track.IsDefault
+				}
+
+				if track.Name != "" {
+					name = track.Name
+				} else {
+					name = id
+				}
 			}
 
 			stream := &muxerStream{
-				muxer:              m,
-				tracks:             []*muxerTrack{track},
-				id:                 id,
-				isLeading:          track.isLeading,
-				isRendition:        isRendition,
-				isDefaultRendition: isDefaultRendition,
+				muxer:       m,
+				tracks:      []*muxerTrack{track},
+				id:          id,
+				isLeading:   track.isLeading,
+				isRendition: isRendition,
+				name:        name,
+				language:    track.Language,
+				isDefault:   isDefault,
 			}
 			stream.initialize()
 			m.streams = append(m.streams, stream)
