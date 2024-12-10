@@ -47,5 +47,6 @@ func (ts *clientTimeConvMPEGTS) getNTP(timestamp int64) *time.Time {
 	}
 
 	v := ts.ntpValue.Add(timestampToDuration(timestamp-ts.ntpTimestamp, 90000))
+
 	return &v
 }

@@ -39,8 +39,8 @@ type clientStreamProcessorMPEGTS struct {
 	isLeading          bool
 	segmentQueue       *clientSegmentQueue
 	rp                 *clientRoutinePool
-	setStreamTracks    clientOnStreamTracksFunc
-	setStreamEnded     func(context.Context)
+	setTracks          func(ctx context.Context, tracks []*Track) ([]*clientTrack, bool)
+	setEnded           func()
 	setLeadingTimeConv func(clientTimeConv)
 	getLeadingTimeConv func(context.Context) (clientTimeConv, bool)
 
@@ -76,7 +76,7 @@ func (p *clientStreamProcessorMPEGTS) run(ctx context.Context) error {
 
 func (p *clientStreamProcessorMPEGTS) processSegment(ctx context.Context, seg *segmentData) error {
 	if seg == nil {
-		p.setStreamEnded(ctx)
+		p.setEnded()
 		<-ctx.Done()
 		return fmt.Errorf("terminated")
 	}
@@ -174,7 +174,7 @@ func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, firs
 	}
 
 	var ok bool
-	p.clientStreamTracks, ok = p.setStreamTracks(ctx, p.isLeading, tracks)
+	p.clientStreamTracks, ok = p.setTracks(ctx, tracks)
 	if !ok {
 		return fmt.Errorf("terminated")
 	}
