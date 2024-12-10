@@ -62,10 +62,6 @@ type ClientOnDataMPEG4AudioFunc func(pts int64, aus [][]byte)
 // ClientOnDataOpusFunc is the prototype of the function passed to OnDataOpus().
 type ClientOnDataOpusFunc func(pts int64, packets [][]byte)
 
-type clientOnStreamTracksFunc func(ctx context.Context, isLeading bool, tracks []*Track) ([]*clientTrack, bool)
-
-type clientOnDataFunc func(pts int64, dts int64, data [][]byte)
-
 func clientAbsoluteURL(base *url.URL, relative string) (*url.URL, error) {
 	u, err := url.Parse(relative)
 	if err != nil {

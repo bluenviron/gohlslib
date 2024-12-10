@@ -8,7 +8,7 @@ import (
 
 type clientTrack struct {
 	track            *Track
-	onData           clientOnDataFunc
+	onData           func(pts int64, dts int64, data [][]byte)
 	lastAbsoluteTime *time.Time
 	startRTC         time.Time
 }

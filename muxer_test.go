@@ -57,8 +57,6 @@ var testAudioTrack = &Track{
 }
 
 var testAudioTrack2 = &Track{
-	Name:     "German",
-	Language: "de",
 	Codec: &codecs.MPEG4Audio{
 		Config: mpeg4audio.Config{
 			Type:         2,
@@ -67,6 +65,8 @@ var testAudioTrack2 = &Track{
 		},
 	},
 	ClockRate: 44100,
+	Name:      "German",
+	Language:  "de",
 }
 
 type dummyResponseWriter struct {

@@ -58,15 +58,27 @@ type clientStreamDownloader struct {
 	onDownloadPart           ClientOnDownloadPartFunc
 	onDecodeError            ClientOnDecodeErrorFunc
 	playlistURL              *url.URL
+	rendition                *playlist.MultivariantRendition
 	firstPlaylist            *playlist.Media
 	rp                       *clientRoutinePool
-	setStreamTracks          clientOnStreamTracksFunc
-	setStreamEnded           func(context.Context)
 	setLeadingTimeConv       func(clientTimeConv)
 	getLeadingTimeConv       func(context.Context) (clientTimeConv, bool)
 
 	segmentQueue *clientSegmentQueue
 	curSegmentID *int
+
+	// out
+	chTracks chan []*Track
+	chEnded  chan struct{}
+
+	// in
+	chStartStreaming chan map[*Track]*clientTrack
+}
+
+func (d *clientStreamDownloader) initialize() {
+	d.chTracks = make(chan []*Track)
+	d.chEnded = make(chan struct{})
+	d.chStartStreaming = make(chan map[*Track]*clientTrack)
 }
 
 func (d *clientStreamDownloader) run(ctx context.Context) error {
@@ -82,7 +94,7 @@ func (d *clientStreamDownloader) run(ctx context.Context) error {
 	d.segmentQueue.initialize()
 
 	if d.firstPlaylist.Map != nil && d.firstPlaylist.Map.URI != "" {
-		byts, err := d.downloadSegment(
+		initFile, err := d.downloadSegment(
 			ctx,
 			d.firstPlaylist.Map.URI,
 			d.firstPlaylist.Map.ByteRangeStart,
@@ -94,11 +106,12 @@ func (d *clientStreamDownloader) run(ctx context.Context) error {
 		proc := &clientStreamProcessorFMP4{
 			ctx:                ctx,
 			isLeading:          d.isLeading,
-			initFile:           byts,
+			rendition:          d.rendition,
+			initFile:           initFile,
 			segmentQueue:       d.segmentQueue,
 			rp:                 d.rp,
-			setStreamTracks:    d.setStreamTracks,
-			setStreamEnded:     d.setStreamEnded,
+			setTracks:          d.setTracks,
+			setEnded:           d.setEnded,
 			setLeadingTimeConv: d.setLeadingTimeConv,
 			getLeadingTimeConv: d.getLeadingTimeConv,
 		}
@@ -110,8 +123,8 @@ func (d *clientStreamDownloader) run(ctx context.Context) error {
 			isLeading:          d.isLeading,
 			segmentQueue:       d.segmentQueue,
 			rp:                 d.rp,
-			setStreamTracks:    d.setStreamTracks,
-			setStreamEnded:     d.setStreamEnded,
+			setTracks:          d.setTracks,
+			setEnded:           d.setEnded,
 			setLeadingTimeConv: d.setLeadingTimeConv,
 			getLeadingTimeConv: d.getLeadingTimeConv,
 		}
@@ -190,7 +203,7 @@ func (d *clientStreamDownloader) downloadPlaylist(
 
 	d.onDownloadStreamPlaylist(ur.String())
 
-	pl, err := clientDownloadPlaylist(ctx, d.httpClient, d.onRequest, ur)
+	pl, err := downloadPlaylist(ctx, d.httpClient, d.onRequest, ur)
 	if err != nil {
 		return nil, err
 	}
@@ -345,4 +358,31 @@ func (d *clientStreamDownloader) fillSegmentQueue(
 	}
 
 	return nil
+}
+
+func (d *clientStreamDownloader) setTracks(ctx context.Context, tracks []*Track) ([]*clientTrack, bool) {
+	select {
+	case d.chTracks <- tracks:
+	case <-ctx.Done():
+		return nil, false
+	}
+
+	var allTracks map[*Track]*clientTrack
+
+	select {
+	case allTracks = <-d.chStartStreaming:
+	case <-ctx.Done():
+		return nil, false
+	}
+
+	streamTracks := make([]*clientTrack, len(tracks))
+	for i, track := range tracks {
+		streamTracks[i] = allTracks[track]
+	}
+
+	return streamTracks, true
+}
+
+func (d *clientStreamDownloader) setEnded() {
+	close(d.chEnded)
 }

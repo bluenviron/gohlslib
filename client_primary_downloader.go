@@ -40,7 +40,7 @@ func cloneURL(ur *url.URL) *url.URL {
 	}
 }
 
-func clientDownloadPlaylist(
+func downloadPlaylist(
 	ctx context.Context,
 	httpClient *http.Client,
 	onRequest ClientOnRequestFunc,
@@ -94,34 +94,19 @@ func pickLeadingPlaylist(variants []*playlist.MultivariantVariant) *playlist.Mul
 	return leadingPlaylist
 }
 
-func pickAudioPlaylist(alternatives []*playlist.MultivariantRendition, groupID string) *playlist.MultivariantRendition {
-	candidates := func() []*playlist.MultivariantRendition {
-		var ret []*playlist.MultivariantRendition
-		for _, alt := range alternatives {
-			if alt.GroupID == groupID {
-				ret = append(ret, alt)
-			}
-		}
-		return ret
-	}()
-	if candidates == nil {
-		return nil
-	}
+func getRenditionsByGroup(
+	renditions []*playlist.MultivariantRendition,
+	groupID string,
+) []*playlist.MultivariantRendition {
+	var ret []*playlist.MultivariantRendition
 
-	// pick the default audio playlist
-	for _, alt := range candidates {
-		if alt.Default {
-			return alt
+	for _, alt := range renditions {
+		if alt.GroupID == groupID {
+			ret = append(ret, alt)
 		}
 	}
 
-	// alternatively, pick the first one
-	return candidates[0]
-}
-
-type streamTracksEntry struct {
-	isLeading bool
-	tracks    []*Track
+	return ret
 }
 
 type clientPrimaryDownloader struct {
@@ -139,34 +124,24 @@ type clientPrimaryDownloader struct {
 	getLeadingTimeConv        func(ctx context.Context) (clientTimeConv, bool)
 
 	clientTracks map[*Track]*clientTrack
-
-	// in
-	chStreamTracks chan streamTracksEntry
-	chStreamEnded  chan struct{}
-
-	// out
-	startStreaming chan struct{}
 }
 
 func (d *clientPrimaryDownloader) initialize() {
-	d.chStreamTracks = make(chan streamTracksEntry)
-	d.chStreamEnded = make(chan struct{})
-	d.startStreaming = make(chan struct{})
 }
 
 func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 	d.onDownloadPrimaryPlaylist(d.primaryPlaylistURL.String())
 
-	pl, err := clientDownloadPlaylist(ctx, d.httpClient, d.onRequest, d.primaryPlaylistURL)
+	pl, err := downloadPlaylist(ctx, d.httpClient, d.onRequest, d.primaryPlaylistURL)
 	if err != nil {
 		return err
 	}
 
-	streamCount := 0
+	var streams []*clientStreamDownloader
 
 	switch plt := pl.(type) {
 	case *playlist.Media:
-		ds := &clientStreamDownloader{
+		stream := &clientStreamDownloader{
 			isLeading:                true,
 			httpClient:               d.httpClient,
 			onRequest:                d.onRequest,
@@ -177,13 +152,12 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 			playlistURL:              d.primaryPlaylistURL,
 			firstPlaylist:            plt,
 			rp:                       d.rp,
-			setStreamTracks:          d.setStreamTracks,
-			setStreamEnded:           d.setStreamEnded,
 			setLeadingTimeConv:       d.setLeadingTimeConv,
 			getLeadingTimeConv:       d.getLeadingTimeConv,
 		}
-		d.rp.add(ds)
-		streamCount++
+		stream.initialize()
+		d.rp.add(stream)
+		streams = append(streams, stream)
 
 	case *playlist.Multivariant:
 		leadingPlaylist := pickLeadingPlaylist(plt.Variants)
@@ -197,7 +171,7 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 			return err
 		}
 
-		ds := &clientStreamDownloader{
+		stream := &clientStreamDownloader{
 			isLeading:                true,
 			httpClient:               d.httpClient,
 			onRequest:                d.onRequest,
@@ -208,44 +182,49 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 			playlistURL:              u,
 			firstPlaylist:            nil,
 			rp:                       d.rp,
-			setStreamTracks:          d.setStreamTracks,
-			setStreamEnded:           d.setStreamEnded,
 			setLeadingTimeConv:       d.setLeadingTimeConv,
 			getLeadingTimeConv:       d.getLeadingTimeConv,
 		}
-		d.rp.add(ds)
-		streamCount++
+		stream.initialize()
+		d.rp.add(stream)
+		streams = append(streams, stream)
 
 		if leadingPlaylist.Audio != "" {
-			audioPlaylist := pickAudioPlaylist(plt.Renditions, leadingPlaylist.Audio)
-			if audioPlaylist == nil {
-				return fmt.Errorf("audio playlist with id \"%s\" not found", leadingPlaylist.Audio)
+			audioPlaylists := getRenditionsByGroup(plt.Renditions, leadingPlaylist.Audio)
+			if audioPlaylists == nil {
+				return fmt.Errorf("no playlist with Group ID \"%s\" found", leadingPlaylist.Audio)
 			}
 
-			if audioPlaylist.URI != nil {
-				u, err = clientAbsoluteURL(d.primaryPlaylistURL, *audioPlaylist.URI)
-				if err != nil {
-					return err
+			for _, pl := range audioPlaylists {
+				// stream data already included in the leading playlist
+				if pl.URI == nil {
+					continue
 				}
 
-				ds := &clientStreamDownloader{
-					isLeading:                false,
-					onRequest:                d.onRequest,
-					httpClient:               d.httpClient,
-					onDownloadStreamPlaylist: d.onDownloadStreamPlaylist,
-					onDownloadSegment:        d.onDownloadSegment,
-					onDownloadPart:           d.onDownloadPart,
-					onDecodeError:            d.onDecodeError,
-					playlistURL:              u,
-					firstPlaylist:            nil,
-					rp:                       d.rp,
-					setStreamTracks:          d.setStreamTracks,
-					setLeadingTimeConv:       d.setLeadingTimeConv,
-					getLeadingTimeConv:       d.getLeadingTimeConv,
-					setStreamEnded:           d.setStreamEnded,
+				if pl.URI != nil {
+					u, err = clientAbsoluteURL(d.primaryPlaylistURL, *pl.URI)
+					if err != nil {
+						return err
+					}
+
+					stream := &clientStreamDownloader{
+						isLeading:                false,
+						onRequest:                d.onRequest,
+						httpClient:               d.httpClient,
+						onDownloadStreamPlaylist: d.onDownloadStreamPlaylist,
+						onDownloadSegment:        d.onDownloadSegment,
+						onDownloadPart:           d.onDownloadPart,
+						onDecodeError:            d.onDecodeError,
+						playlistURL:              u,
+						rendition:                pl,
+						rp:                       d.rp,
+						setLeadingTimeConv:       d.setLeadingTimeConv,
+						getLeadingTimeConv:       d.getLeadingTimeConv,
+					}
+					stream.initialize()
+					d.rp.add(stream)
+					streams = append(streams, stream)
 				}
-				d.rp.add(ds)
-				streamCount++
 			}
 		}
 
@@ -255,14 +234,10 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 
 	var tracks []*Track
 
-	for i := 0; i < streamCount; i++ {
+	for _, stream := range streams {
 		select {
-		case entry := <-d.chStreamTracks:
-			if entry.isLeading {
-				tracks = append(append([]*Track(nil), entry.tracks...), tracks...)
-			} else {
-				tracks = append(tracks, entry.tracks...)
-			}
+		case streamTracks := <-stream.chTracks:
+			tracks = append(tracks, streamTracks...)
 
 		case <-ctx.Done():
 			return fmt.Errorf("terminated")
@@ -278,50 +253,21 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 		return err
 	}
 
-	close(d.startStreaming)
-
-	for i := 0; i < streamCount; i++ {
+	for _, stream := range streams {
 		select {
-		case <-d.chStreamEnded:
+		case stream.chStartStreaming <- d.clientTracks:
+		case <-ctx.Done():
+			return fmt.Errorf("terminated")
+		}
+	}
+
+	for _, stream := range streams {
+		select {
+		case <-stream.chEnded:
 		case <-ctx.Done():
 			return fmt.Errorf("terminated")
 		}
 	}
 
 	return ErrClientEOS
-}
-
-func (d *clientPrimaryDownloader) setStreamTracks(
-	ctx context.Context,
-	isLeading bool,
-	tracks []*Track,
-) ([]*clientTrack, bool) {
-	select {
-	case d.chStreamTracks <- streamTracksEntry{
-		isLeading: isLeading,
-		tracks:    tracks,
-	}:
-	case <-ctx.Done():
-		return nil, false
-	}
-
-	select {
-	case <-d.startStreaming:
-	case <-ctx.Done():
-		return nil, false
-	}
-
-	streamClientTracks := make([]*clientTrack, len(tracks))
-	for i, track := range tracks {
-		streamClientTracks[i] = d.clientTracks[track]
-	}
-
-	return streamClientTracks, true
-}
-
-func (d *clientPrimaryDownloader) setStreamEnded(ctx context.Context) {
-	select {
-	case d.chStreamEnded <- struct{}{}:
-	case <-ctx.Done():
-	}
 }

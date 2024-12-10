@@ -8,6 +8,7 @@ import (
 	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
 
 	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
+	"github.com/bluenviron/gohlslib/v2/pkg/playlist"
 )
 
 func fmp4PickLeadingTrack(init *fmp4.Init) int {
@@ -45,11 +46,12 @@ func findTimeScaleOfLeadingTrack(tracks []*fmp4.InitTrack, leadingTrackID int) u
 type clientStreamProcessorFMP4 struct {
 	ctx                context.Context
 	isLeading          bool
+	rendition          *playlist.MultivariantRendition
 	initFile           []byte
 	segmentQueue       *clientSegmentQueue
 	rp                 *clientRoutinePool
-	setStreamTracks    clientOnStreamTracksFunc
-	setStreamEnded     func(context.Context)
+	setTracks          func(ctx context.Context, tracks []*Track) ([]*clientTrack, bool)
+	setEnded           func()
 	setLeadingTimeConv func(clientTimeConv)
 	getLeadingTimeConv func(context.Context) (clientTimeConv, bool)
 
@@ -73,6 +75,10 @@ func (p *clientStreamProcessorFMP4) run(ctx context.Context) error {
 		return err
 	}
 
+	if !p.isLeading && len(p.init.Tracks) != 1 {
+		return fmt.Errorf("rendition playlists with multiple tracks are not supported")
+	}
+
 	p.leadingTrackID = fmp4PickLeadingTrack(&p.init)
 
 	tracks := make([]*Track, len(p.init.Tracks))
@@ -81,6 +87,24 @@ func (p *clientStreamProcessorFMP4) run(ctx context.Context) error {
 		tracks[i] = &Track{
 			Codec:     codecs.FromFMP4(track.Codec),
 			ClockRate: int(track.TimeScale),
+			Name: func() string {
+				if !p.isLeading {
+					return p.rendition.Name
+				}
+				return ""
+			}(),
+			Language: func() string {
+				if !p.isLeading {
+					return p.rendition.Language
+				}
+				return ""
+			}(),
+			IsDefault: func() bool {
+				if !p.isLeading {
+					return p.rendition.Default
+				}
+				return false
+			}(),
 		}
 	}
 
@@ -89,7 +113,7 @@ func (p *clientStreamProcessorFMP4) run(ctx context.Context) error {
 	}
 
 	var ok bool
-	p.clientStreamTracks, ok = p.setStreamTracks(p.ctx, p.isLeading, tracks)
+	p.clientStreamTracks, ok = p.setTracks(p.ctx, tracks)
 	if !ok {
 		return fmt.Errorf("terminated")
 	}
@@ -109,7 +133,7 @@ func (p *clientStreamProcessorFMP4) run(ctx context.Context) error {
 
 func (p *clientStreamProcessorFMP4) processSegment(ctx context.Context, seg *segmentData) error {
 	if seg == nil {
-		p.setStreamEnded(ctx)
+		p.setEnded()
 		<-ctx.Done()
 		return fmt.Errorf("terminated")
 	}
