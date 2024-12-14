@@ -31,6 +31,9 @@ type MediaSegment struct {
 	// EXT-X-BITRATE
 	Bitrate *int
 
+	// EXT-X-KEY
+	Key *MediaKey
+
 	// EXT-X-BYTERANGE
 	ByteRangeLength *uint64
 	ByteRangeStart  *uint64
