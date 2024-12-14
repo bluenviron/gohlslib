@@ -6,12 +6,14 @@ import (
 	"github.com/bluenviron/gohlslib/v2/pkg/playlist/primitives"
 )
 
+// MediaKeyMethod is the encryption method used for the media segments.
 type MediaKeyMethod string
 
+// standard encryption methods
 const (
 	MediaKeyMethodNone      = "NONE"
 	MediaKeyMethodAES128    = "AES-128"
-	MediaKeyMethodSampleAes = "SAMPLE-AES"
+	MediaKeyMethodSampleAES = "SAMPLE-AES"
 )
 
 // MediaKey is a EXT-X-KEY tag.
@@ -45,7 +47,7 @@ func (t *MediaKey) unmarshal(v string) error {
 			km := MediaKeyMethod(val)
 			if km != MediaKeyMethodNone &&
 				km != MediaKeyMethodAES128 &&
-				km != MediaKeyMethodSampleAes {
+				km != MediaKeyMethodSampleAES {
 				return fmt.Errorf("invalid method: %s", val)
 			}
 			t.Method = km
@@ -65,7 +67,7 @@ func (t *MediaKey) unmarshal(v string) error {
 	}
 
 	switch t.Method {
-	case MediaKeyMethodAES128, MediaKeyMethodSampleAes:
+	case MediaKeyMethodAES128, MediaKeyMethodSampleAES:
 		if t.URI == "" {
 			return fmt.Errorf("URI is required for method %s", t.Method)
 		}
@@ -100,6 +102,7 @@ func (t MediaKey) marshal() string {
 	return ret
 }
 
+// Equal checks if two MediaKey objects are equal.
 func (t *MediaKey) Equal(key *MediaKey) bool {
 	if t == key {
 		return true

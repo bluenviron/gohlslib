@@ -225,6 +225,150 @@ main.mp4
 			Endlist: true,
 		},
 	},
+	{
+		"key-basic",
+		`#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:6
+#EXT-X-MEDIA-SEQUENCE:0
+#EXT-X-KEY:METHOD=AES-128,URI="key.bin"
+#EXTINF:6.00000,
+segment1.ts
+#EXTINF:6.00000,
+segment2.ts`,
+		`#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:6
+#EXT-X-MEDIA-SEQUENCE:0
+#EXT-X-KEY:METHOD=AES-128,URI="key.bin"
+#EXTINF:6.00000,
+segment1.ts
+#EXTINF:6.00000,
+segment2.ts
+`,
+		Media{
+			Version:        3,
+			TargetDuration: 6,
+			Segments: []*MediaSegment{
+				{
+					Duration: 6 * time.Second,
+					URI:      "segment1.ts",
+					Key: &MediaKey{
+						Method: MediaKeyMethodAES128,
+						URI:    "key.bin",
+					},
+				},
+				{
+					Duration: 6 * time.Second,
+					URI:      "segment2.ts",
+					Key: &MediaKey{
+						Method: MediaKeyMethodAES128,
+						URI:    "key.bin",
+					},
+				},
+			},
+		},
+	},
+	{
+		"key-with-iv",
+		`#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:6
+#EXT-X-MEDIA-SEQUENCE:0
+#EXT-X-KEY:METHOD=AES-128,URI="key.bin",IV=0x1234567890abcdef1234567890abcdef
+#EXTINF:6.00000,
+segment1.ts
+`,
+		`#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:6
+#EXT-X-MEDIA-SEQUENCE:0
+#EXT-X-KEY:METHOD=AES-128,URI="key.bin",IV=0x1234567890abcdef1234567890abcdef
+#EXTINF:6.00000,
+segment1.ts
+`,
+		Media{
+			Version:        3,
+			TargetDuration: 6,
+			Segments: []*MediaSegment{
+				{
+					Duration: 6 * time.Second,
+					URI:      "segment1.ts",
+					Key: &MediaKey{
+						Method: MediaKeyMethodAES128,
+						URI:    "key.bin",
+						IV:     "0x1234567890abcdef1234567890abcdef",
+					},
+				},
+			},
+		},
+	},
+	{
+		"key-with-format",
+		`#EXTM3U
+#EXT-X-VERSION:5
+#EXT-X-TARGETDURATION:6
+#EXT-X-MEDIA-SEQUENCE:0
+#EXT-X-KEY:METHOD=SAMPLE-AES,URI="key.bin",KEYFORMAT="com.apple.streamingkeydelivery",KEYFORMATVERSIONS="1"
+#EXTINF:6.00000,
+segment1.ts
+`,
+		`#EXTM3U
+#EXT-X-VERSION:5
+#EXT-X-TARGETDURATION:6
+#EXT-X-MEDIA-SEQUENCE:0
+#EXT-X-KEY:METHOD=SAMPLE-AES,URI="key.bin",KEYFORMAT="com.apple.streamingkeydelivery",KEYFORMATVERSIONS="1"
+#EXTINF:6.00000,
+segment1.ts
+`,
+		Media{
+			Version:        5,
+			TargetDuration: 6,
+			Segments: []*MediaSegment{
+				{
+					Duration: 6 * time.Second,
+					URI:      "segment1.ts",
+					Key: &MediaKey{
+						Method:            MediaKeyMethodSampleAES,
+						URI:               "key.bin",
+						KeyFormat:         "com.apple.streamingkeydelivery",
+						KeyFormatVersions: "1",
+					},
+				},
+			},
+		},
+	},
+	{
+		"key-none",
+		`#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:6
+#EXT-X-MEDIA-SEQUENCE:0
+#EXT-X-KEY:METHOD=NONE
+#EXTINF:6.00000,
+segment1.ts`,
+		`#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:6
+#EXT-X-MEDIA-SEQUENCE:0
+#EXT-X-KEY:METHOD=NONE
+#EXTINF:6.00000,
+segment1.ts
+`,
+		Media{
+			Version:        3,
+			TargetDuration: 6,
+			Segments: []*MediaSegment{
+				{
+					Duration: 6 * time.Second,
+					URI:      "segment1.ts",
+					Key: &MediaKey{
+						Method: MediaKeyMethodNone,
+					},
+				},
+			},
+		},
+	},
 }
 
 func TestMediaUnmarshal(t *testing.T) {
