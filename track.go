@@ -17,7 +17,7 @@ type Track struct {
 	Name string
 
 	// Language
-	// for audio renditions only.
+	// For audio renditions only.
 	Language string
 
 	// whether this is the default track.
