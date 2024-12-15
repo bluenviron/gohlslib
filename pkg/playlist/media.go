@@ -107,6 +107,8 @@ func (m *Media) Unmarshal(buf []byte) error {
 		return err
 	}
 
+	var curKey *MediaKey
+
 	curSegment := &MediaSegment{}
 
 	for {
@@ -224,6 +226,15 @@ func (m *Media) Unmarshal(buf []byte) error {
 				return err
 			}
 
+		case strings.HasPrefix(line, "#EXT-X-KEY:"):
+			line = line[len("#EXT-X-KEY:"):]
+
+			curKey = &MediaKey{}
+			err = curKey.unmarshal(line)
+			if err != nil {
+				return err
+			}
+
 		case strings.HasPrefix(line, "#EXT-X-SKIP:"):
 			line = line[len("#EXT-X-SKIP:"):]
 
@@ -277,6 +288,8 @@ func (m *Media) Unmarshal(buf []byte) error {
 
 			curSegment.Duration = du
 			curSegment.Title = strings.TrimSpace(parts[1])
+
+			curSegment.Key = curKey
 
 		case strings.HasPrefix(line, "#EXT-X-BYTERANGE:"):
 			line = line[len("#EXT-X-BYTERANGE:"):]
@@ -387,7 +400,13 @@ func (m Media) Marshal() ([]byte, error) {
 		ret += m.Skip.marshal()
 	}
 
+	var prevKey *MediaKey
 	for _, seg := range m.Segments {
+		if seg.Key != nil && (prevKey == nil || !seg.Key.Equal(prevKey)) {
+			ret += seg.Key.marshal()
+			prevKey = seg.Key
+		}
+
 		ret += seg.marshal()
 	}
 
