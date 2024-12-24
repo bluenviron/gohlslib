@@ -56,18 +56,18 @@ var casesMultivariant = []struct {
 			",RESOLUTION=1280x720,FRAME-RATE=24.000\n" +
 			"stream2.m3u8\n" +
 			"\n" +
-			"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"aud1\",LANGUAGE=\"en\",NAME=\"english\"" +
+			"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aud1\",LANGUAGE=\"en\",NAME=\"english\"" +
 			",AUTOSELECT=YES,DEFAULT=YES,CHANNELS=\"2\",URI=\"audio.m3u8\"\n" +
-			"#EXT-X-MEDIA:TYPE=\"SUBTITLES\",GROUP-ID=\"sub1\",LANGUAGE=\"en\",NAME=\"english\"" +
+			"#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"sub1\",LANGUAGE=\"en\",NAME=\"english\"" +
 			",AUTOSELECT=YES,DEFAULT=YES,FORCED=NO,URI=\"sub.m3u8\"\n",
 		"#EXTM3U\n" +
 			"#EXT-X-VERSION:9\n" +
 			"#EXT-X-INDEPENDENT-SEGMENTS\n" +
 			"#EXT-X-START:TIME-OFFSET=15.00000\n" +
 			"\n" +
-			"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"aud1\",LANGUAGE=\"en\",NAME=\"english\"" +
+			"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aud1\",LANGUAGE=\"en\",NAME=\"english\"" +
 			",AUTOSELECT=YES,DEFAULT=YES,CHANNELS=\"2\",URI=\"audio.m3u8\"\n" +
-			"#EXT-X-MEDIA:TYPE=\"SUBTITLES\",GROUP-ID=\"sub1\",LANGUAGE=\"en\",NAME=\"english\"" +
+			"#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"sub1\",LANGUAGE=\"en\",NAME=\"english\"" +
 			",AUTOSELECT=YES,DEFAULT=YES,URI=\"sub.m3u8\"\n" +
 			"\n" +
 			"#EXT-X-STREAM-INF:BANDWIDTH=155000,AVERAGE-BANDWIDTH=120000,CODECS=\"avc1.42c028,mp4a.40.2\"" +
@@ -208,11 +208,11 @@ v2/prog_index.m3u8
 #EXT-X-VERSION:6
 #EXT-X-INDEPENDENT-SEGMENTS
 
-#EXT-X-MEDIA:TYPE="AUDIO",GROUP-ID="aud1",LANGUAGE="en",NAME="English",AUTOSELECT=YES,DEFAULT=YES,CHANNELS="2",URI="a1/prog_index.m3u8"
-#EXT-X-MEDIA:TYPE="AUDIO",GROUP-ID="aud2",LANGUAGE="en",NAME="English",AUTOSELECT=YES,DEFAULT=YES,CHANNELS="6",URI="a2/prog_index.m3u8"
-#EXT-X-MEDIA:TYPE="AUDIO",GROUP-ID="aud3",LANGUAGE="en",NAME="English",AUTOSELECT=YES,DEFAULT=YES,CHANNELS="6",URI="a3/prog_index.m3u8"
-#EXT-X-MEDIA:TYPE="CLOSED-CAPTIONS",GROUP-ID="cc1",LANGUAGE="en",NAME="English",AUTOSELECT=YES,DEFAULT=YES,INSTREAM-ID="CC1"
-#EXT-X-MEDIA:TYPE="SUBTITLES",GROUP-ID="sub1",LANGUAGE="en",NAME="English",AUTOSELECT=YES,DEFAULT=YES,URI="s1/en/prog_index.m3u8"
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud1",LANGUAGE="en",NAME="English",AUTOSELECT=YES,DEFAULT=YES,CHANNELS="2",URI="a1/prog_index.m3u8"
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud2",LANGUAGE="en",NAME="English",AUTOSELECT=YES,DEFAULT=YES,CHANNELS="6",URI="a2/prog_index.m3u8"
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud3",LANGUAGE="en",NAME="English",AUTOSELECT=YES,DEFAULT=YES,CHANNELS="6",URI="a3/prog_index.m3u8"
+#EXT-X-MEDIA:TYPE=CLOSED-CAPTIONS,GROUP-ID="cc1",LANGUAGE="en",NAME="English",AUTOSELECT=YES,DEFAULT=YES,INSTREAM-ID="CC1"
+#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="sub1",LANGUAGE="en",NAME="English",AUTOSELECT=YES,DEFAULT=YES,URI="s1/en/prog_index.m3u8"
 
 #EXT-X-STREAM-INF:BANDWIDTH=2177116,AVERAGE-BANDWIDTH=2168183,CODECS="avc1.640020,mp4a.40.2",RESOLUTION=960x540,FRAME-RATE=60.000,AUDIO="aud1",SUBTITLES="sub1",CLOSED-CAPTIONS="cc1"
 v5/prog_index.m3u8
@@ -691,8 +691,8 @@ QualityLevels(5977913)/Manifest(video,format=m3u8-aapl)
 		`#EXTM3U
 #EXT-X-VERSION:4
 
-#EXT-X-MEDIA:TYPE="AUDIO",GROUP-ID="audio",NAME="AAC_und_ch2_128kbps",URI="QualityLevels(125615)/Manifest(AAC_und_ch2_128kbps,format=m3u8-aapl)"
-#EXT-X-MEDIA:TYPE="AUDIO",GROUP-ID="audio",NAME="AAC_und_ch2_56kbps",DEFAULT=YES,URI="QualityLevels(53620)/Manifest(AAC_und_ch2_56kbps,format=m3u8-aapl)"
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio",NAME="AAC_und_ch2_128kbps",URI="QualityLevels(125615)/Manifest(AAC_und_ch2_128kbps,format=m3u8-aapl)"
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio",NAME="AAC_und_ch2_56kbps",DEFAULT=YES,URI="QualityLevels(53620)/Manifest(AAC_und_ch2_56kbps,format=m3u8-aapl)"
 
 #EXT-X-STREAM-INF:BANDWIDTH=546902,CODECS="avc1.64000d,mp4a.40.2",RESOLUTION=320x180,AUDIO="audio"
 QualityLevels(393546)/Manifest(video,format=m3u8-aapl)
@@ -868,7 +868,7 @@ func TestMultivariantMarshal(t *testing.T) {
 		t.Run(ca.name, func(t *testing.T) {
 			byts, err := ca.dec.Marshal()
 			require.NoError(t, err)
-			require.Equal(t, string(byts), ca.output)
+			require.Equal(t, ca.output, string(byts))
 		})
 	}
 }
