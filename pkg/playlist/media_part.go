@@ -30,7 +30,8 @@ type MediaPart struct {
 }
 
 func (p *MediaPart) unmarshal(v string) error {
-	attrs, err := primitives.AttributesUnmarshal(v)
+	var attrs primitives.Attributes
+	err := attrs.Unmarshal(v)
 	if err != nil {
 		return err
 	}
@@ -38,11 +39,12 @@ func (p *MediaPart) unmarshal(v string) error {
 	for key, val := range attrs {
 		switch key {
 		case "DURATION":
-			tmp, err := primitives.DurationUnmarshal(val)
+			var d primitives.Duration
+			err := d.Unmarshal(val)
 			if err != nil {
 				return err
 			}
-			p.Duration = tmp
+			p.Duration = time.Duration(d)
 
 		case "URI":
 			p.URI = val
@@ -51,12 +53,13 @@ func (p *MediaPart) unmarshal(v string) error {
 			p.Independent = (val == "YES")
 
 		case "BYTERANGE":
-			length, start, err := primitives.ByteRangeUnmarshal(val)
+			var br primitives.ByteRange
+			err := br.Unmarshal(val)
 			if err != nil {
 				return err
 			}
-			p.ByteRangeLength = &length
-			p.ByteRangeStart = start
+			p.ByteRangeLength = &br.Length
+			p.ByteRangeStart = br.Start
 
 		case "GAP":
 			p.Gap = true
@@ -83,7 +86,10 @@ func (p MediaPart) marshal() string {
 	}
 
 	if p.ByteRangeLength != nil {
-		ret += ",BYTERANGE=" + primitives.ByteRangeMarshal(*p.ByteRangeLength, p.ByteRangeStart) + ""
+		ret += ",BYTERANGE=" + primitives.ByteRange{
+			Length: *p.ByteRangeLength,
+			Start:  p.ByteRangeStart,
+		}.Marshal() + ""
 	}
 
 	if p.Gap {

@@ -21,7 +21,8 @@ type MediaPreloadHint struct {
 }
 
 func (t *MediaPreloadHint) unmarshal(v string) error {
-	attrs, err := primitives.AttributesUnmarshal(v)
+	var attrs primitives.Attributes
+	err := attrs.Unmarshal(v)
 	if err != nil {
 		return err
 	}

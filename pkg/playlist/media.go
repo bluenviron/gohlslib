@@ -102,7 +102,7 @@ func (m Media) isPlaylist() {}
 func (m *Media) Unmarshal(buf []byte) error {
 	s := string(buf)
 
-	s, err := primitives.HeaderUnmarshal(s)
+	s, err := primitives.SkipHeader(s)
 	if err != nil {
 		return err
 	}
@@ -280,13 +280,13 @@ func (m *Media) Unmarshal(buf []byte) error {
 				return fmt.Errorf("invalid EXTINF: %s", line)
 			}
 
-			var du time.Duration
-			du, err = primitives.DurationUnmarshal(parts[0])
+			var d primitives.Duration
+			err = d.Unmarshal(parts[0])
 			if err != nil {
 				return err
 			}
 
-			curSegment.Duration = du
+			curSegment.Duration = time.Duration(d)
 			curSegment.Title = strings.TrimSpace(parts[1])
 
 			curSegment.Key = curKey
@@ -294,15 +294,14 @@ func (m *Media) Unmarshal(buf []byte) error {
 		case strings.HasPrefix(line, "#EXT-X-BYTERANGE:"):
 			line = line[len("#EXT-X-BYTERANGE:"):]
 
-			var tmp1 uint64
-			var tmp2 *uint64
-			tmp1, tmp2, err = primitives.ByteRangeUnmarshal(line)
+			var br primitives.ByteRange
+			err = br.Unmarshal(line)
 			if err != nil {
 				return err
 			}
 
-			curSegment.ByteRangeLength = &tmp1
-			curSegment.ByteRangeStart = tmp2
+			curSegment.ByteRangeLength = &br.Length
+			curSegment.ByteRangeStart = br.Start
 
 		case strings.HasPrefix(line, "#EXT-X-PART:"):
 			line = line[len("#EXT-X-PART:"):]

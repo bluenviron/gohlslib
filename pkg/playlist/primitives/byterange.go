@@ -5,40 +5,50 @@ import (
 	"strings"
 )
 
-// ByteRangeUnmarshal decodes a byte range.
-func ByteRangeUnmarshal(v string) (uint64, *uint64, error) {
+// ByteRange is a byte range.
+type ByteRange struct {
+	Length uint64
+	Start  *uint64
+}
+
+// Unmarshal decodes a byte range.
+func (b *ByteRange) Unmarshal(v string) error {
 	i := strings.IndexByte(v, '@')
 
 	if i >= 0 {
 		str1, str2 := v[:i], v[i+1:]
 
-		length, err := strconv.ParseUint(str1, 10, 64)
+		var err error
+		b.Length, err = strconv.ParseUint(str1, 10, 64)
 		if err != nil {
-			return 0, nil, err
+			return err
 		}
 
 		start, err := strconv.ParseUint(str2, 10, 64)
 		if err != nil {
-			return 0, nil, err
+			return err
 		}
 
-		return length, &start, nil
+		b.Start = &start
+
+		return nil
 	}
 
-	length, err := strconv.ParseUint(v, 10, 64)
+	var err error
+	b.Length, err = strconv.ParseUint(v, 10, 64)
 	if err != nil {
-		return 0, nil, err
+		return err
 	}
 
-	return length, nil, nil
+	return nil
 }
 
-// ByteRangeMarshal encodes a byte range.
-func ByteRangeMarshal(length uint64, start *uint64) string {
-	ret := strconv.FormatUint(length, 10)
+// Marshal encodes a byte range.
+func (b ByteRange) Marshal() string {
+	ret := strconv.FormatUint(b.Length, 10)
 
-	if start != nil {
-		ret += "@" + strconv.FormatUint(*start, 10)
+	if b.Start != nil {
+		ret += "@" + strconv.FormatUint(*b.Start, 10)
 	}
 
 	return ret

@@ -5,12 +5,16 @@ import (
 	"time"
 )
 
-// DurationUnmarshal decodes a duration.
-func DurationUnmarshal(val string) (time.Duration, error) {
+// Duration is a playlist duration.
+type Duration time.Duration
+
+// Unmarshal decodes a duration.
+func (d *Duration) Unmarshal(val string) error {
 	tmp, err := strconv.ParseFloat(val, 64)
 	if err != nil {
-		return 0, err
+		return err
 	}
 
-	return time.Duration(tmp * float64(time.Second)), nil
+	*d = Duration(time.Duration(tmp * float64(time.Second)))
+	return nil
 }
