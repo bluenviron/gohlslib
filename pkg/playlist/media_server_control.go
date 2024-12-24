@@ -30,7 +30,8 @@ type MediaServerControl struct {
 }
 
 func (t *MediaServerControl) unmarshal(v string) error {
-	attrs, err := primitives.AttributesUnmarshal(v)
+	var attrs primitives.Attributes
+	err := attrs.Unmarshal(v)
 	if err != nil {
 		return err
 	}
@@ -41,17 +42,21 @@ func (t *MediaServerControl) unmarshal(v string) error {
 			t.CanBlockReload = (val == "YES")
 
 		case "PART-HOLD-BACK":
-			tmp, err := primitives.DurationUnmarshal(val)
+			var d primitives.Duration
+			err := d.Unmarshal(val)
 			if err != nil {
 				return err
 			}
+			tmp := time.Duration(d)
 			t.PartHoldBack = &tmp
 
 		case "CAN-SKIP-UNTIL":
-			tmp, err := primitives.DurationUnmarshal(val)
+			var d primitives.Duration
+			err := d.Unmarshal(val)
 			if err != nil {
 				return err
 			}
+			tmp := time.Duration(d)
 			t.CanSkipUntil = &tmp
 		}
 	}

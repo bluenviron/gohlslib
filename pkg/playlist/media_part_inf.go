@@ -16,18 +16,20 @@ type MediaPartInf struct {
 }
 
 func (t *MediaPartInf) unmarshal(v string) error {
-	attrs, err := primitives.AttributesUnmarshal(v)
+	var attrs primitives.Attributes
+	err := attrs.Unmarshal(v)
 	if err != nil {
 		return err
 	}
 
 	for key, val := range attrs {
 		if key == "PART-TARGET" {
-			tmp, err := primitives.DurationUnmarshal(val)
+			var d primitives.Duration
+			err := d.Unmarshal(val)
 			if err != nil {
 				return err
 			}
-			t.PartTarget = tmp
+			t.PartTarget = time.Duration(d)
 		}
 	}
 

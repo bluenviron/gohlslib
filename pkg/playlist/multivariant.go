@@ -34,7 +34,7 @@ func (m Multivariant) isPlaylist() {}
 func (m *Multivariant) Unmarshal(buf []byte) error {
 	s := string(buf)
 
-	s, err := primitives.HeaderUnmarshal(s)
+	s, err := primitives.SkipHeader(s)
 	if err != nil {
 		return err
 	}

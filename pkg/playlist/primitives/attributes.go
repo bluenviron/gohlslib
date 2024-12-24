@@ -5,9 +5,12 @@ import (
 	"strings"
 )
 
-// AttributesUnmarshal decodes attributes.
-func AttributesUnmarshal(v string) (map[string]string, error) {
-	ret := make(map[string]string)
+// Attributes are playlist attributes.
+type Attributes map[string]string
+
+// Unmarshal decodes attributes.
+func (a *Attributes) Unmarshal(v string) error {
+	*a = make(Attributes)
 
 	for {
 		if len(v) == 0 {
@@ -17,7 +20,7 @@ func AttributesUnmarshal(v string) (map[string]string, error) {
 		// read key
 		i := strings.IndexByte(v, '=')
 		if i < 0 {
-			return nil, fmt.Errorf("key not found")
+			return fmt.Errorf("key not found")
 		}
 		var key string
 		key, v = v[:i], v[i+1:]
@@ -29,14 +32,14 @@ func AttributesUnmarshal(v string) (map[string]string, error) {
 			v = v[1:]
 			i = strings.IndexByte(v, '"')
 			if i < 0 {
-				return nil, fmt.Errorf("value end delimiter not found")
+				return fmt.Errorf("value end delimiter not found")
 			}
 			val, v = v[:i], v[i+1:]
-			ret[key] = val
+			(*a)[key] = val
 
 			if len(v) != 0 {
 				if v[0] != ',' {
-					return nil, fmt.Errorf("delimiter not found")
+					return fmt.Errorf("delimiter not found")
 				}
 				v = v[1:]
 			}
@@ -44,14 +47,14 @@ func AttributesUnmarshal(v string) (map[string]string, error) {
 			i = strings.IndexByte(v, ',')
 			if i >= 0 {
 				val, v = v[:i], v[i+1:]
-				ret[key] = val
+				(*a)[key] = val
 			} else {
 				val = v
-				ret[key] = val
+				(*a)[key] = val
 				break
 			}
 		}
 	}
 
-	return ret, nil
+	return nil
 }

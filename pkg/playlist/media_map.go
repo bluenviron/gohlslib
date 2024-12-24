@@ -18,7 +18,8 @@ type MediaMap struct {
 }
 
 func (t *MediaMap) unmarshal(v string) error {
-	attrs, err := primitives.AttributesUnmarshal(v)
+	var attrs primitives.Attributes
+	err := attrs.Unmarshal(v)
 	if err != nil {
 		return err
 	}
@@ -29,13 +30,14 @@ func (t *MediaMap) unmarshal(v string) error {
 			t.URI = val
 
 		case "BYTERANGE":
-			length, start, err := primitives.ByteRangeUnmarshal(val)
+			var br primitives.ByteRange
+			err := br.Unmarshal(val)
 			if err != nil {
 				return err
 			}
 
-			t.ByteRangeLength = &length
-			t.ByteRangeStart = start
+			t.ByteRangeLength = &br.Length
+			t.ByteRangeStart = br.Start
 		}
 	}
 
@@ -50,7 +52,10 @@ func (t MediaMap) marshal() string {
 	ret := "#EXT-X-MAP:URI=\"" + t.URI + "\""
 
 	if t.ByteRangeLength != nil {
-		ret += ",BYTERANGE=" + primitives.ByteRangeMarshal(*t.ByteRangeLength, t.ByteRangeStart) + ""
+		ret += ",BYTERANGE=" + primitives.ByteRange{
+			Length: *t.ByteRangeLength,
+			Start:  t.ByteRangeStart,
+		}.Marshal() + ""
 	}
 
 	ret += "\n"

@@ -79,7 +79,10 @@ func (s MediaSegment) marshal() string {
 	ret += "#EXTINF:" + strconv.FormatFloat(s.Duration.Seconds(), 'f', 5, 64) + "," + s.Title + "\n"
 
 	if s.ByteRangeLength != nil {
-		ret += "#EXT-X-BYTERANGE:" + primitives.ByteRangeMarshal(*s.ByteRangeLength, s.ByteRangeStart) + "\n"
+		ret += "#EXT-X-BYTERANGE:" + primitives.ByteRange{
+			Length: *s.ByteRangeLength,
+			Start:  s.ByteRangeStart,
+		}.Marshal() + "\n"
 	}
 
 	ret += s.URI + "\n"

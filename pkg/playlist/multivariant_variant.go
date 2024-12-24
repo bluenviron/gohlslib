@@ -47,7 +47,8 @@ type MultivariantVariant struct {
 func (v *MultivariantVariant) unmarshal(va string) error {
 	lines := strings.Split(va, "\n")
 
-	attrs, err := primitives.AttributesUnmarshal(lines[0])
+	var attrs primitives.Attributes
+	err := attrs.Unmarshal(lines[0])
 	if err != nil {
 		return err
 	}
