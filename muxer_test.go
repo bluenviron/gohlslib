@@ -395,7 +395,7 @@ func TestMuxer(t *testing.T) {
 				"#EXT-X-VERSION:9\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 				"\n"+
-				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\","+
+				"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio\","+
 				"NAME=\"audio2\",AUTOSELECT=YES,DEFAULT=YES,URI=\"audio2_stream.m3u8?key=value\"\n"+
 				"\n"+
 				"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=436,CODECS=\"avc1.42c028,mp4a.40.2\","+
@@ -407,7 +407,7 @@ func TestMuxer(t *testing.T) {
 				"#EXT-X-VERSION:9\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 				"\n"+
-				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\","+
+				"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio\","+
 				"NAME=\"audio2\",AUTOSELECT=YES,DEFAULT=YES,URI=\"audio2_stream.m3u8?key=value\"\n"+
 				"\n"+
 				"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=584,CODECS=\"avc1.42c028,mp4a.40.2\","+
@@ -470,9 +470,9 @@ func TestMuxer(t *testing.T) {
 				"#EXT-X-VERSION:9\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 				"\n"+
-				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\","+
+				"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio\","+
 				"NAME=\"audio2\",AUTOSELECT=YES,DEFAULT=YES,URI=\"audio2_stream.m3u8?key=value\"\n"+
-				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\","+
+				"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio\","+
 				"LANGUAGE=\"de\",NAME=\"German\",AUTOSELECT=YES,URI=\"audio3_stream.m3u8?key=value\"\n"+
 				"\n"+
 				"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=403,"+
@@ -484,8 +484,8 @@ func TestMuxer(t *testing.T) {
 				"#EXT-X-VERSION:9\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 				"\n"+
-				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",NAME=\"audio1\",AUTOSELECT=YES,DEFAULT=YES\n"+
-				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",LANGUAGE=\"de\",NAME=\"German\","+
+				"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio\",NAME=\"audio1\",AUTOSELECT=YES,DEFAULT=YES\n"+
+				"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio\",LANGUAGE=\"de\",NAME=\"German\","+
 				"AUTOSELECT=YES,URI=\"audio2_stream.m3u8?key=value\"\n"+
 				"\n"+
 				"#EXT-X-STREAM-INF:BANDWIDTH=5184,AVERAGE-BANDWIDTH=3744,CODECS=\"mp4a.40.2\",AUDIO=\"audio\"\n"+
@@ -496,8 +496,8 @@ func TestMuxer(t *testing.T) {
 				"#EXT-X-VERSION:9\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 				"\n"+
-				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",NAME=\"audio1\",AUTOSELECT=YES,DEFAULT=YES\n"+
-				"#EXT-X-MEDIA:TYPE=\"AUDIO\",GROUP-ID=\"audio\",LANGUAGE=\"de\",NAME=\"German\","+
+				"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio\",NAME=\"audio1\",AUTOSELECT=YES,DEFAULT=YES\n"+
+				"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio\",LANGUAGE=\"de\",NAME=\"German\","+
 				"AUTOSELECT=YES,URI=\"audio2_stream.m3u8?key=value\"\n"+
 				"\n"+
 				"#EXT-X-STREAM-INF:BANDWIDTH=5568,AVERAGE-BANDWIDTH=4000,CODECS=\"mp4a.40.2\",AUDIO=\"audio\"\n"+
@@ -1221,7 +1221,7 @@ func TestMuxerFMP4NegativeTimestamp(t *testing.T) {
 		"#EXT-X-VERSION:9\n"+
 		"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 		"\n"+
-		`#EXT-X-MEDIA:TYPE="AUDIO",GROUP-ID="audio",NAME="audio2",AUTOSELECT=YES,DEFAULT=YES,URI="audio2_stream.m3u8"`+"\n"+
+		`#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio",NAME="audio2",AUTOSELECT=YES,DEFAULT=YES,URI="audio2_stream.m3u8"`+"\n"+
 		"\n"+
 		`#EXT-X-STREAM-INF:BANDWIDTH=644,AVERAGE-BANDWIDTH=550,`+
 		`CODECS="avc1.42c028,mp4a.40.2",RESOLUTION=1920x1080,FRAME-RATE=30.000,AUDIO="audio"`+"\n"+

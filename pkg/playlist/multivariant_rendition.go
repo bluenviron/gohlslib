@@ -152,7 +152,7 @@ func (t *MultivariantRendition) unmarshal(v string) error {
 }
 
 func (t MultivariantRendition) marshal() string {
-	ret := "#EXT-X-MEDIA:TYPE=\"" + string(t.Type) + "\",GROUP-ID=\"" + t.GroupID + "\""
+	ret := "#EXT-X-MEDIA:TYPE=" + string(t.Type) + ",GROUP-ID=\"" + t.GroupID + "\""
 
 	if t.Language != "" {
 		ret += ",LANGUAGE=\"" + t.Language + "\""
