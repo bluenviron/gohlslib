@@ -7,13 +7,15 @@ import (
 	"time"
 
 	"github.com/bluenviron/gohlslib/v2/pkg/storage"
+	"github.com/bluenviron/mediacommon/pkg/formats/mpegts"
 )
 
 type muxerSegmentMPEGTS struct {
 	segmentMaxSize uint64
 	prefix         string
 	storageFactory storage.Factory
-	stream         *muxerStream
+	streamID       string
+	mpegtsWriter   *mpegts.Writer
 	id             uint64
 	startNTP       time.Time
 	startDTS       time.Duration
@@ -28,7 +30,7 @@ type muxerSegmentMPEGTS struct {
 }
 
 func (s *muxerSegmentMPEGTS) initialize() error {
-	s.path = segmentPath(s.prefix, s.stream.id, s.id, false)
+	s.path = segmentPath(s.prefix, s.streamID, s.id, false)
 
 	var err error
 	s.storage, err = s.storageFactory.NewFile(s.path)
@@ -38,8 +40,6 @@ func (s *muxerSegmentMPEGTS) initialize() error {
 
 	s.storagePart = s.storage.NewPart()
 	s.bw = bufio.NewWriter(s.storagePart.Writer())
-
-	s.stream.mpegtsSwitchableWriter.w = s.bw
 
 	return nil
 }
@@ -96,7 +96,7 @@ func (s *muxerSegmentMPEGTS) writeH264(
 	}
 	s.size += size
 
-	err := s.stream.mpegtsWriter.WriteH264(
+	err := s.mpegtsWriter.WriteH264(
 		track.mpegtsTrack,
 		multiplyAndDivide(pts, 90000, int64(track.ClockRate)),
 		multiplyAndDivide(dts, 90000, int64(track.ClockRate)),
@@ -127,7 +127,7 @@ func (s *muxerSegmentMPEGTS) writeMPEG4Audio(
 	}
 	s.size += size
 
-	err := s.stream.mpegtsWriter.WriteMPEG4Audio(
+	err := s.mpegtsWriter.WriteMPEG4Audio(
 		track.mpegtsTrack,
 		multiplyAndDivide(pts, 90000, int64(track.ClockRate)),
 		aus,
