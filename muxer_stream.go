@@ -8,11 +8,13 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bluenviron/gohlslib/v2/pkg/codecparams"
 	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
 	"github.com/bluenviron/gohlslib/v2/pkg/playlist"
+	"github.com/bluenviron/gohlslib/v2/pkg/storage"
 	"github.com/bluenviron/mediacommon/pkg/codecs/av1"
 	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
 	"github.com/bluenviron/mediacommon/pkg/codecs/h265"
@@ -93,23 +95,36 @@ type generateMediaPlaylistFunc func(
 ) ([]byte, error)
 
 type muxerStream struct {
-	muxer       *Muxer // TODO: remove
-	tracks      []*muxerTrack
-	id          string
-	isLeading   bool
-	isRendition bool
-	name        string
-	language    string
-	isDefault   bool
+	variant        MuxerVariant
+	segmentMaxSize uint64
+	segmentCount   int
+	onEncodeError  MuxerOnEncodeErrorFunc
+	mutex          *sync.Mutex
+	cond           *sync.Cond
+	prefix         string
+	storageFactory storage.Factory
+	server         *muxerServer
+	tracks         []*muxerTrack
+	id             string
+	isLeading      bool
+	isRendition    bool
+	name           string
+	language       string
+	isDefault      bool
+	nextSegmentID  uint64
+	nextPartID     uint64
 
-	generateMediaPlaylist generateMediaPlaylistFunc
-
+	generateMediaPlaylist  generateMediaPlaylistFunc
 	mpegtsSwitchableWriter *switchableWriter // mpegts only
 	mpegtsWriter           *mpegts.Writer    // mpegts only
 	segments               []muxerSegment
 	nextSegment            muxerSegment
 	nextPart               *muxerPart // low-latency only
 	initFilePresent        bool       // fmp4 only
+	segmentDeleteCount     int
+	closed                 bool
+	targetDuration         int
+	partTargetDuration     time.Duration
 }
 
 func (s *muxerStream) initialize() {
@@ -117,7 +132,7 @@ func (s *muxerStream) initialize() {
 		track.stream = s
 	}
 
-	if s.muxer.Variant == MuxerVariantMPEGTS {
+	if s.variant == MuxerVariantMPEGTS {
 		s.generateMediaPlaylist = s.generateMediaPlaylistMPEGTS
 
 		tracks := make([]*mpegts.Track, len(s.tracks))
@@ -130,10 +145,12 @@ func (s *muxerStream) initialize() {
 		s.generateMediaPlaylist = s.generateMediaPlaylistFMP4
 	}
 
-	s.muxer.server.pathHandlers[mediaPlaylistPath(s.id)] = s.handleMediaPlaylist
+	s.server.registerPath(mediaPlaylistPath(s.id), s.handleMediaPlaylist)
 }
 
 func (s *muxerStream) close() {
+	s.closed = true
+
 	for _, segment := range s.segments {
 		segment.close()
 	}
@@ -244,14 +261,14 @@ func (s *muxerStream) populateMultivariantPlaylist(
 }
 
 func (s *muxerStream) hasContent() bool {
-	if s.muxer.Variant == MuxerVariantFMP4 {
+	if s.variant == MuxerVariantFMP4 {
 		return len(s.segments) >= 2
 	}
 	return len(s.segments) >= 1
 }
 
 func (s *muxerStream) hasPart(segmentID uint64, partID uint64) bool {
-	if segmentID == s.muxer.nextSegmentID {
+	if segmentID == s.nextSegmentID {
 		if partID < uint64(len(s.nextSegment.(*muxerSegmentFMP4).parts)) {
 			return true
 		}
@@ -283,7 +300,7 @@ func (s *muxerStream) handleMediaPlaylist(w http.ResponseWriter, r *http.Request
 
 	isDeltaUpdate := false
 
-	if s.muxer.Variant == MuxerVariantLowLatency {
+	if s.variant == MuxerVariantLowLatency {
 		isDeltaUpdate = skip == "YES" || skip == "v2"
 
 		msnint, partint, err := parseMSNPart(msn, part)
@@ -295,11 +312,11 @@ func (s *muxerStream) handleMediaPlaylist(w http.ResponseWriter, r *http.Request
 		switch {
 		case msn != "":
 			byts := func() []byte {
-				s.muxer.mutex.Lock()
-				defer s.muxer.mutex.Unlock()
+				s.mutex.Lock()
+				defer s.mutex.Unlock()
 
 				for {
-					if s.muxer.closed {
+					if s.closed {
 						w.WriteHeader(http.StatusInternalServerError)
 						return nil
 					}
@@ -309,7 +326,7 @@ func (s *muxerStream) handleMediaPlaylist(w http.ResponseWriter, r *http.Request
 					// exceeds the last Partial Segment in the current Playlist by the
 					// Advance Part Limit, then the server SHOULD immediately return Bad
 					// Request, such as HTTP 400.
-					if msnint > (s.muxer.nextSegmentID+1) || msnint < (s.muxer.nextSegmentID-uint64(len(s.segments)-1)) {
+					if msnint > (s.nextSegmentID+1) || msnint < (s.nextSegmentID-uint64(len(s.segments)-1)) {
 						w.WriteHeader(http.StatusBadRequest)
 						return nil
 					}
@@ -318,7 +335,7 @@ func (s *muxerStream) handleMediaPlaylist(w http.ResponseWriter, r *http.Request
 						break
 					}
 
-					s.muxer.cond.Wait()
+					s.cond.Wait()
 				}
 
 				byts, err := s.generateMediaPlaylist(
@@ -348,11 +365,11 @@ func (s *muxerStream) handleMediaPlaylist(w http.ResponseWriter, r *http.Request
 	}
 
 	byts := func() []byte {
-		s.muxer.mutex.Lock()
-		defer s.muxer.mutex.Unlock()
+		s.mutex.Lock()
+		defer s.mutex.Unlock()
 
 		for {
-			if s.muxer.closed {
+			if s.closed {
 				w.WriteHeader(http.StatusInternalServerError)
 				return nil
 			}
@@ -361,7 +378,7 @@ func (s *muxerStream) handleMediaPlaylist(w http.ResponseWriter, r *http.Request
 				break
 			}
 
-			s.muxer.cond.Wait()
+			s.cond.Wait()
 		}
 
 		byts, err := s.generateMediaPlaylist(
@@ -391,8 +408,8 @@ func (s *muxerStream) generateMediaPlaylistMPEGTS(
 	pl := &playlist.Media{
 		Version:        3,
 		AllowCache:     boolPtr(false),
-		TargetDuration: s.muxer.targetDuration,
-		MediaSequence:  s.muxer.segmentDeleteCount,
+		TargetDuration: s.targetDuration,
+		MediaSequence:  s.segmentDeleteCount,
 	}
 
 	for _, s := range s.segments {
@@ -417,17 +434,17 @@ func (s *muxerStream) generateMediaPlaylistFMP4(
 	isDeltaUpdate bool,
 	rawQuery string,
 ) ([]byte, error) {
-	skipBoundary := time.Duration(s.muxer.targetDuration) * 6 * time.Second
+	skipBoundary := time.Duration(s.targetDuration) * 6 * time.Second
 	rawQuery = filterOutHLSParams(rawQuery)
 
 	pl := &playlist.Media{
 		Version:        10,
-		TargetDuration: s.muxer.targetDuration,
-		MediaSequence:  s.muxer.segmentDeleteCount,
+		TargetDuration: s.targetDuration,
+		MediaSequence:  s.segmentDeleteCount,
 	}
 
-	if s.muxer.Variant == MuxerVariantLowLatency {
-		partHoldBack := (s.muxer.partTargetDuration * 25) / 10
+	if s.variant == MuxerVariantLowLatency {
+		partHoldBack := (s.partTargetDuration * 25) / 10
 
 		pl.ServerControl = &playlist.MediaServerControl{
 			CanBlockReload: true,
@@ -436,14 +453,14 @@ func (s *muxerStream) generateMediaPlaylistFMP4(
 		}
 
 		pl.PartInf = &playlist.MediaPartInf{
-			PartTarget: s.muxer.partTargetDuration,
+			PartTarget: s.partTargetDuration,
 		}
 	}
 
 	skipped := 0
 
 	if !isDeltaUpdate {
-		uri := initFilePath(s.muxer.prefix, s.id)
+		uri := initFilePath(s.prefix, s.id)
 		if rawQuery != "" {
 			uri += "?" + rawQuery
 		}
@@ -489,7 +506,7 @@ func (s *muxerStream) generateMediaPlaylistFMP4(
 				plse.DateTime = &seg.startNTP
 			}
 
-			if s.muxer.Variant == MuxerVariantLowLatency && (len(s.segments)-i) <= 2 {
+			if s.variant == MuxerVariantLowLatency && (len(s.segments)-i) <= 2 {
 				for _, part := range seg.parts {
 					u = part.path
 					if rawQuery != "" {
@@ -515,7 +532,7 @@ func (s *muxerStream) generateMediaPlaylistFMP4(
 		}
 	}
 
-	if s.muxer.Variant == MuxerVariantLowLatency {
+	if s.variant == MuxerVariantLowLatency {
 		for _, part := range s.nextSegment.(*muxerSegmentFMP4).parts {
 			u := part.path
 			if rawQuery != "" {
@@ -531,7 +548,7 @@ func (s *muxerStream) generateMediaPlaylistFMP4(
 
 		// preload hint must always be present
 		// otherwise hls.js goes into a loop
-		uri := partPath(s.muxer.prefix, s.id, s.muxer.nextPartID)
+		uri := partPath(s.prefix, s.id, s.nextPartID)
 		if rawQuery != "" {
 			uri += "?" + rawQuery
 		}
@@ -565,14 +582,16 @@ func (s *muxerStream) generateAndCacheInitFile() error {
 	s.initFilePresent = true
 	initFile := w.Bytes()
 
-	s.muxer.server.pathHandlers[initFilePath(s.muxer.prefix, s.id)] = func(w http.ResponseWriter, _ *http.Request) {
-		// allow caching but use a small period in order to
-		// allow a stream to change track parameters
-		w.Header().Set("Cache-Control", "max-age="+initMaxAge)
-		w.Header().Set("Content-Type", "video/mp4")
-		w.WriteHeader(http.StatusOK)
-		w.Write(initFile)
-	}
+	s.server.registerPath(
+		initFilePath(s.prefix, s.id),
+		func(w http.ResponseWriter, _ *http.Request) {
+			// allow caching but use a small period in order to
+			// allow a stream to change track parameters
+			w.Header().Set("Cache-Control", "max-age="+initMaxAge)
+			w.Header().Set("Content-Type", "video/mp4")
+			w.WriteHeader(http.StatusOK)
+			w.Write(initFile)
+		})
 
 	return nil
 }
@@ -581,13 +600,14 @@ func (s *muxerStream) createFirstSegment(
 	nextDTS time.Duration,
 	nextNTP time.Time,
 ) error {
-	if s.muxer.Variant == MuxerVariantMPEGTS {
+	if s.variant == MuxerVariantMPEGTS { //nolint:dupl
 		seg := &muxerSegmentMPEGTS{
-			segmentMaxSize: s.muxer.SegmentMaxSize,
-			prefix:         s.muxer.prefix,
-			storageFactory: s.muxer.storageFactory,
-			stream:         s,
-			id:             s.muxer.nextSegmentID,
+			segmentMaxSize: s.segmentMaxSize,
+			prefix:         s.prefix,
+			storageFactory: s.storageFactory,
+			streamID:       s.id,
+			mpegtsWriter:   s.mpegtsWriter,
+			id:             s.nextSegmentID,
 			startNTP:       nextNTP,
 			startDTS:       nextDTS,
 		}
@@ -596,15 +616,14 @@ func (s *muxerStream) createFirstSegment(
 			return err
 		}
 		s.nextSegment = seg
+
+		s.mpegtsSwitchableWriter.w = seg.bw
 	} else {
 		seg := &muxerSegmentFMP4{
-			variant:            s.muxer.Variant,
-			segmentMaxSize:     s.muxer.SegmentMaxSize,
-			prefix:             s.muxer.prefix,
-			nextPartID:         s.muxer.nextPartID,
-			storageFactory:     s.muxer.storageFactory,
-			stream:             s,
-			id:                 s.muxer.nextSegmentID,
+			prefix:             s.prefix,
+			storageFactory:     s.storageFactory,
+			streamID:           s.id,
+			id:                 s.nextSegmentID,
 			startNTP:           nextNTP,
 			startDTS:           nextDTS,
 			fromForcedRotation: false,
@@ -614,12 +633,29 @@ func (s *muxerStream) createFirstSegment(
 			return err
 		}
 		s.nextSegment = seg
+
+		s.nextPart = &muxerPart{
+			segmentMaxSize: s.segmentMaxSize,
+			streamID:       s.id,
+			streamTracks:   s.tracks,
+			segment:        seg,
+			startDTS:       seg.startDTS,
+			prefix:         seg.prefix,
+			id:             s.nextPartID,
+			storage:        seg.storage.NewPart(),
+		}
+		s.nextPart.initialize()
 	}
 
 	return nil
 }
 
-func (s *muxerStream) rotateParts(nextDTS time.Duration, createNew bool) error {
+func (s *muxerStream) rotateParts(
+	nextDTS time.Duration,
+	createNew bool,
+) error {
+	s.nextPartID++
+
 	part := s.nextPart
 	s.nextPart = nil
 
@@ -628,78 +664,84 @@ func (s *muxerStream) rotateParts(nextDTS time.Duration, createNew bool) error {
 		return err
 	}
 
-	if s.muxer.Variant == MuxerVariantLowLatency {
+	if s.variant == MuxerVariantLowLatency {
 		part.segment.parts = append(part.segment.parts, part)
 
-		s.muxer.server.pathHandlers[part.path] = func(w http.ResponseWriter, _ *http.Request) {
-			r, err := part.reader()
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			defer r.Close()
-
-			w.Header().Set("Cache-Control", "max-age="+segmentMaxAge)
-			w.Header().Set("Content-Type", "video/mp4")
-			w.WriteHeader(http.StatusOK)
-			io.Copy(w, r)
-		}
-
-		// EXT-X-PRELOAD-HINT
-		partID := s.muxer.nextPartID
-		partPath := partPath(s.muxer.prefix, s.id, partID)
-		s.muxer.server.pathHandlers[partPath] = func(w http.ResponseWriter, r *http.Request) {
-			s.muxer.mutex.Lock()
-
-			for {
-				if s.muxer.closed {
+		s.server.registerPath(
+			part.path,
+			func(w http.ResponseWriter, _ *http.Request) {
+				r, err := part.reader()
+				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
+				defer r.Close()
 
-				if s.muxer.nextPartID > partID {
-					break
+				w.Header().Set("Cache-Control", "max-age="+segmentMaxAge)
+				w.Header().Set("Content-Type", "video/mp4")
+				w.WriteHeader(http.StatusOK)
+				io.Copy(w, r)
+			})
+
+		// EXT-X-PRELOAD-HINT
+		capturePartID := s.nextPartID
+		partPath := partPath(s.prefix, s.id, capturePartID)
+		s.server.registerPath(
+			partPath,
+			func(w http.ResponseWriter, r *http.Request) {
+				s.mutex.Lock()
+
+				for {
+					if s.closed {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+
+					if s.nextPartID > capturePartID {
+						break
+					}
+
+					s.cond.Wait()
 				}
 
-				s.muxer.cond.Wait()
-			}
+				h := s.server.getPathHandler(partPath)
 
-			h := s.muxer.server.pathHandlers[partPath]
+				s.mutex.Unlock()
 
-			s.muxer.mutex.Unlock()
+				if h != nil {
+					h(w, r)
+				}
+			})
+	}
 
-			if h != nil {
-				h(w, r)
-			}
+	if createNew {
+		nextPart := &muxerPart{
+			segmentMaxSize: s.segmentMaxSize,
+			streamID:       s.id,
+			streamTracks:   s.tracks,
+			segment:        part.segment,
+			startDTS:       nextDTS,
+			prefix:         s.prefix,
+			id:             s.nextPartID,
+			storage:        part.segment.storage.NewPart(),
 		}
+		nextPart.initialize()
+		s.nextPart = nextPart
 	}
 
 	// while segment target duration can be increased indefinitely,
 	// part target duration cannot, since
 	// "The duration of a Partial Segment MUST be at least 85% of the Part Target Duration"
 	// so it's better to reset it every time.
-	if s == s.muxer.streams[0] {
-		partTargetDuration := partTargetDuration(s.segments, part.segment.parts)
-		if s.muxer.partTargetDuration == 0 {
-			s.muxer.partTargetDuration = partTargetDuration
-		} else if partTargetDuration != s.muxer.partTargetDuration {
-			s.muxer.OnEncodeError(fmt.Errorf("part duration changed from %v to %v - this will cause an error in iOS clients",
-				s.muxer.partTargetDuration, partTargetDuration))
-			s.muxer.partTargetDuration = partTargetDuration
+	if s.isLeading {
+		partTargetDuration := partTargetDuration(s.segments, s.nextSegment.(*muxerSegmentFMP4).parts)
+		if s.partTargetDuration == 0 {
+			s.partTargetDuration = partTargetDuration
+		} else if partTargetDuration != s.partTargetDuration {
+			s.onEncodeError(fmt.Errorf("part duration changed from %v to %v - this will cause an error in iOS clients",
+				s.partTargetDuration, partTargetDuration))
+			s.partTargetDuration = partTargetDuration
 		}
-	}
-
-	if createNew {
-		nextPart := &muxerPart{
-			stream:   s,
-			segment:  part.segment,
-			startDTS: nextDTS,
-			prefix:   s.muxer.prefix,
-			id:       s.muxer.nextPartID,
-			storage:  part.segment.storage.NewPart(),
-		}
-		nextPart.initialize()
-		s.nextPart = nextPart
 	}
 
 	return nil
@@ -710,6 +752,15 @@ func (s *muxerStream) rotateSegments(
 	nextNTP time.Time,
 	force bool,
 ) error {
+	if s.variant != MuxerVariantMPEGTS {
+		err := s.rotateParts(nextDTS, false)
+		if err != nil {
+			return err
+		}
+	}
+
+	s.nextSegmentID++
+
 	segment := s.nextSegment
 	s.nextSegment = nil
 
@@ -720,7 +771,7 @@ func (s *muxerStream) rotateSegments(
 	}
 
 	// add initial gaps, required by iOS LL-HLS
-	if s.muxer.Variant == MuxerVariantLowLatency && len(s.segments) == 0 {
+	if s.variant == MuxerVariantLowLatency && len(s.segments) == 0 {
 		for i := 0; i < 7; i++ {
 			s.segments = append(s.segments, &muxerGap{
 				duration: segment.getDuration(),
@@ -730,99 +781,115 @@ func (s *muxerStream) rotateSegments(
 
 	s.segments = append(s.segments, segment)
 
-	s.muxer.server.pathHandlers[segment.getPath()] = func(w http.ResponseWriter, _ *http.Request) {
-		r, err2 := segment.reader()
-		if err2 != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		defer r.Close()
+	s.server.registerPath(
+		segment.getPath(),
+		func(w http.ResponseWriter, _ *http.Request) {
+			r, err2 := segment.reader()
+			if err2 != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			defer r.Close()
 
-		w.Header().Set("Cache-Control", "max-age="+segmentMaxAge)
-		w.Header().Set(
-			"Content-Type",
-			func() string {
-				if s.muxer.Variant == MuxerVariantMPEGTS {
-					return "video/MP2T"
-				}
-				return "video/mp4"
-			}(),
-		)
-		w.WriteHeader(http.StatusOK)
-		io.Copy(w, r)
-	}
+			w.Header().Set("Cache-Control", "max-age="+segmentMaxAge)
+			w.Header().Set(
+				"Content-Type",
+				func() string {
+					if s.variant == MuxerVariantMPEGTS {
+						return "video/MP2T"
+					}
+					return "video/mp4"
+				}(),
+			)
+			w.WriteHeader(http.StatusOK)
+			io.Copy(w, r)
+		})
 
 	// delete old segments and parts
-	if len(s.segments) > s.muxer.SegmentCount {
+	if len(s.segments) > s.segmentCount {
 		toDelete := s.segments[0]
 
 		if toDeleteSeg, ok := toDelete.(*muxerSegmentFMP4); ok {
 			for _, part := range toDeleteSeg.parts {
-				delete(s.muxer.server.pathHandlers, part.path)
+				s.server.unregisterPath(part.path)
 			}
 		}
 
 		toDelete.close()
-		delete(s.muxer.server.pathHandlers, toDelete.getPath())
+
+		s.server.unregisterPath(toDelete.getPath())
 
 		s.segments = s.segments[1:]
 
-		if s == s.muxer.streams[0] {
-			s.muxer.segmentDeleteCount++
-		}
+		s.segmentDeleteCount++
 	}
 
 	// regenerate init files only if missing or codec parameters have changed
-	if s.muxer.Variant != MuxerVariantMPEGTS && (!s.initFilePresent || segment.isFromForcedRotation()) {
+	if s.variant != MuxerVariantMPEGTS && (!s.initFilePresent || segment.isFromForcedRotation()) {
 		err = s.generateAndCacheInitFile()
 		if err != nil {
 			return err
 		}
 	}
 
-	if s == s.muxer.streams[0] {
-		targetDuration := targetDuration(s.segments)
-		if s.muxer.targetDuration == 0 {
-			s.muxer.targetDuration = targetDuration
-		} else if targetDuration > s.muxer.targetDuration {
-			s.muxer.OnEncodeError(fmt.Errorf(
-				"segment duration changed from %ds to %ds - this will cause an error in iOS clients",
-				s.muxer.targetDuration, targetDuration))
-			s.muxer.targetDuration = targetDuration
-		}
-	}
-
-	// create next segment
-	var nextSegment muxerSegment
-	if s.muxer.Variant == MuxerVariantMPEGTS {
-		nextSegment = &muxerSegmentMPEGTS{
-			segmentMaxSize: s.muxer.SegmentMaxSize,
-			prefix:         s.muxer.prefix,
-			storageFactory: s.muxer.storageFactory,
-			stream:         s,
-			id:             s.muxer.nextSegmentID,
+	if s.variant == MuxerVariantMPEGTS { //nolint:dupl
+		seg := &muxerSegmentMPEGTS{
+			segmentMaxSize: s.segmentMaxSize,
+			prefix:         s.prefix,
+			storageFactory: s.storageFactory,
+			streamID:       s.id,
+			mpegtsWriter:   s.mpegtsWriter,
+			id:             s.nextSegmentID,
 			startNTP:       nextNTP,
 			startDTS:       nextDTS,
 		}
+		err = seg.initialize()
+		if err != nil {
+			return err
+		}
+		s.nextSegment = seg
+
+		s.mpegtsSwitchableWriter.w = seg.bw
 	} else {
-		nextSegment = &muxerSegmentFMP4{
-			variant:            s.muxer.Variant,
-			segmentMaxSize:     s.muxer.SegmentMaxSize,
-			prefix:             s.muxer.prefix,
-			nextPartID:         s.muxer.nextPartID,
-			storageFactory:     s.muxer.storageFactory,
-			stream:             s,
-			id:                 s.muxer.nextSegmentID,
+		seg := &muxerSegmentFMP4{
+			prefix:             s.prefix,
+			storageFactory:     s.storageFactory,
+			streamID:           s.id,
+			id:                 s.nextSegmentID,
 			startNTP:           nextNTP,
 			startDTS:           nextDTS,
 			fromForcedRotation: force,
 		}
+		err = seg.initialize()
+		if err != nil {
+			return err
+		}
+		s.nextSegment = seg
+
+		s.nextPart = &muxerPart{
+			segmentMaxSize: s.segmentMaxSize,
+			streamID:       s.id,
+			streamTracks:   s.tracks,
+			segment:        seg,
+			startDTS:       seg.startDTS,
+			prefix:         seg.prefix,
+			id:             s.nextPartID,
+			storage:        seg.storage.NewPart(),
+		}
+		s.nextPart.initialize()
 	}
-	err = nextSegment.initialize()
-	if err != nil {
-		return err
+
+	if s.isLeading {
+		targetDuration := targetDuration(s.segments)
+		if s.targetDuration == 0 {
+			s.targetDuration = targetDuration
+		} else if targetDuration > s.targetDuration {
+			s.onEncodeError(fmt.Errorf(
+				"segment duration changed from %ds to %ds - this will cause an error in iOS clients",
+				s.targetDuration, targetDuration))
+			s.targetDuration = targetDuration
+		}
 	}
-	s.nextSegment = nextSegment
 
 	return nil
 }

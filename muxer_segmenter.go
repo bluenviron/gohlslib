@@ -77,8 +77,17 @@ type fmp4AugmentedSample struct {
 	ntp time.Time
 }
 
+type muxerSegmenterParent interface {
+	createFirstSegment(nextDTS time.Duration, nextNTP time.Time) error
+	rotateSegments(nextDTS time.Duration, nextNTP time.Time, force bool) error
+	rotateParts(nextDTS time.Duration) error
+}
+
 type muxerSegmenter struct {
-	muxer *Muxer // TODO: remove
+	variant            MuxerVariant
+	segmentMinDuration time.Duration
+	partMinDuration    time.Duration
+	parent             muxerSegmenterParent
 
 	pendingParamsChange            bool
 	fmp4SampleDurations            map[time.Duration]struct{} // low-latency only
@@ -87,7 +96,7 @@ type muxerSegmenter struct {
 }
 
 func (s *muxerSegmenter) initialize() {
-	if s.muxer.Variant != MuxerVariantMPEGTS {
+	if s.variant != MuxerVariantMPEGTS {
 		s.fmp4SampleDurations = make(map[time.Duration]struct{})
 	}
 }
@@ -349,17 +358,17 @@ func (s *muxerSegmenter) writeH264(
 		return fmt.Errorf("unable to extract DTS: %w", err)
 	}
 
-	if s.muxer.Variant == MuxerVariantMPEGTS {
+	if s.variant == MuxerVariantMPEGTS {
 		if track.stream.nextSegment == nil {
-			err = s.muxer.createFirstSegment(timestampToDuration(dts, track.ClockRate), ntp)
+			err = s.parent.createFirstSegment(timestampToDuration(dts, track.ClockRate), ntp)
 			if err != nil {
 				return err
 			}
 		} else if randomAccess && // switch segment
 			((timestampToDuration(dts, track.ClockRate)-
-				track.stream.nextSegment.(*muxerSegmentMPEGTS).startDTS) >= s.muxer.SegmentMinDuration ||
+				track.stream.nextSegment.(*muxerSegmentMPEGTS).startDTS) >= s.segmentMinDuration ||
 				paramsChanged) {
-			err = s.muxer.rotateSegments(timestampToDuration(dts, track.ClockRate), ntp, false)
+			err = s.parent.rotateSegments(timestampToDuration(dts, track.ClockRate), ntp, false)
 			if err != nil {
 				return err
 			}
@@ -435,17 +444,17 @@ func (s *muxerSegmenter) writeMPEG4Audio(
 	pts int64,
 	aus [][]byte,
 ) error {
-	if s.muxer.Variant == MuxerVariantMPEGTS {
+	if s.variant == MuxerVariantMPEGTS {
 		if track.isLeading {
 			if track.stream.nextSegment == nil {
-				err := s.muxer.createFirstSegment(timestampToDuration(pts, track.ClockRate), ntp)
+				err := s.parent.createFirstSegment(timestampToDuration(pts, track.ClockRate), ntp)
 				if err != nil {
 					return err
 				}
 			} else if track.stream.nextSegment.(*muxerSegmentMPEGTS).audioAUCount >= mpegtsSegmentMinAUCount && // switch segment
 				(timestampToDuration(pts, track.ClockRate)-
-					track.stream.nextSegment.(*muxerSegmentMPEGTS).startDTS) >= s.muxer.SegmentMinDuration {
-				err := s.muxer.rotateSegments(timestampToDuration(pts, track.ClockRate), ntp, false)
+					track.stream.nextSegment.(*muxerSegmentMPEGTS).startDTS) >= s.segmentMinDuration {
+				err := s.parent.rotateSegments(timestampToDuration(pts, track.ClockRate), ntp, false)
 				if err != nil {
 					return err
 				}
@@ -496,7 +505,7 @@ func (s *muxerSegmenter) writeMPEG4Audio(
 // iPhone iOS fails if part durations are less than 85% of maximum part duration.
 // find a part duration that is compatible with all sample durations
 func (s *muxerSegmenter) fmp4AdjustPartDuration(sampleDuration time.Duration) {
-	if s.muxer.Variant != MuxerVariantLowLatency || s.fmp4FreezeAdjustedPartDuration {
+	if s.variant != MuxerVariantLowLatency || s.fmp4FreezeAdjustedPartDuration {
 		return
 	}
 
@@ -508,7 +517,7 @@ func (s *muxerSegmenter) fmp4AdjustPartDuration(sampleDuration time.Duration) {
 	if _, ok := s.fmp4SampleDurations[sampleDuration]; !ok {
 		s.fmp4SampleDurations[sampleDuration] = struct{}{}
 		s.fmp4AdjustedPartDuration = findCompatiblePartDuration(
-			s.muxer.PartMinDuration,
+			s.partMinDuration,
 			s.fmp4SampleDurations,
 		)
 	}
@@ -539,7 +548,7 @@ func (s *muxerSegmenter) fmp4WriteSample(
 	if track.isLeading {
 		// create first segment
 		if track.stream.nextSegment == nil {
-			err := s.muxer.createFirstSegment(timestampToDuration(sample.dts, track.ClockRate), sample.ntp)
+			err := s.parent.createFirstSegment(timestampToDuration(sample.dts, track.ClockRate), sample.ntp)
 			if err != nil {
 				return err
 			}
@@ -555,7 +564,7 @@ func (s *muxerSegmenter) fmp4WriteSample(
 		s.fmp4AdjustPartDuration(timestampToDuration(duration, track.ClockRate))
 	}
 
-	err := track.stream.nextSegment.(*muxerSegmentFMP4).writeSample(
+	err := track.stream.nextPart.writeSample(
 		track,
 		sample,
 	)
@@ -567,8 +576,8 @@ func (s *muxerSegmenter) fmp4WriteSample(
 		// switch segment
 		if randomAccess && (paramsChanged ||
 			(timestampToDuration(track.fmp4NextSample.dts, track.ClockRate)-
-				track.stream.nextSegment.(*muxerSegmentFMP4).startDTS) >= s.muxer.SegmentMinDuration) {
-			err = s.muxer.rotateSegments(timestampToDuration(track.fmp4NextSample.dts, track.ClockRate),
+				track.stream.nextSegment.(*muxerSegmentFMP4).startDTS) >= s.segmentMinDuration) {
+			err = s.parent.rotateSegments(timestampToDuration(track.fmp4NextSample.dts, track.ClockRate),
 				track.fmp4NextSample.ntp, paramsChanged)
 			if err != nil {
 				return err
@@ -583,10 +592,10 @@ func (s *muxerSegmenter) fmp4WriteSample(
 			}
 
 			// switch part
-		} else if (s.muxer.Variant == MuxerVariantLowLatency) &&
+		} else if (s.variant == MuxerVariantLowLatency) &&
 			(timestampToDuration(track.fmp4NextSample.dts, track.ClockRate)-
 				track.stream.nextPart.startDTS) >= s.fmp4AdjustedPartDuration {
-			err := s.muxer.rotateParts(timestampToDuration(track.fmp4NextSample.dts, track.ClockRate))
+			err := s.parent.rotateParts(timestampToDuration(track.fmp4NextSample.dts, track.ClockRate))
 			if err != nil {
 				return err
 			}

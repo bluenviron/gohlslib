@@ -7,7 +7,6 @@ import (
 )
 
 type muxerSegment interface {
-	initialize() error
 	close()
 	finalize(time.Duration) error
 	getPath() string
@@ -19,10 +18,6 @@ type muxerSegment interface {
 
 type muxerGap struct {
 	duration time.Duration
-}
-
-func (muxerGap) initialize() error {
-	return nil
 }
 
 func (muxerGap) close() {
