@@ -214,9 +214,10 @@ func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, firs
 				if p.curSegment.dateTime != nil {
 					p.timeConv.setNTP(*p.curSegment.dateTime, dts)
 				}
+				p.timeConv.setLeadingNTPReceived()
 			}
 
-			ntp := p.timeConv.getNTP(dts)
+			ntp := p.timeConv.getNTP(ctx, dts)
 
 			return trackProc.push(ctx, &procEntryMPEGTS{
 				pts:  pts,

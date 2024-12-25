@@ -1,6 +1,7 @@
 package gohlslib
 
 import (
+	"context"
 	"sync"
 	"time"
 )
@@ -14,9 +15,12 @@ type clientTimeConvFMP4 struct {
 	ntpValue     time.Time
 	ntpTimestamp int64
 	ntpClockRate int
+
+	chLeadingNTPReceived chan struct{}
 }
 
 func (ts *clientTimeConvFMP4) initialize() {
+	ts.chLeadingNTPReceived = make(chan struct{})
 }
 
 func (ts *clientTimeConvFMP4) convert(v int64, clockRate int) int64 {
@@ -33,7 +37,22 @@ func (ts *clientTimeConvFMP4) setNTP(value time.Time, timestamp int64, clockRate
 	ts.ntpClockRate = clockRate
 }
 
-func (ts *clientTimeConvFMP4) getNTP(timestamp int64, clockRate int) *time.Time {
+func (ts *clientTimeConvFMP4) setLeadingNTPReceived() {
+	select {
+	case <-ts.chLeadingNTPReceived:
+		return
+	default:
+	}
+	close(ts.chLeadingNTPReceived)
+}
+
+func (ts *clientTimeConvFMP4) getNTP(ctx context.Context, timestamp int64, clockRate int) *time.Time {
+	select {
+	case <-ts.chLeadingNTPReceived:
+	case <-ctx.Done():
+		return nil
+	}
+
 	ts.mutex.Lock()
 	defer ts.mutex.Unlock()
 

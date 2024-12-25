@@ -1,6 +1,7 @@
 package gohlslib
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -15,11 +16,14 @@ type clientTimeConvMPEGTS struct {
 	ntpAvailable bool
 	ntpValue     time.Time
 	ntpTimestamp int64
+
+	chLeadingNTPReceived chan struct{}
 }
 
 func (ts *clientTimeConvMPEGTS) initialize() {
 	ts.td = mpegts.NewTimeDecoder2()
 	ts.td.Decode(ts.startDTS)
+	ts.chLeadingNTPReceived = make(chan struct{})
 }
 
 func (ts *clientTimeConvMPEGTS) convert(v int64) int64 {
@@ -38,7 +42,22 @@ func (ts *clientTimeConvMPEGTS) setNTP(value time.Time, timestamp int64) {
 	ts.ntpTimestamp = timestamp
 }
 
-func (ts *clientTimeConvMPEGTS) getNTP(timestamp int64) *time.Time {
+func (ts *clientTimeConvMPEGTS) setLeadingNTPReceived() {
+	select {
+	case <-ts.chLeadingNTPReceived:
+		return
+	default:
+	}
+	close(ts.chLeadingNTPReceived)
+}
+
+func (ts *clientTimeConvMPEGTS) getNTP(ctx context.Context, timestamp int64) *time.Time {
+	select {
+	case <-ts.chLeadingNTPReceived:
+	case <-ctx.Done():
+		return nil
+	}
+
 	ts.mutex.Lock()
 	defer ts.mutex.Unlock()
 
