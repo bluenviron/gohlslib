@@ -162,6 +162,7 @@ func (p *clientStreamProcessorFMP4) processSegment(ctx context.Context, seg *seg
 			dts := p.timeConv.convert(int64(leadingPartTrack.BaseTime), leadingPartTrackProc.track.track.ClockRate)
 			p.timeConv.setNTP(*seg.dateTime, dts, leadingPartTrackProc.track.track.ClockRate)
 		}
+		p.timeConv.setLeadingNTPReceived()
 	}
 
 	partTrackCount := 0
@@ -174,7 +175,7 @@ func (p *clientStreamProcessorFMP4) processSegment(ctx context.Context, seg *seg
 			}
 
 			dts := p.timeConv.convert(int64(partTrack.BaseTime), trackProc.track.track.ClockRate)
-			ntp := p.timeConv.getNTP(dts, trackProc.track.track.ClockRate)
+			ntp := p.timeConv.getNTP(ctx, dts, trackProc.track.track.ClockRate)
 
 			err := trackProc.push(ctx, &procEntryFMP4{
 				partTrack: partTrack,
