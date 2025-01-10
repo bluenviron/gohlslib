@@ -154,7 +154,7 @@ func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, firs
 		switch track.Codec.(type) {
 		case *mpegts.CodecH264, *mpegts.CodecMPEG4Audio:
 		default:
-			return fmt.Errorf("unsupported track type: %T", track)
+			return fmt.Errorf("unsupported codec: %T", track.Codec)
 		}
 	}
 
