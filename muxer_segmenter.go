@@ -120,6 +120,10 @@ func (s *muxerSegmenter) writeAV1(
 		if h.Type == av1.OBUTypeSequenceHeader {
 			randomAccess = true
 
+			if h.HasSize {
+				return fmt.Errorf("the size field must be stripped from AV1 OBUs before writing")
+			}
+
 			if !bytes.Equal(codec.SequenceHeader, obu) {
 				s.pendingParamsChange = true
 				codec.SequenceHeader = obu
