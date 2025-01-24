@@ -84,7 +84,6 @@ func (s *muxerSegmentMPEGTS) writeH264(
 	track *muxerTrack,
 	pts int64,
 	dts int64,
-	idrPresent bool,
 	au [][]byte,
 ) error {
 	size := uint64(0)
@@ -96,11 +95,10 @@ func (s *muxerSegmentMPEGTS) writeH264(
 	}
 	s.size += size
 
-	err := s.mpegtsWriter.WriteH264(
+	err := s.mpegtsWriter.WriteH2642(
 		track.mpegtsTrack,
 		multiplyAndDivide(pts, 90000, int64(track.ClockRate)),
 		multiplyAndDivide(dts, 90000, int64(track.ClockRate)),
-		idrPresent,
 		au,
 	)
 	if err != nil {
