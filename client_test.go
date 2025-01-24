@@ -163,11 +163,10 @@ func TestClient(t *testing.T) {
 					}
 					mw := mpegts.NewWriter(w, []*mpegts.Track{h264Track, mpeg4audioTrack})
 
-					err = mw.WriteH264(
+					err = mw.WriteH2642(
 						h264Track,
 						90000,      // +1 sec
 						8589844592, // -1 sec
-						true,
 						[][]byte{
 							{7, 1, 2, 3}, // SPS
 							{8},          // PPS
@@ -176,11 +175,10 @@ func TestClient(t *testing.T) {
 					)
 					require.NoError(t, err)
 
-					err = mw.WriteH264(
+					err = mw.WriteH2642(
 						h264Track,
 						90000+90000/30,
 						8589844592+90000/30,
-						false,
 						[][]byte{
 							{1, 4, 5, 6},
 						},
@@ -221,11 +219,10 @@ func TestClient(t *testing.T) {
 					}
 					mw := mpegts.NewWriter(w, []*mpegts.Track{h264Track, mpeg4audioTrack})
 
-					err = mw.WriteH264(
+					err = mw.WriteH2642(
 						h264Track,
 						8589844592+2*90000/30,
 						8589844592+2*90000/30,
-						true,
 						[][]byte{
 							{4},
 						},
@@ -1227,11 +1224,10 @@ func TestClientErrorInvalidSequenceID(t *testing.T) {
 				}
 				mw := mpegts.NewWriter(w, []*mpegts.Track{h264Track})
 
-				err := mw.WriteH264(
+				err := mw.WriteH2642(
 					h264Track,
 					90000,               // +1 sec
 					0x1FFFFFFFF-90000+1, // -1 sec
-					true,
 					[][]byte{
 						{7, 1, 2, 3}, // SPS
 						{8},          // PPS

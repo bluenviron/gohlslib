@@ -378,7 +378,6 @@ func (s *muxerSegmenter) writeH264(
 			track,
 			pts,
 			dts,
-			randomAccess,
 			au,
 		)
 		if err != nil {
