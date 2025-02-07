@@ -96,7 +96,7 @@ func writeTempFile(byts []byte) (string, error) {
 }
 
 func mustMarshalAVCC(au [][]byte) []byte {
-	enc, err := h264.AVCCMarshal(au)
+	enc, err := h264.AVCC(au).Marshal()
 	if err != nil {
 		panic(err)
 	}
@@ -1087,11 +1087,11 @@ func TestClientUnsupportedTracks(t *testing.T) {
 
 				mux.SetPCRPID(120)
 
-				data, err := h264.AnnexBMarshal([][]byte{
+				data, err := h264.AnnexB([][]byte{
 					{7}, // SPS
 					{8}, // PPS
 					{5}, // IDR
-				})
+				}).Marshal()
 				require.NoError(t, err)
 
 				_, err = mux.WriteData(&astits.MuxerData{

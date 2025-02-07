@@ -133,9 +133,7 @@ func (s *muxerSegmenter) writeAV1(
 		paramsChanged = true
 	}
 
-	ps, err := fmp4.NewPartSampleAV1(
-		randomAccess,
-		tu)
+	ps, err := fmp4.NewPartSampleAV12(tu)
 	if err != nil {
 		return err
 	}
@@ -280,9 +278,8 @@ func (s *muxerSegmenter) writeH265(
 		return fmt.Errorf("unable to extract DTS: %w", err)
 	}
 
-	ps, err := fmp4.NewPartSampleH26x(
+	ps, err := fmp4.NewPartSampleH265(
 		int32(pts-dts),
-		randomAccess,
 		au)
 	if err != nil {
 		return err
@@ -387,9 +384,8 @@ func (s *muxerSegmenter) writeH264(
 		return nil
 	}
 
-	ps, err := fmp4.NewPartSampleH26x(
+	ps, err := fmp4.NewPartSampleH264(
 		int32(pts-dts),
-		randomAccess,
 		au)
 	if err != nil {
 		return err

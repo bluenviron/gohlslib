@@ -37,9 +37,14 @@ func (t *clientTrackProcessorFMP4) initialize() error {
 			return [][]byte{sample.Payload}, nil
 		}
 
-	case *codecs.H265, *codecs.H264:
+	case *codecs.H264:
 		t.decodePayload = func(sample *fmp4.PartSample) ([][]byte, error) {
-			return sample.GetH26x()
+			return sample.GetH264()
+		}
+
+	case *codecs.H265:
+		t.decodePayload = func(sample *fmp4.PartSample) ([][]byte, error) {
+			return sample.GetH265()
 		}
 
 	case *codecs.Opus:
