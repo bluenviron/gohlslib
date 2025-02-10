@@ -3,7 +3,7 @@ package codecparams
 import (
 	"testing"
 
-	"github.com/bluenviron/mediacommon/pkg/codecs/mpeg4audio"
+	"github.com/bluenviron/mediacommon/v2/pkg/codecs/mpeg4audio"
 	"github.com/stretchr/testify/require"
 
 	"github.com/bluenviron/gohlslib/v2/pkg/codecs"

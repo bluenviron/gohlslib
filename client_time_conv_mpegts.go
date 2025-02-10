@@ -5,14 +5,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bluenviron/mediacommon/pkg/formats/mpegts"
+	"github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts"
 )
 
 type clientTimeConvMPEGTS struct {
 	startDTS int64
 
 	mutex        sync.Mutex
-	td           *mpegts.TimeDecoder2
+	td           *mpegts.TimeDecoder
 	ntpAvailable bool
 	ntpValue     time.Time
 	ntpTimestamp int64
@@ -21,7 +21,7 @@ type clientTimeConvMPEGTS struct {
 }
 
 func (ts *clientTimeConvMPEGTS) initialize() {
-	ts.td = mpegts.NewTimeDecoder2()
+	ts.td = mpegts.NewTimeDecoder()
 	ts.td.Decode(ts.startDTS)
 	ts.chLeadingNTPReceived = make(chan struct{})
 }

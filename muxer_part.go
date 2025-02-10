@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/bluenviron/gohlslib/v2/pkg/storage"
-	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
+	"github.com/bluenviron/mediacommon/v2/pkg/formats/fmp4"
 )
 
 type muxerPart struct {

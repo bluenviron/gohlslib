@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/bluenviron/mediacommon/pkg/formats/mpegts"
+	"github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts"
 
 	"github.com/bluenviron/gohlslib/v2"
 	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
@@ -92,7 +92,7 @@ func main() {
 		panic(fmt.Errorf("H264 track not found"))
 	}
 
-	timeDec := mpegts.NewTimeDecoder2()
+	timeDec := mpegts.NewTimeDecoder()
 
 	// setup a callback that is called when a H264 access unit is received
 	r.OnDataH264(track, func(pts int64, _ int64, au [][]byte) error {

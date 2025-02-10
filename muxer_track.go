@@ -2,10 +2,10 @@ package gohlslib
 
 import (
 	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
-	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
-	"github.com/bluenviron/mediacommon/pkg/codecs/h265"
-	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
-	"github.com/bluenviron/mediacommon/pkg/formats/mpegts"
+	"github.com/bluenviron/mediacommon/v2/pkg/codecs/h264"
+	"github.com/bluenviron/mediacommon/v2/pkg/codecs/h265"
+	"github.com/bluenviron/mediacommon/v2/pkg/formats/fmp4"
+	"github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts"
 )
 
 type muxerTrack struct {
@@ -15,8 +15,8 @@ type muxerTrack struct {
 	isLeading bool
 
 	firstRandomAccessReceived bool
-	h264DTSExtractor          *h264.DTSExtractor2
-	h265DTSExtractor          *h265.DTSExtractor2
+	h264DTSExtractor          *h264.DTSExtractor
+	h265DTSExtractor          *h265.DTSExtractor
 	mpegtsTrack               *mpegts.Track        // mpegts only
 	fmp4NextSample            *fmp4AugmentedSample // fmp4 only
 	fmp4Samples               []*fmp4.PartSample   // fmp4 only

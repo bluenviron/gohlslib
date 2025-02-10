@@ -6,13 +6,13 @@ import (
 	"time"
 
 	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
-	"github.com/bluenviron/mediacommon/pkg/codecs/av1"
-	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
-	"github.com/bluenviron/mediacommon/pkg/codecs/h265"
-	"github.com/bluenviron/mediacommon/pkg/codecs/mpeg4audio"
-	"github.com/bluenviron/mediacommon/pkg/codecs/opus"
-	"github.com/bluenviron/mediacommon/pkg/codecs/vp9"
-	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
+	"github.com/bluenviron/mediacommon/v2/pkg/codecs/av1"
+	"github.com/bluenviron/mediacommon/v2/pkg/codecs/h264"
+	"github.com/bluenviron/mediacommon/v2/pkg/codecs/h265"
+	"github.com/bluenviron/mediacommon/v2/pkg/codecs/mpeg4audio"
+	"github.com/bluenviron/mediacommon/v2/pkg/codecs/opus"
+	"github.com/bluenviron/mediacommon/v2/pkg/codecs/vp9"
+	"github.com/bluenviron/mediacommon/v2/pkg/formats/fmp4"
 )
 
 func multiplyAndDivide(v, m, d int64) int64 {
@@ -270,7 +270,7 @@ func (s *muxerSegmenter) writeH265(
 		}
 		track.firstRandomAccessReceived = true
 
-		track.h265DTSExtractor = h265.NewDTSExtractor2()
+		track.h265DTSExtractor = h265.NewDTSExtractor()
 	}
 
 	dts, err := track.h265DTSExtractor.Extract(au, pts)
@@ -347,7 +347,7 @@ func (s *muxerSegmenter) writeH264(
 		}
 		track.firstRandomAccessReceived = true
 
-		track.h264DTSExtractor = h264.NewDTSExtractor2()
+		track.h264DTSExtractor = h264.NewDTSExtractor()
 	}
 
 	dts, err := track.h264DTSExtractor.Extract(au, pts)

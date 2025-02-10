@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"os"
 
-	"github.com/bluenviron/mediacommon/pkg/codecs/mpeg4audio"
-	"github.com/bluenviron/mediacommon/pkg/formats/mpegts"
+	"github.com/bluenviron/mediacommon/v2/pkg/codecs/mpeg4audio"
+	"github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts"
 )
 
 // mpegtsMuxer allows to save a MPEG4-audio stream into a MPEG-TS file.

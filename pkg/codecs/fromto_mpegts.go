@@ -1,7 +1,7 @@
 package codecs
 
 import (
-	"github.com/bluenviron/mediacommon/pkg/formats/mpegts"
+	"github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts"
 )
 
 // FromMPEGTS imports a codec from MPEG-TS.
