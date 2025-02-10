@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/bluenviron/gohlslib/v2/pkg/storage"
-	"github.com/bluenviron/mediacommon/pkg/formats/mpegts"
+	"github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts"
 )
 
 type muxerSegmentMPEGTS struct {
@@ -95,7 +95,7 @@ func (s *muxerSegmentMPEGTS) writeH264(
 	}
 	s.size += size
 
-	err := s.mpegtsWriter.WriteH2642(
+	err := s.mpegtsWriter.WriteH264(
 		track.mpegtsTrack,
 		multiplyAndDivide(pts, 90000, int64(track.ClockRate)),
 		multiplyAndDivide(dts, 90000, int64(track.ClockRate)),

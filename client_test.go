@@ -14,13 +14,13 @@ import (
 
 	"github.com/asticode/go-astits"
 	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
-	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
-	"github.com/bluenviron/mediacommon/pkg/codecs/mpeg4audio"
+	"github.com/bluenviron/mediacommon/v2/pkg/codecs/h264"
+	"github.com/bluenviron/mediacommon/v2/pkg/codecs/mpeg4audio"
 	"github.com/stretchr/testify/require"
 
-	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
-	"github.com/bluenviron/mediacommon/pkg/formats/fmp4/seekablebuffer"
-	"github.com/bluenviron/mediacommon/pkg/formats/mpegts"
+	"github.com/bluenviron/mediacommon/v2/pkg/formats/fmp4"
+	"github.com/bluenviron/mediacommon/v2/pkg/formats/fmp4/seekablebuffer"
+	"github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts"
 )
 
 var serverCert = []byte(`-----BEGIN CERTIFICATE-----
@@ -163,7 +163,7 @@ func TestClient(t *testing.T) {
 					}
 					mw := mpegts.NewWriter(w, []*mpegts.Track{h264Track, mpeg4audioTrack})
 
-					err = mw.WriteH2642(
+					err = mw.WriteH264(
 						h264Track,
 						90000,      // +1 sec
 						8589844592, // -1 sec
@@ -175,7 +175,7 @@ func TestClient(t *testing.T) {
 					)
 					require.NoError(t, err)
 
-					err = mw.WriteH2642(
+					err = mw.WriteH264(
 						h264Track,
 						90000+90000/30,
 						8589844592+90000/30,
@@ -219,7 +219,7 @@ func TestClient(t *testing.T) {
 					}
 					mw := mpegts.NewWriter(w, []*mpegts.Track{h264Track, mpeg4audioTrack})
 
-					err = mw.WriteH2642(
+					err = mw.WriteH264(
 						h264Track,
 						8589844592+2*90000/30,
 						8589844592+2*90000/30,
@@ -1224,7 +1224,7 @@ func TestClientErrorInvalidSequenceID(t *testing.T) {
 				}
 				mw := mpegts.NewWriter(w, []*mpegts.Track{h264Track})
 
-				err := mw.WriteH2642(
+				err := mw.WriteH264(
 					h264Track,
 					90000,               // +1 sec
 					0x1FFFFFFFF-90000+1, // -1 sec
