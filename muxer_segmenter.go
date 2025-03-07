@@ -79,8 +79,8 @@ type fmp4AugmentedSample struct {
 
 type muxerSegmenterParent interface {
 	createFirstSegment(nextDTS time.Duration, nextNTP time.Time) error
-	rotateSegments(nextDTS time.Duration, nextNTP time.Time, force bool) error
-	rotateParts(nextDTS time.Duration) error
+	RotateSegments(nextDTS time.Duration, nextNTP time.Time, force bool) error
+	RotateParts(nextDTS time.Duration) error
 }
 
 type muxerSegmenter struct {
@@ -365,7 +365,7 @@ func (s *muxerSegmenter) writeH264(
 			((timestampToDuration(dts, track.ClockRate)-
 				track.stream.nextSegment.(*muxerSegmentMPEGTS).startDTS) >= s.segmentMinDuration ||
 				paramsChanged) {
-			err = s.parent.rotateSegments(timestampToDuration(dts, track.ClockRate), ntp, false)
+			err = s.parent.RotateSegments(timestampToDuration(dts, track.ClockRate), ntp, false)
 			if err != nil {
 				return err
 			}
@@ -449,7 +449,7 @@ func (s *muxerSegmenter) writeMPEG4Audio(
 			} else if track.stream.nextSegment.(*muxerSegmentMPEGTS).audioAUCount >= mpegtsSegmentMinAUCount && // switch segment
 				(timestampToDuration(pts, track.ClockRate)-
 					track.stream.nextSegment.(*muxerSegmentMPEGTS).startDTS) >= s.segmentMinDuration {
-				err := s.parent.rotateSegments(timestampToDuration(pts, track.ClockRate), ntp, false)
+				err := s.parent.RotateSegments(timestampToDuration(pts, track.ClockRate), ntp, false)
 				if err != nil {
 					return err
 				}
@@ -572,7 +572,7 @@ func (s *muxerSegmenter) fmp4WriteSample(
 		if randomAccess && (paramsChanged ||
 			(timestampToDuration(track.fmp4NextSample.dts, track.ClockRate)-
 				track.stream.nextSegment.(*muxerSegmentFMP4).startDTS) >= s.segmentMinDuration) {
-			err = s.parent.rotateSegments(timestampToDuration(track.fmp4NextSample.dts, track.ClockRate),
+			err = s.parent.RotateSegments(timestampToDuration(track.fmp4NextSample.dts, track.ClockRate),
 				track.fmp4NextSample.ntp, paramsChanged)
 			if err != nil {
 				return err
@@ -590,7 +590,7 @@ func (s *muxerSegmenter) fmp4WriteSample(
 		} else if (s.variant == MuxerVariantLowLatency) &&
 			(timestampToDuration(track.fmp4NextSample.dts, track.ClockRate)-
 				track.stream.nextPart.startDTS) >= s.fmp4AdjustedPartDuration {
-			err := s.parent.rotateParts(timestampToDuration(track.fmp4NextSample.dts, track.ClockRate))
+			err := s.parent.RotateParts(timestampToDuration(track.fmp4NextSample.dts, track.ClockRate))
 			if err != nil {
 				return err
 			}

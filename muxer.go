@@ -205,7 +205,7 @@ type Muxer struct {
 }
 
 // Start initializes the muxer.
-func (m *Muxer) Start() error {
+func (m *Muxer) Start(initialSegmentId uint64) error {
 	if m.Variant == 0 {
 		m.Variant = MuxerVariantLowLatency
 	}
@@ -332,10 +332,11 @@ func (m *Muxer) Start() error {
 	}
 
 	// add initial gaps, required by iOS LL-HLS
-	nextSegmentID := uint64(0)
-	if m.Variant == MuxerVariantLowLatency {
-		nextSegmentID = 7
-	}
+	nextSegmentID := initialSegmentId
+	//nextSegmentID := uint64(0)
+	//if m.Variant == MuxerVariantLowLatency {
+	//	nextSegmentID = 7
+	//}
 
 	switch {
 	case m.Variant == MuxerVariantMPEGTS:
@@ -514,7 +515,7 @@ func (m *Muxer) createFirstSegment(nextDTS time.Duration, nextNTP time.Time) err
 	return nil
 }
 
-func (m *Muxer) rotateParts(nextDTS time.Duration) error {
+func (m *Muxer) RotateParts(nextDTS time.Duration) error {
 	m.mutex.Lock()
 	err := m.rotatePartsInner(nextDTS)
 	m.mutex.Unlock()
@@ -547,7 +548,7 @@ func (m *Muxer) rotatePartsInner(nextDTS time.Duration) error {
 	return nil
 }
 
-func (m *Muxer) rotateSegments(
+func (m *Muxer) RotateSegments(
 	nextDTS time.Duration,
 	nextNTP time.Time,
 	force bool,
