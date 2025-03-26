@@ -1183,82 +1183,175 @@ func TestClientUnsupportedTracks(t *testing.T) {
 	c.Close()
 }
 
-func TestClientErrorInvalidSequenceID(t *testing.T) {
-	first := true
+func TestClientErrors(t *testing.T) {
+	for _, ca := range []string{
+		"invalid sequence id",
+		"multiple tracks in rendition",
+	} {
+		t.Run(ca, func(t *testing.T) {
+			first := true
 
-	httpServ := &http.Server{
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == http.MethodGet && r.URL.Path == "/stream.m3u8" {
-				w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
-				if first {
-					first = false
-					w.Write([]byte("#EXTM3U\n" +
-						"#EXT-X-VERSION:3\n" +
-						"#EXT-X-ALLOW-CACHE:NO\n" +
-						"#EXT-X-TARGETDURATION:2\n" +
-						"#EXT-X-MEDIA-SEQUENCE:2\n" +
-						"#EXTINF:2,\n" +
-						"segment1.ts\n" +
-						"#EXTINF:2,\n" +
-						"segment1.ts\n" +
-						"#EXTINF:2,\n" +
-						"segment1.ts\n"))
-				} else {
-					w.Write([]byte("#EXTM3U\n" +
-						"#EXT-X-VERSION:3\n" +
-						"#EXT-X-ALLOW-CACHE:NO\n" +
-						"#EXT-X-TARGETDURATION:2\n" +
-						"#EXT-X-MEDIA-SEQUENCE:4\n" +
-						"#EXTINF:2,\n" +
-						"segment1.ts\n" +
-						"#EXTINF:2,\n" +
-						"segment1.ts\n" +
-						"#EXTINF:2,\n" +
-						"segment1.ts\n"))
-				}
-			} else if r.Method == http.MethodGet && r.URL.Path == "/segment1.ts" {
-				w.Header().Set("Content-Type", `video/MP2T`)
+			httpServ := &http.Server{
+				Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					switch ca {
+					case "invalid sequence id":
+						switch {
+						case r.Method == http.MethodGet && r.URL.Path == "/index.m3u8":
+							w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
+							if first {
+								first = false
+								w.Write([]byte("#EXTM3U\n" +
+									"#EXT-X-VERSION:3\n" +
+									"#EXT-X-ALLOW-CACHE:NO\n" +
+									"#EXT-X-TARGETDURATION:2\n" +
+									"#EXT-X-MEDIA-SEQUENCE:2\n" +
+									"#EXTINF:2,\n" +
+									"segment1.ts\n" +
+									"#EXTINF:2,\n" +
+									"segment1.ts\n" +
+									"#EXTINF:2,\n" +
+									"segment1.ts\n"))
+							} else {
+								w.Write([]byte("#EXTM3U\n" +
+									"#EXT-X-VERSION:3\n" +
+									"#EXT-X-ALLOW-CACHE:NO\n" +
+									"#EXT-X-TARGETDURATION:2\n" +
+									"#EXT-X-MEDIA-SEQUENCE:4\n" +
+									"#EXTINF:2,\n" +
+									"segment1.ts\n" +
+									"#EXTINF:2,\n" +
+									"segment1.ts\n" +
+									"#EXTINF:2,\n" +
+									"segment1.ts\n"))
+							}
+						case r.Method == http.MethodGet && r.URL.Path == "/segment1.ts":
+							w.Header().Set("Content-Type", `video/MP2T`)
 
-				h264Track := &mpegts.Track{
-					Codec: &mpegts.CodecH264{},
-				}
-				mw := mpegts.NewWriter(w, []*mpegts.Track{h264Track})
+							h264Track := &mpegts.Track{
+								Codec: &mpegts.CodecH264{},
+							}
+							mw := mpegts.NewWriter(w, []*mpegts.Track{h264Track})
 
-				err := mw.WriteH264(
-					h264Track,
-					90000,               // +1 sec
-					0x1FFFFFFFF-90000+1, // -1 sec
-					[][]byte{
-						{7, 1, 2, 3}, // SPS
-						{8},          // PPS
-						{5},          // IDR
-					},
-				)
-				require.NoError(t, err)
+							err := mw.WriteH264(
+								h264Track,
+								90000,               // +1 sec
+								0x1FFFFFFFF-90000+1, // -1 sec
+								[][]byte{
+									{7, 1, 2, 3}, // SPS
+									{8},          // PPS
+									{5},          // IDR
+								},
+							)
+							require.NoError(t, err)
+						}
+
+					case "multiple tracks in rendition":
+						switch {
+						case r.Method == http.MethodGet && r.URL.Path == "/index.m3u8":
+							w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
+							w.Write([]byte("#EXTM3U\n" +
+								"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aac\",NAME=\"English\"," +
+								"DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"en\",URI=\"audio.m3u8\"\n" +
+								"#EXT-X-STREAM-INF:BANDWIDTH=7680000,CODECS=\"avc1.640015,mp4a.40.5\",AUDIO=\"aac\"\n" +
+								"video.m3u8\n"))
+
+						case r.Method == http.MethodGet && r.URL.Path == "/video.m3u8":
+							w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
+							w.Write([]byte("#EXTM3U\n" +
+								"#EXT-X-VERSION:7\n" +
+								"#EXT-X-MEDIA-SEQUENCE:20\n" +
+								"#EXT-X-PLAYLIST-TYPE:VOD\n" +
+								"#EXT-X-INDEPENDENT-SEGMENTS\n" +
+								"#EXT-X-TARGETDURATION:2\n" +
+								"#EXT-X-MAP:URI=\"init_video.mp4\"\n" +
+								"#EXT-X-PROGRAM-DATE-TIME:2015-02-05T01:02:02Z\n" +
+								"#EXTINF:2,\n" +
+								"segment_video.mp4\n" +
+								"#EXT-X-ENDLIST\n"))
+
+						case r.Method == http.MethodGet && r.URL.Path == "/audio.m3u8":
+							w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
+							w.Write([]byte("#EXTM3U\n" +
+								"#EXT-X-VERSION:7\n" +
+								"#EXT-X-MEDIA-SEQUENCE:20\n" +
+								"#EXT-X-PLAYLIST-TYPE:VOD\n" +
+								"#EXT-X-INDEPENDENT-SEGMENTS\n" +
+								"#EXT-X-TARGETDURATION:2\n" +
+								"#EXT-X-MAP:URI=\"init_audio.mp4\"\n" +
+								"#EXT-X-PROGRAM-DATE-TIME:2014-02-05T01:02:02Z\n" +
+								"#EXTINF:2,\n" +
+								"segment_audio.mp4\n" +
+								"#EXT-X-ENDLIST"))
+
+						case r.Method == http.MethodGet && r.URL.Path == "/init_video.mp4":
+							w.Header().Set("Content-Type", `video/mp4`)
+							err := mp4ToWriter(&fmp4.Init{
+								Tracks: []*fmp4.InitTrack{
+									{
+										ID:        1,
+										TimeScale: 90000,
+										Codec: &fmp4.CodecH264{
+											SPS: testSPS,
+											PPS: testPPS,
+										},
+									},
+								},
+							}, w)
+							require.NoError(t, err)
+
+						case r.Method == http.MethodGet && r.URL.Path == "/init_audio.mp4":
+							w.Header().Set("Content-Type", `video/mp4`)
+							err := mp4ToWriter(&fmp4.Init{
+								Tracks: []*fmp4.InitTrack{
+									{
+										ID:        1,
+										TimeScale: 44100,
+										Codec: &fmp4.CodecMPEG4Audio{
+											Config: testConfig,
+										},
+									},
+									{
+										ID:        2,
+										TimeScale: 44100,
+										Codec: &fmp4.CodecMPEG4Audio{
+											Config: testConfig,
+										},
+									},
+								},
+							}, w)
+							require.NoError(t, err)
+						}
+					}
+				}),
 			}
-		}),
+
+			ln, err := net.Listen("tcp", "localhost:5780")
+			require.NoError(t, err)
+
+			go httpServ.Serve(ln)
+			defer httpServ.Shutdown(context.Background())
+
+			tr := &http.Transport{}
+			defer tr.CloseIdleConnections()
+
+			c := &Client{
+				URI:        "http://localhost:5780/index.m3u8",
+				HTTPClient: &http.Client{Transport: tr},
+			}
+			require.NoError(t, err)
+
+			err = c.Start()
+			require.NoError(t, err)
+			defer c.Close()
+
+			err = <-c.Wait()
+
+			switch ca {
+			case "invalid sequence id":
+				require.EqualError(t, err, "next segment not found or not ready yet")
+			case "multiple tracks in rendition":
+				require.EqualError(t, err, "rendition playlists with multiple tracks are not supported")
+			}
+		})
 	}
-
-	ln, err := net.Listen("tcp", "localhost:5780")
-	require.NoError(t, err)
-
-	go httpServ.Serve(ln)
-	defer httpServ.Shutdown(context.Background())
-
-	tr := &http.Transport{}
-	defer tr.CloseIdleConnections()
-
-	c := &Client{
-		URI:        "http://localhost:5780/stream.m3u8",
-		HTTPClient: &http.Client{Transport: tr},
-	}
-	require.NoError(t, err)
-
-	err = c.Start()
-	require.NoError(t, err)
-
-	err = <-c.Wait()
-	require.EqualError(t, err, "next segment not found or not ready yet")
-
-	c.Close()
 }
