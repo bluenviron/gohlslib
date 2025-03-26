@@ -13,9 +13,12 @@ type procEntryMPEGTS struct {
 	data [][]byte
 }
 
+type clientTrackProcessorMPEGTSStreamProcessor interface {
+	onPartProcessorDone(ctx context.Context)
+}
 type clientTrackProcessorMPEGTS struct {
-	track               *clientTrack
-	onPartProcessorDone func(ctx context.Context)
+	track           *clientTrack
+	streamProcessor clientTrackProcessorMPEGTSStreamProcessor
 
 	queue chan *procEntryMPEGTS
 }
@@ -41,7 +44,7 @@ func (t *clientTrackProcessorMPEGTS) run(ctx context.Context) error {
 
 func (t *clientTrackProcessorMPEGTS) process(ctx context.Context, entry *procEntryMPEGTS) error {
 	if entry == nil {
-		t.onPartProcessorDone(ctx)
+		t.streamProcessor.onPartProcessorDone(ctx)
 		return nil
 	}
 

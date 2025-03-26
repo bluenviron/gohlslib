@@ -233,16 +233,14 @@ func (c *Client) runInner() error {
 	c.primaryDownloader = &clientPrimaryDownloader{
 		primaryPlaylistURL:        c.playlistURL,
 		httpClient:                c.HTTPClient,
+		rp:                        rp,
 		onRequest:                 c.OnRequest,
 		onDownloadPrimaryPlaylist: c.OnDownloadPrimaryPlaylist,
 		onDownloadStreamPlaylist:  c.OnDownloadStreamPlaylist,
 		onDownloadSegment:         c.OnDownloadSegment,
 		onDownloadPart:            c.OnDownloadPart,
 		onDecodeError:             c.OnDecodeError,
-		rp:                        rp,
-		setTracks:                 c.setTracks,
-		setLeadingTimeConv:        c.setLeadingTimeConv,
-		getLeadingTimeConv:        c.getLeadingTimeConv,
+		client:                    c,
 	}
 	c.primaryDownloader.initialize()
 	rp.add(c.primaryDownloader)
@@ -287,11 +285,15 @@ func (c *Client) setLeadingTimeConv(ts clientTimeConv) {
 	close(c.leadingTimeConvReady)
 }
 
-func (c *Client) getLeadingTimeConv(ctx context.Context) (clientTimeConv, bool) {
+func (c *Client) waitLeadingTimeConv(ctx context.Context) bool {
 	select {
 	case <-c.leadingTimeConvReady:
 	case <-ctx.Done():
-		return nil, false
+		return false
 	}
-	return c.leadingTimeConv, true
+	return true
+}
+
+func (c *Client) getLeadingTimeConv() clientTimeConv {
+	return c.leadingTimeConv
 }

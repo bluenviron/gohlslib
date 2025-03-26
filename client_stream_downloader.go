@@ -49,6 +49,12 @@ func dateTimeOfPreloadHint(pl *playlist.Media) *time.Time {
 	return &d
 }
 
+type clientStreamDownloaderClient interface {
+	setLeadingTimeConv(ts clientTimeConv)
+	waitLeadingTimeConv(ctx context.Context) bool
+	getLeadingTimeConv() clientTimeConv
+}
+
 type clientStreamDownloader struct {
 	isLeading                bool
 	httpClient               *http.Client
@@ -61,8 +67,7 @@ type clientStreamDownloader struct {
 	rendition                *playlist.MultivariantRendition
 	firstPlaylist            *playlist.Media
 	rp                       *clientRoutinePool
-	setLeadingTimeConv       func(clientTimeConv)
-	getLeadingTimeConv       func(context.Context) (clientTimeConv, bool)
+	client                   clientStreamDownloaderClient
 
 	segmentQueue *clientSegmentQueue
 	curSegmentID *int
@@ -104,29 +109,25 @@ func (d *clientStreamDownloader) run(ctx context.Context) error {
 		}
 
 		proc := &clientStreamProcessorFMP4{
-			ctx:                ctx,
-			isLeading:          d.isLeading,
-			rendition:          d.rendition,
-			initFile:           initFile,
-			segmentQueue:       d.segmentQueue,
-			rp:                 d.rp,
-			setTracks:          d.setTracks,
-			setEnded:           d.setEnded,
-			setLeadingTimeConv: d.setLeadingTimeConv,
-			getLeadingTimeConv: d.getLeadingTimeConv,
+			ctx:              ctx,
+			isLeading:        d.isLeading,
+			rendition:        d.rendition,
+			initFile:         initFile,
+			segmentQueue:     d.segmentQueue,
+			rp:               d.rp,
+			streamDownloader: d,
+			client:           d.client,
 		}
 		proc.initialize()
 		d.rp.add(proc)
 	} else {
 		proc := &clientStreamProcessorMPEGTS{
-			onDecodeError:      d.onDecodeError,
-			isLeading:          d.isLeading,
-			segmentQueue:       d.segmentQueue,
-			rp:                 d.rp,
-			setTracks:          d.setTracks,
-			setEnded:           d.setEnded,
-			setLeadingTimeConv: d.setLeadingTimeConv,
-			getLeadingTimeConv: d.getLeadingTimeConv,
+			onDecodeError:    d.onDecodeError,
+			isLeading:        d.isLeading,
+			segmentQueue:     d.segmentQueue,
+			rp:               d.rp,
+			streamDownloader: d,
+			client:           d.client,
 		}
 		proc.initialize()
 		d.rp.add(proc)
