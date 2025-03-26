@@ -133,7 +133,8 @@ func (s *muxerSegmenter) writeAV1(
 		paramsChanged = true
 	}
 
-	ps, err := fmp4.NewPartSampleAV12(tu)
+	ps := &fmp4.PartSample{}
+	err := ps.FillAV1(tu)
 	if err != nil {
 		return err
 	}
@@ -270,7 +271,8 @@ func (s *muxerSegmenter) writeH265(
 		}
 		track.firstRandomAccessReceived = true
 
-		track.h265DTSExtractor = h265.NewDTSExtractor()
+		track.h265DTSExtractor = &h265.DTSExtractor{}
+		track.h265DTSExtractor.Initialize()
 	}
 
 	dts, err := track.h265DTSExtractor.Extract(au, pts)
@@ -278,7 +280,8 @@ func (s *muxerSegmenter) writeH265(
 		return fmt.Errorf("unable to extract DTS: %w", err)
 	}
 
-	ps, err := fmp4.NewPartSampleH265(
+	ps := &fmp4.PartSample{}
+	err = ps.FillH265(
 		int32(pts-dts),
 		au)
 	if err != nil {
@@ -347,7 +350,8 @@ func (s *muxerSegmenter) writeH264(
 		}
 		track.firstRandomAccessReceived = true
 
-		track.h264DTSExtractor = h264.NewDTSExtractor()
+		track.h264DTSExtractor = &h264.DTSExtractor{}
+		track.h264DTSExtractor.Initialize()
 	}
 
 	dts, err := track.h264DTSExtractor.Extract(au, pts)
@@ -384,7 +388,8 @@ func (s *muxerSegmenter) writeH264(
 		return nil
 	}
 
-	ps, err := fmp4.NewPartSampleH264(
+	ps := &fmp4.PartSample{}
+	err = ps.FillH264(
 		int32(pts-dts),
 		au)
 	if err != nil {
@@ -425,9 +430,9 @@ func (s *muxerSegmenter) writeOpus(
 			return err
 		}
 
-		duration := opus.PacketDuration(packet)
-		ntp = ntp.Add(duration)
-		pts += durationToTimestamp(duration, track.ClockRate)
+		deltaT := opus.PacketDuration2(packet)
+		ntp = ntp.Add(timestampToDuration(deltaT, 48000))
+		pts += deltaT
 	}
 
 	return nil

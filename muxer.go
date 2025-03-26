@@ -354,7 +354,10 @@ func (m *Muxer) Start() error {
 			id:             "main",
 			nextSegmentID:  nextSegmentID,
 		}
-		stream.initialize()
+		err := stream.initialize()
+		if err != nil {
+			return err
+		}
 		m.streams = append(m.streams, stream)
 
 	default:
@@ -408,7 +411,10 @@ func (m *Muxer) Start() error {
 				isDefault:      isDefault,
 				nextSegmentID:  nextSegmentID,
 			}
-			stream.initialize()
+			err := stream.initialize()
+			if err != nil {
+				return err
+			}
 			m.streams = append(m.streams, stream)
 		}
 	}
