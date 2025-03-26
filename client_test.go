@@ -161,7 +161,9 @@ func TestClient(t *testing.T) {
 							},
 						},
 					}
-					mw := mpegts.NewWriter(w, []*mpegts.Track{h264Track, mpeg4audioTrack})
+					mw := &mpegts.Writer{W: w, Tracks: []*mpegts.Track{h264Track, mpeg4audioTrack}}
+					err = mw.Initialize()
+					require.NoError(t, err)
 
 					err = mw.WriteH264(
 						h264Track,
@@ -217,7 +219,9 @@ func TestClient(t *testing.T) {
 							},
 						},
 					}
-					mw := mpegts.NewWriter(w, []*mpegts.Track{h264Track, mpeg4audioTrack})
+					mw := &mpegts.Writer{W: w, Tracks: []*mpegts.Track{h264Track, mpeg4audioTrack}}
+					err = mw.Initialize()
+					require.NoError(t, err)
 
 					err = mw.WriteH264(
 						h264Track,
@@ -1230,9 +1234,11 @@ func TestClientErrors(t *testing.T) {
 							h264Track := &mpegts.Track{
 								Codec: &mpegts.CodecH264{},
 							}
-							mw := mpegts.NewWriter(w, []*mpegts.Track{h264Track})
+							mw := &mpegts.Writer{W: w, Tracks: []*mpegts.Track{h264Track}}
+							err := mw.Initialize()
+							require.NoError(t, err)
 
-							err := mw.WriteH264(
+							err = mw.WriteH264(
 								h264Track,
 								90000,               // +1 sec
 								0x1FFFFFFFF-90000+1, // -1 sec

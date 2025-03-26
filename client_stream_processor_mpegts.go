@@ -140,8 +140,8 @@ func (p *clientStreamProcessorMPEGTS) onPartProcessorDone(ctx context.Context) {
 func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, firstPayload []byte) error {
 	p.switchableReader = &switchableReader{bytes.NewReader(firstPayload)}
 
-	var err error
-	p.reader, err = mpegts.NewReader(p.switchableReader)
+	p.reader = &mpegts.Reader{R: p.switchableReader}
+	err := p.reader.Initialize()
 	if err != nil {
 		return err
 	}

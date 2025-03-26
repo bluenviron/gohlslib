@@ -127,7 +127,7 @@ type muxerStream struct {
 	partTargetDuration     time.Duration
 }
 
-func (s *muxerStream) initialize() {
+func (s *muxerStream) initialize() error {
 	for _, track := range s.tracks {
 		track.stream = s
 	}
@@ -140,12 +140,17 @@ func (s *muxerStream) initialize() {
 			tracks[i] = track.mpegtsTrack
 		}
 		s.mpegtsSwitchableWriter = &switchableWriter{}
-		s.mpegtsWriter = mpegts.NewWriter(s.mpegtsSwitchableWriter, tracks)
+		s.mpegtsWriter = &mpegts.Writer{W: s.mpegtsSwitchableWriter, Tracks: tracks}
+		err := s.mpegtsWriter.Initialize()
+		if err != nil {
+			return err
+		}
 	} else {
 		s.generateMediaPlaylist = s.generateMediaPlaylistFMP4
 	}
 
 	s.server.registerPath(mediaPlaylistPath(s.id), s.handleMediaPlaylist)
+	return nil
 }
 
 func (s *muxerStream) close() {
