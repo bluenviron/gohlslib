@@ -109,19 +109,24 @@ func getRenditionsByGroup(
 	return ret
 }
 
+type clientPrimaryDownloaderClient interface {
+	setTracks([]*Track) (map[*Track]*clientTrack, error)
+	setLeadingTimeConv(ts clientTimeConv)
+	waitLeadingTimeConv(ctx context.Context) bool
+	getLeadingTimeConv() clientTimeConv
+}
+
 type clientPrimaryDownloader struct {
 	primaryPlaylistURL        *url.URL
 	httpClient                *http.Client
+	rp                        *clientRoutinePool
 	onRequest                 ClientOnRequestFunc
 	onDownloadPrimaryPlaylist ClientOnDownloadPrimaryPlaylistFunc
 	onDownloadStreamPlaylist  ClientOnDownloadStreamPlaylistFunc
 	onDownloadSegment         ClientOnDownloadSegmentFunc
 	onDownloadPart            ClientOnDownloadPartFunc
 	onDecodeError             ClientOnDecodeErrorFunc
-	rp                        *clientRoutinePool
-	setTracks                 func([]*Track) (map[*Track]*clientTrack, error)
-	setLeadingTimeConv        func(ts clientTimeConv)
-	getLeadingTimeConv        func(ctx context.Context) (clientTimeConv, bool)
+	client                    clientPrimaryDownloaderClient
 
 	clientTracks map[*Track]*clientTrack
 }
@@ -152,8 +157,7 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 			playlistURL:              d.primaryPlaylistURL,
 			firstPlaylist:            plt,
 			rp:                       d.rp,
-			setLeadingTimeConv:       d.setLeadingTimeConv,
-			getLeadingTimeConv:       d.getLeadingTimeConv,
+			client:                   d.client,
 		}
 		stream.initialize()
 		d.rp.add(stream)
@@ -182,8 +186,7 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 			playlistURL:              u,
 			firstPlaylist:            nil,
 			rp:                       d.rp,
-			setLeadingTimeConv:       d.setLeadingTimeConv,
-			getLeadingTimeConv:       d.getLeadingTimeConv,
+			client:                   d.client,
 		}
 		stream.initialize()
 		d.rp.add(stream)
@@ -218,8 +221,7 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 						playlistURL:              u,
 						rendition:                pl,
 						rp:                       d.rp,
-						setLeadingTimeConv:       d.setLeadingTimeConv,
-						getLeadingTimeConv:       d.getLeadingTimeConv,
+						client:                   d.client,
 					}
 					stream.initialize()
 					d.rp.add(stream)
@@ -248,7 +250,7 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 		return fmt.Errorf("no supported tracks found")
 	}
 
-	d.clientTracks, err = d.setTracks(tracks)
+	d.clientTracks, err = d.client.setTracks(tracks)
 	if err != nil {
 		return err
 	}
