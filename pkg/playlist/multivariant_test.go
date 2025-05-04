@@ -881,11 +881,14 @@ func FuzzMultivariantUnmarshal(f *testing.F) {
 	f.Add("#EXTM3U\n" +
 		"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aud1\",LANGUAGE=\"en\",NAME=\"English\",AUTOSELECT=YES,DEFAULT=YES,CHANNELS=\"2\",URI=\"a1/prog_index.m3u8\",INSTREAM-ID=\"a\"\n")
 
-	f.Fuzz(func(_ *testing.T, a string) {
+	f.Fuzz(func(t *testing.T, a string) {
 		var m Multivariant
 		err := m.Unmarshal([]byte(a))
-		if err == nil {
-			m.Marshal() //nolint:errcheck
+		if err != nil {
+			return
 		}
+
+		_, err = m.Marshal()
+		require.NoError(t, err)
 	})
 }

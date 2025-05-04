@@ -463,11 +463,14 @@ func FuzzMediaUnmarshal(f *testing.F) {
 	f.Add("#EXTM3U\n" +
 		"#EXT-X-PART:DURATION=1.50000,URI=\"part3.mp4\",INDEPENDENT=YES,BYTERANGE=\n")
 
-	f.Fuzz(func(_ *testing.T, a string) {
+	f.Fuzz(func(t *testing.T, a string) {
 		var m Media
 		err := m.Unmarshal([]byte(a))
-		if err == nil {
-			m.Marshal() //nolint:errcheck
+		if err != nil {
+			return
 		}
+
+		_, err = m.Marshal()
+		require.NoError(t, err)
 	})
 }
