@@ -33,10 +33,13 @@ func FuzzPlaylistUnmarshal(f *testing.F) {
 		f.Add(ca.input)
 	}
 
-	f.Fuzz(func(_ *testing.T, a string) {
+	f.Fuzz(func(t *testing.T, a string) {
 		pl, err := Unmarshal([]byte(a))
-		if err == nil {
-			pl.Marshal() //nolint:errcheck
+		if err != nil {
+			return
 		}
+
+		_, err = pl.Marshal()
+		require.NoError(t, err)
 	})
 }
