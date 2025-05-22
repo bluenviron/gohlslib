@@ -41,7 +41,7 @@ func main() {
 
 		fmt.Println("renditions:")
 		for _, rendition := range pl.Renditions {
-			fmt.Printf(" * Type: %s GroupID: %s URI: %s\n", rendition.Type, rendition.GroupID, rendition.URI)
+			fmt.Printf(" * Type: %s GroupID: %s URI: %v\n", rendition.Type, rendition.GroupID, rendition.URI)
 		}
 
 	case *playlist.Media:
