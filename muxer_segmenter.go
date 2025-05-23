@@ -474,7 +474,7 @@ func (s *muxerSegmenter) writeMPEG4Audio(
 		return nil
 	}
 
-	sampleRate := track.Codec.(*codecs.MPEG4Audio).Config.SampleRate
+	sampleRate := track.Codec.(*codecs.MPEG4Audio).SampleRate
 
 	for i, au := range aus {
 		auNTP := ntp.Add(time.Duration(i) * mpeg4audio.SamplesPerAccessUnit *

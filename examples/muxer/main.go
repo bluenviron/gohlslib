@@ -1,3 +1,4 @@
+// Package main contains an example.
 package main
 
 import (
@@ -36,7 +37,7 @@ func handleIndex(wrapped http.HandlerFunc) http.HandlerFunc {
 		if r.URL.Path == "/" {
 			w.Header().Set("Content-Type", "text/html")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(index))
+			w.Write(index)
 			return
 		}
 
@@ -65,7 +66,7 @@ func main() {
 		Handler: handleIndex(mux.Handle),
 	}
 	log.Println("HTTP server created on :8080")
-	go s.ListenAndServe()
+	go s.ListenAndServe() //nolint:errcheck
 
 	// create a socket to receive MPEG-TS packets
 	pc, err := net.ListenPacket("udp", "localhost:9000")
@@ -81,7 +82,8 @@ func main() {
 		" ! mpegtsmux alignment=6 ! udpsink host=127.0.0.1 port=9000")
 
 	// create a MPEG-TS reader
-	r, err := mpegts.NewReader(mpegts.NewBufferedReader(newPacketConnReader(pc)))
+	r := &mpegts.Reader{R: mpegts.NewBufferedReader(newPacketConnReader(pc))}
+	err = r.Initialize()
 	if err != nil {
 		panic(err)
 	}
@@ -92,7 +94,8 @@ func main() {
 		panic(fmt.Errorf("H264 track not found"))
 	}
 
-	timeDec := mpegts.NewTimeDecoder()
+	timeDec := &mpegts.TimeDecoder{}
+	timeDec.Initialize()
 
 	// setup a callback that is called when a H264 access unit is received
 	r.OnDataH264(track, func(pts int64, _ int64, au [][]byte) error {
@@ -102,8 +105,7 @@ func main() {
 		log.Printf("visit http://localhost:8080 - encoding access unit with PTS = %v", pts)
 
 		// pass the access unit to the HLS muxer
-		mux.WriteH264(videoTrack, time.Now(), pts, au)
-		return nil
+		return mux.WriteH264(videoTrack, time.Now(), pts, au)
 	})
 
 	// read from the MPEG-TS stream

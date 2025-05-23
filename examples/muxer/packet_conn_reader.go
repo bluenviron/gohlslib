@@ -15,6 +15,6 @@ func newPacketConnReader(pc net.PacketConn) *packetConnReader {
 }
 
 func (r *packetConnReader) Read(p []byte) (int, error) {
-	n, _, err := r.PacketConn.ReadFrom(p)
+	n, _, err := r.ReadFrom(p)
 	return n, err
 }
