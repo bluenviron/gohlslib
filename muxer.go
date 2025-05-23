@@ -337,8 +337,8 @@ func (m *Muxer) Start() error {
 		nextSegmentID = 7
 	}
 
-	switch {
-	case m.Variant == MuxerVariantMPEGTS:
+	switch m.Variant {
+	case MuxerVariantMPEGTS:
 		stream := &muxerStream{
 			isLeading:      true,
 			variant:        m.Variant,

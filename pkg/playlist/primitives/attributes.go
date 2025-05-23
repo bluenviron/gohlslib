@@ -12,11 +12,7 @@ type Attributes map[string]string
 func (a *Attributes) Unmarshal(v string) error {
 	*a = make(Attributes)
 
-	for {
-		if len(v) == 0 {
-			break
-		}
-
+	for len(v) != 0 {
 		// read key
 		i := strings.IndexByte(v, '=')
 		if i < 0 {

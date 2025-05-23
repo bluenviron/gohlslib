@@ -1,3 +1,4 @@
+// Package main contains an example.
 package main
 
 import (
@@ -28,6 +29,13 @@ func main() {
 		URI: "http://myserver/mystream/index.m3u8",
 	}
 
+	var m *mpegtsMuxer
+	defer func() {
+		if m != nil {
+			m.close()
+		}
+	}()
+
 	// called when tracks are parsed
 	c.OnTracks = func(tracks []*gohlslib.Track) error {
 		// find the H264 track
@@ -37,18 +45,18 @@ func main() {
 		}
 
 		// create the MPEG-TS muxer
-		m := &mpegtsMuxer{
+		m = &mpegtsMuxer{
 			fileName: "mystream.ts",
 			sps:      track.Codec.(*codecs.H264).SPS,
 			pps:      track.Codec.(*codecs.H264).PPS,
 		}
 		err := m.initialize()
 		if err != nil {
-			return nil
+			return err
 		}
 
 		// set a callback that is called when data is received
-		c.OnDataH26x(track, func(pts int64, dts int64, au [][]byte) {
+		c.OnDataH26x(track, func(pts int64, _ int64, au [][]byte) {
 			log.Printf("received access unit with pts = %v\n", pts)
 
 			// send data to the MPEG-TS muxer

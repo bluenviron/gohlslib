@@ -690,8 +690,8 @@ func TestMuxer(t *testing.T) {
 		require.Equal(t, "application/vnd.apple.mpegurl", h.Get("Content-Type"))
 		require.Equal(t, "no-cache", h.Get("Cache-Control"))
 
-		switch {
-		case variant == "fmp4":
+		switch variant {
+		case "fmp4":
 			re := regexp.MustCompile(`^#EXTM3U\n` +
 				`#EXT-X-VERSION:10\n` +
 				`#EXT-X-TARGETDURATION:4\n` +
@@ -705,7 +705,7 @@ func TestMuxer(t *testing.T) {
 				`(.*?_seg1.mp4\?key=value)\n$`)
 			require.Regexp(t, re, string(byts))
 
-		case variant == "lowLatency":
+		case "lowLatency":
 			re := regexp.MustCompile(`^#EXTM3U\n` +
 				`#EXT-X-VERSION:10\n` +
 				`#EXT-X-TARGETDURATION:4\n` +

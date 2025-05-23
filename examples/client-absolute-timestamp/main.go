@@ -1,3 +1,4 @@
+// Package main contains an example.
 package main
 
 import (
@@ -27,28 +28,28 @@ func main() {
 			// set a callback that is called when data is received
 			switch track.Codec.(type) {
 			case *codecs.AV1:
-				c.OnDataAV1(track, func(pts int64, tu [][]byte) {
+				c.OnDataAV1(track, func(pts int64, _ [][]byte) {
 					ntp, ntpAvailable := c.AbsoluteTime(ttrack)
 					log.Printf("received data from track %T, pts = %v, ntp available = %v, ntp = %v\n",
 						ttrack.Codec, pts, ntpAvailable, ntp)
 				})
 
 			case *codecs.H264, *codecs.H265:
-				c.OnDataH26x(track, func(pts int64, dts int64, au [][]byte) {
+				c.OnDataH26x(track, func(pts int64, _ int64, _ [][]byte) {
 					ntp, ntpAvailable := c.AbsoluteTime(ttrack)
 					log.Printf("received data from track %T, pts = %v, ntp available = %v, ntp = %v\n",
 						ttrack.Codec, pts, ntpAvailable, ntp)
 				})
 
 			case *codecs.MPEG4Audio:
-				c.OnDataMPEG4Audio(track, func(pts int64, aus [][]byte) {
+				c.OnDataMPEG4Audio(track, func(pts int64, _ [][]byte) {
 					ntp, ntpAvailable := c.AbsoluteTime(ttrack)
 					log.Printf("received data from track %T, pts = %v, ntp available = %v, ntp = %v\n",
 						ttrack.Codec, pts, ntpAvailable, ntp)
 				})
 
 			case *codecs.Opus:
-				c.OnDataOpus(track, func(pts int64, packets [][]byte) {
+				c.OnDataOpus(track, func(pts int64, _ [][]byte) {
 					ntp, ntpAvailable := c.AbsoluteTime(ttrack)
 					log.Printf("received data from track %T, pts = %v, ntp available = %v, ntp = %v\n",
 						ttrack.Codec, pts, ntpAvailable, ntp)

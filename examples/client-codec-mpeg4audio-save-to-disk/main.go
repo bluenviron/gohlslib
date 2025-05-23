@@ -1,3 +1,4 @@
+// Package main contains an example.
 package main
 
 import (
@@ -35,6 +36,13 @@ func main() {
 		URI: "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_fmp4/master.m3u8",
 	}
 
+	var m *mpegtsMuxer
+	defer func() {
+		if m != nil {
+			m.close()
+		}
+	}()
+
 	// called when tracks are parsed
 	c.OnTracks = func(tracks []*gohlslib.Track) error {
 		// find the MPEG-4 Audio track
@@ -44,13 +52,13 @@ func main() {
 		}
 
 		// create the MPEG-TS muxer
-		m := &mpegtsMuxer{
+		m = &mpegtsMuxer{
 			fileName: "mystream.ts",
 			config:   &track.Codec.(*codecs.MPEG4Audio).Config,
 		}
 		err := m.initialize()
 		if err != nil {
-			return nil
+			return err
 		}
 
 		// set a callback that is called when data is received
@@ -58,7 +66,7 @@ func main() {
 			log.Printf("received access unit with pts = %v\n", pts)
 
 			// send data to the MPEG-TS muxer
-			err := m.writeMPEG4Audio(aus, multiplyAndDivide(int64(pts), 90000, int64(time.Second)))
+			err := m.writeMPEG4Audio(aus, multiplyAndDivide(pts, 90000, int64(time.Second)))
 			if err != nil {
 				panic(err)
 			}
