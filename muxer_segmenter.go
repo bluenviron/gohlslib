@@ -532,9 +532,9 @@ func (s *muxerSegmenter) fmp4WriteSample(
 	// add a starting DTS to avoid a negative BaseTime
 	sample.dts += durationToTimestamp(fmp4StartDTS, track.ClockRate)
 
-	// BaseTime is still negative, this is not supported by fMP4. Reject the sample silently.
+	// BaseTime is still negative, this is not supported by fMP4
 	if sample.dts < 0 {
-		return nil
+		return fmt.Errorf("sample timestamp is impossible to handle")
 	}
 
 	// put samples into a queue in order to compute the sample duration
