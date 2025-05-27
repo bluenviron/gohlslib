@@ -25,7 +25,7 @@ type muxerSegmentMPEGTS struct {
 	bw           *bufio.Writer
 	size         uint64
 	path         string
-	endDTS       time.Duration
+	endDTS       time.Duration // available after finalize()
 	audioAUCount int
 }
 
@@ -77,6 +77,7 @@ func (s *muxerSegmentMPEGTS) finalize(endDTS time.Duration) error {
 	s.bw = nil
 	s.storage.Finalize()
 	s.endDTS = endDTS
+
 	return nil
 }
 
@@ -104,8 +105,6 @@ func (s *muxerSegmentMPEGTS) writeH264(
 	if err != nil {
 		return err
 	}
-
-	s.endDTS = timestampToDuration(dts, track.ClockRate)
 
 	return nil
 }
@@ -136,7 +135,6 @@ func (s *muxerSegmentMPEGTS) writeMPEG4Audio(
 
 	if track.isLeading {
 		s.audioAUCount++
-		s.endDTS = timestampToDuration(pts, track.ClockRate)
 	}
 
 	return nil
