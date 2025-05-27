@@ -78,7 +78,7 @@ func (p *muxerPart) writeSample(track *muxerTrack, sample *fmp4AugmentedSample) 
 		p.isIndependent = true
 	}
 
-	track.fmp4Samples = append(track.fmp4Samples, &sample.PartSample)
+	track.fmp4Samples = append(track.fmp4Samples, &sample.Sample)
 
 	return nil
 }

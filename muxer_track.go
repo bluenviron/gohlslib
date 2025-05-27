@@ -19,7 +19,7 @@ type muxerTrack struct {
 	h265DTSExtractor          *h265.DTSExtractor
 	mpegtsTrack               *mpegts.Track        // mpegts only
 	fmp4NextSample            *fmp4AugmentedSample // fmp4 only
-	fmp4Samples               []*fmp4.PartSample   // fmp4 only
+	fmp4Samples               []*fmp4.Sample       // fmp4 only
 	fmp4StartDTS              int64                // fmp4 only
 }
 

@@ -72,7 +72,7 @@ func findCompatiblePartDuration(
 }
 
 type fmp4AugmentedSample struct {
-	fmp4.PartSample
+	fmp4.Sample
 	dts int64
 	ntp time.Time
 }
@@ -133,7 +133,7 @@ func (s *muxerSegmenter) writeAV1(
 		paramsChanged = true
 	}
 
-	ps := &fmp4.PartSample{}
+	ps := &fmp4.Sample{}
 	err := ps.FillAV1(tu)
 	if err != nil {
 		return err
@@ -144,9 +144,9 @@ func (s *muxerSegmenter) writeAV1(
 		randomAccess,
 		paramsChanged,
 		&fmp4AugmentedSample{
-			PartSample: *ps,
-			dts:        pts,
-			ntp:        ntp,
+			Sample: *ps,
+			dts:    pts,
+			ntp:    ntp,
 		})
 }
 
@@ -213,7 +213,7 @@ func (s *muxerSegmenter) writeVP9(
 		randomAccess,
 		paramsChanged,
 		&fmp4AugmentedSample{
-			PartSample: fmp4.PartSample{
+			Sample: fmp4.Sample{
 				IsNonSyncSample: !randomAccess,
 				Payload:         frame,
 			},
@@ -280,7 +280,7 @@ func (s *muxerSegmenter) writeH265(
 		return fmt.Errorf("unable to extract DTS: %w", err)
 	}
 
-	ps := &fmp4.PartSample{}
+	ps := &fmp4.Sample{}
 	err = ps.FillH265(
 		int32(pts-dts),
 		au)
@@ -293,9 +293,9 @@ func (s *muxerSegmenter) writeH265(
 		randomAccess,
 		paramsChanged,
 		&fmp4AugmentedSample{
-			PartSample: *ps,
-			dts:        dts,
-			ntp:        ntp,
+			Sample: *ps,
+			dts:    dts,
+			ntp:    ntp,
 		})
 }
 
@@ -388,7 +388,7 @@ func (s *muxerSegmenter) writeH264(
 		return nil
 	}
 
-	ps := &fmp4.PartSample{}
+	ps := &fmp4.Sample{}
 	err = ps.FillH264(
 		int32(pts-dts),
 		au)
@@ -401,9 +401,9 @@ func (s *muxerSegmenter) writeH264(
 		randomAccess,
 		paramsChanged,
 		&fmp4AugmentedSample{
-			PartSample: *ps,
-			dts:        dts,
-			ntp:        ntp,
+			Sample: *ps,
+			dts:    dts,
+			ntp:    ntp,
 		})
 }
 
@@ -419,7 +419,7 @@ func (s *muxerSegmenter) writeOpus(
 			true,
 			false,
 			&fmp4AugmentedSample{
-				PartSample: fmp4.PartSample{
+				Sample: fmp4.Sample{
 					Payload: packet,
 				},
 				dts: pts,
@@ -487,7 +487,7 @@ func (s *muxerSegmenter) writeMPEG4Audio(
 			true,
 			false,
 			&fmp4AugmentedSample{
-				PartSample: fmp4.PartSample{
+				Sample: fmp4.Sample{
 					Payload: au,
 				},
 				dts: auPTS,

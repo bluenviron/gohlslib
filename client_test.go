@@ -20,6 +20,7 @@ import (
 
 	"github.com/bluenviron/mediacommon/v2/pkg/formats/fmp4"
 	"github.com/bluenviron/mediacommon/v2/pkg/formats/fmp4/seekablebuffer"
+	"github.com/bluenviron/mediacommon/v2/pkg/formats/mp4"
 	"github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts"
 )
 
@@ -262,7 +263,7 @@ func TestClient(t *testing.T) {
 							{
 								ID:        99,
 								TimeScale: 90000,
-								Codec: &fmp4.CodecH264{
+								Codec: &mp4.CodecH264{
 									SPS: testSPS,
 									PPS: testPPS,
 								},
@@ -270,7 +271,7 @@ func TestClient(t *testing.T) {
 							{
 								ID:        98,
 								TimeScale: 44100,
-								Codec: &fmp4.CodecMPEG4Audio{
+								Codec: &mp4.CodecMPEG4Audio{
 									Config: testConfig,
 								},
 							},
@@ -289,7 +290,7 @@ func TestClient(t *testing.T) {
 							{
 								ID:       98,
 								BaseTime: 44100 * 6,
-								Samples: []*fmp4.PartSample{
+								Samples: []*fmp4.Sample{
 									{
 										Duration: 44100 / 30,
 										Payload:  []byte{1, 2, 3, 4},
@@ -303,7 +304,7 @@ func TestClient(t *testing.T) {
 							{
 								ID:       99,
 								BaseTime: 90000 * 6,
-								Samples: []*fmp4.PartSample{
+								Samples: []*fmp4.Sample{
 									{
 										Duration:  90000 / 30,
 										PTSOffset: 90000 * 2,
@@ -337,7 +338,7 @@ func TestClient(t *testing.T) {
 							{
 								ID:       99,
 								BaseTime: 90000*6 + 2*90000/30,
-								Samples: []*fmp4.PartSample{
+								Samples: []*fmp4.Sample{
 									{
 										Duration:  90000 / 30,
 										PTSOffset: 0,
@@ -397,7 +398,7 @@ func TestClient(t *testing.T) {
 							{
 								ID:        1,
 								TimeScale: 90000,
-								Codec: &fmp4.CodecH264{
+								Codec: &mp4.CodecH264{
 									SPS: testSPS,
 									PPS: testPPS,
 								},
@@ -413,7 +414,7 @@ func TestClient(t *testing.T) {
 							{
 								ID:        1,
 								TimeScale: 44100,
-								Codec: &fmp4.CodecMPEG4Audio{
+								Codec: &mp4.CodecMPEG4Audio{
 									Config: testConfig,
 								},
 							},
@@ -428,7 +429,7 @@ func TestClient(t *testing.T) {
 							{
 								ID:       1,
 								BaseTime: 90000 * 6,
-								Samples: []*fmp4.PartSample{
+								Samples: []*fmp4.Sample{
 									{
 										Duration:  90000 / 30,
 										PTSOffset: 90000 * 2,
@@ -465,7 +466,7 @@ func TestClient(t *testing.T) {
 							{
 								ID:       1,
 								BaseTime: 44100 * 6,
-								Samples: []*fmp4.PartSample{
+								Samples: []*fmp4.Sample{
 									{
 										Duration: 44100 / 30,
 										Payload:  []byte{1, 2, 3, 4},
@@ -542,7 +543,7 @@ func TestClient(t *testing.T) {
 							{
 								ID:        1,
 								TimeScale: 90000,
-								Codec: &fmp4.CodecH264{
+								Codec: &mp4.CodecH264{
 									SPS: testSPS,
 									PPS: testPPS,
 								},
@@ -558,7 +559,7 @@ func TestClient(t *testing.T) {
 							{
 								ID:        1,
 								TimeScale: 44100,
-								Codec: &fmp4.CodecMPEG4Audio{
+								Codec: &mp4.CodecMPEG4Audio{
 									Config: testConfig,
 								},
 							},
@@ -573,7 +574,7 @@ func TestClient(t *testing.T) {
 							{
 								ID:       1,
 								BaseTime: 90000 * 6,
-								Samples: []*fmp4.PartSample{
+								Samples: []*fmp4.Sample{
 									{
 										Duration:  90000 / 30,
 										PTSOffset: 90000 * 2,
@@ -610,7 +611,7 @@ func TestClient(t *testing.T) {
 							{
 								ID:       1,
 								BaseTime: 44100 * 6,
-								Samples: []*fmp4.PartSample{
+								Samples: []*fmp4.Sample{
 									{
 										Duration: 44100 / 30,
 										Payload:  []byte{1, 2, 3, 4},
@@ -632,7 +633,7 @@ func TestClient(t *testing.T) {
 							{
 								ID:       1,
 								BaseTime: 44100 * 6,
-								Samples: []*fmp4.PartSample{
+								Samples: []*fmp4.Sample{
 									{
 										Duration: 44100 / 30,
 										Payload:  []byte{4, 3, 2, 1},
@@ -711,7 +712,7 @@ func TestClient(t *testing.T) {
 							{
 								ID:        1,
 								TimeScale: 90000,
-								Codec: &fmp4.CodecH264{
+								Codec: &mp4.CodecH264{
 									SPS: testSPS,
 									PPS: testPPS,
 								},
@@ -719,7 +720,7 @@ func TestClient(t *testing.T) {
 							{
 								ID:        2,
 								TimeScale: 44100,
-								Codec: &fmp4.CodecMPEG4Audio{
+								Codec: &mp4.CodecMPEG4Audio{
 									Config: testConfig,
 								},
 							},
@@ -733,7 +734,7 @@ func TestClient(t *testing.T) {
 						Tracks: []*fmp4.PartTrack{
 							{
 								ID: 1,
-								Samples: []*fmp4.PartSample{
+								Samples: []*fmp4.Sample{
 									{
 										Duration:  90000 / 30,
 										PTSOffset: 90000 * 2,
@@ -754,7 +755,7 @@ func TestClient(t *testing.T) {
 							},
 							{
 								ID: 2,
-								Samples: []*fmp4.PartSample{
+								Samples: []*fmp4.Sample{
 									{
 										Duration: 44100 / 30,
 										Payload:  []byte{1, 2, 3, 4},
@@ -776,7 +777,7 @@ func TestClient(t *testing.T) {
 							{
 								ID:       1,
 								BaseTime: (90000 / 30) * 2,
-								Samples: []*fmp4.PartSample{{
+								Samples: []*fmp4.Sample{{
 									Duration: 90000 / 30,
 									Payload: mustMarshalAVCC([][]byte{
 										{4},
@@ -1296,7 +1297,7 @@ func TestClientErrors(t *testing.T) {
 									{
 										ID:        1,
 										TimeScale: 90000,
-										Codec: &fmp4.CodecH264{
+										Codec: &mp4.CodecH264{
 											SPS: testSPS,
 											PPS: testPPS,
 										},
@@ -1312,14 +1313,14 @@ func TestClientErrors(t *testing.T) {
 									{
 										ID:        1,
 										TimeScale: 44100,
-										Codec: &fmp4.CodecMPEG4Audio{
+										Codec: &mp4.CodecMPEG4Audio{
 											Config: testConfig,
 										},
 									},
 									{
 										ID:        2,
 										TimeScale: 44100,
-										Codec: &fmp4.CodecMPEG4Audio{
+										Codec: &mp4.CodecMPEG4Audio{
 											Config: testConfig,
 										},
 									},
