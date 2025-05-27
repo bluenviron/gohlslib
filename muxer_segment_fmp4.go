@@ -20,7 +20,7 @@ type muxerSegmentFMP4 struct {
 	storage storage.File
 	size    uint64
 	parts   []*muxerPart
-	endDTS  time.Duration
+	endDTS  time.Duration // available after finalize()
 }
 
 func (s *muxerSegmentFMP4) initialize() error {
@@ -59,10 +59,10 @@ func (s *muxerSegmentFMP4) reader() (io.ReadCloser, error) {
 	return s.storage.Reader()
 }
 
-func (s *muxerSegmentFMP4) finalize(nextDTS time.Duration) error {
+func (s *muxerSegmentFMP4) finalize(endDTS time.Duration) error {
 	s.storage.Finalize()
 
-	s.endDTS = nextDTS
+	s.endDTS = endDTS
 
 	return nil
 }

@@ -21,7 +21,7 @@ type muxerPart struct {
 
 	path          string
 	isIndependent bool
-	endDTS        time.Duration
+	endDTS        time.Duration // available after finalize()
 }
 
 func (p *muxerPart) initialize() {
