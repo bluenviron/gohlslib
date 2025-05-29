@@ -109,9 +109,10 @@ type Client struct {
 	primaryDownloader *clientPrimaryDownloader
 	leadingTimeConv   clientTimeConv
 	tracks            map[*Track]*clientTrack
+	closeError        error
 
 	// out
-	outErr               chan error
+	done                 chan struct{}
 	leadingTimeConvReady chan struct{}
 }
 
@@ -162,7 +163,7 @@ func (c *Client) Start() error {
 
 	c.ctx, c.ctxCancel = context.WithCancel(context.Background())
 
-	c.outErr = make(chan error, 1)
+	c.done = make(chan struct{})
 	c.leadingTimeConvReady = make(chan struct{})
 
 	go c.run()
@@ -170,14 +171,20 @@ func (c *Client) Start() error {
 	return nil
 }
 
-// Close closes all the Client resources.
+// Close closes all the Client resources and waits for them to exit.
 func (c *Client) Close() {
 	c.ctxCancel()
+	<-c.done
 }
 
 // Wait waits for any error of the Client.
 func (c *Client) Wait() chan error {
-	return c.outErr
+	ch := make(chan error)
+	go func() {
+		<-c.done
+		ch <- c.closeError
+	}()
+	return ch
 }
 
 // OnDataAV1 sets a callback that is called when data from an AV1 track is received.
@@ -223,7 +230,8 @@ func (c *Client) AbsoluteTime(track *Track) (time.Time, bool) {
 }
 
 func (c *Client) run() {
-	c.outErr <- c.runInner()
+	c.closeError = c.runInner()
+	close(c.done)
 }
 
 func (c *Client) runInner() error {

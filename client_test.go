@@ -1254,13 +1254,12 @@ func TestClientUnsupportedTracks(t *testing.T) {
 
 	err = c.Start()
 	require.NoError(t, err)
+	defer c.Close()
 
 	<-recv
 
 	err = <-c.Wait()
 	require.EqualError(t, err, "next segment not found or not ready yet")
-
-	c.Close()
 }
 
 func TestClientErrors(t *testing.T) {
