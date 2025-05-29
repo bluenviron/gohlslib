@@ -1258,7 +1258,7 @@ func TestClientUnsupportedTracks(t *testing.T) {
 
 	<-recv
 
-	err = <-c.Wait()
+	err = c.Wait2()
 	require.EqualError(t, err, "next segment not found or not ready yet")
 }
 
@@ -1425,7 +1425,7 @@ func TestClientErrors(t *testing.T) {
 			require.NoError(t, err)
 			defer c.Close()
 
-			err = <-c.Wait()
+			err = c.Wait2()
 
 			switch ca {
 			case "invalid sequence id":
