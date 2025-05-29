@@ -797,6 +797,31 @@ func TestMuxerCloseBeforeData(t *testing.T) {
 	require.Equal(t, []byte(nil), b)
 }
 
+func TestMuxerCloseWhileRequestStream(t *testing.T) {
+	m := &Muxer{
+		Variant:            MuxerVariantFMP4,
+		SegmentCount:       3,
+		SegmentMinDuration: 1 * time.Second,
+		Tracks:             []*Track{testVideoTrack},
+	}
+
+	err := m.Start()
+	require.NoError(t, err)
+
+	done := make(chan struct{})
+
+	go func() {
+		b, _, _ := doRequest(m, "video1_stream.m3u8")
+		require.Equal(t, []byte(nil), b)
+		close(done)
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	m.Close()
+	<-done
+}
+
 func TestMuxerMaxSegmentSize(t *testing.T) {
 	m := &Muxer{
 		Variant:            MuxerVariantMPEGTS,

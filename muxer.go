@@ -434,14 +434,16 @@ func (m *Muxer) Start() error {
 // Close closes a Muxer.
 func (m *Muxer) Close() {
 	m.mutex.Lock()
-	m.closed = true
-	m.mutex.Unlock()
 
-	m.cond.Broadcast()
+	m.closed = true
 
 	for _, stream := range m.streams {
 		stream.close()
 	}
+
+	m.mutex.Unlock()
+
+	m.cond.Broadcast()
 }
 
 // WriteAV1 writes an AV1 temporal unit.
