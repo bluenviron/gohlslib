@@ -67,5 +67,5 @@ func main() {
 	defer c.Close()
 
 	// wait for a fatal error
-	panic(<-c.Wait())
+	panic(c.Wait2())
 }

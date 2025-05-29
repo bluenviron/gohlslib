@@ -178,6 +178,8 @@ func (c *Client) Close() {
 }
 
 // Wait waits for any error of the Client.
+//
+// Deprecated: replaced by Wait2.
 func (c *Client) Wait() chan error {
 	ch := make(chan error)
 	go func() {
@@ -185,6 +187,13 @@ func (c *Client) Wait() chan error {
 		ch <- c.closeError
 	}()
 	return ch
+}
+
+// Wait2 waits until all client resources are closed.
+// This can happen when a fatal error occurs or when Close() is called.
+func (c *Client) Wait2() error {
+	<-c.done
+	return c.closeError
 }
 
 // OnDataAV1 sets a callback that is called when data from an AV1 track is received.
