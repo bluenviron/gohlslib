@@ -41,10 +41,12 @@ func (q *clientSegmentQueue) waitUntilSizeIsBelow(ctx context.Context, n int) bo
 	q.mutex.Lock()
 
 	for len(q.queue) > n {
+		didPullCopy := q.didPull
+
 		q.mutex.Unlock()
 
 		select {
-		case <-q.didPull:
+		case <-didPullCopy:
 		case <-ctx.Done():
 			return false
 		}
