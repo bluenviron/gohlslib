@@ -16,11 +16,9 @@ import (
 )
 
 const (
-	clientMaxTracksPerStream     = 10
-	clientMPEGTSSampleQueueSize  = 100
-	clientLiveInitialDistance    = 3
-	clientLiveMaxDistanceFromEnd = 5
-	clientMaxDTSRTCDiff          = 10 * time.Second
+	clientMaxTracksPerStream    = 10
+	clientMPEGTSSampleQueueSize = 100
+	clientMaxDTSRTCDiff         = 10 * time.Second
 )
 
 // ErrClientEOS is returned by Wait() when the stream has ended.
@@ -77,6 +75,14 @@ type Client struct {
 	//
 	// URI of the playlist.
 	URI string
+	// Start distance from the end of the playlist,
+	// expressed as number of segments.
+	// It defaults to 3.
+	StartDistance int
+	// Maximum distance from the end of the playlist,
+	// expressed as number of segments.
+	// It defaults to 5.
+	MaxDistance int
 	// HTTP client.
 	// It defaults to http.DefaultClient.
 	HTTPClient *http.Client
@@ -118,6 +124,12 @@ type Client struct {
 
 // Start starts the client.
 func (c *Client) Start() error {
+	if c.StartDistance == 0 {
+		c.StartDistance = 3
+	}
+	if c.MaxDistance == 0 {
+		c.MaxDistance = 5
+	}
 	if c.HTTPClient == nil {
 		c.HTTPClient = http.DefaultClient
 	}
@@ -249,6 +261,8 @@ func (c *Client) runInner() error {
 
 	c.primaryDownloader = &clientPrimaryDownloader{
 		primaryPlaylistURL:        c.playlistURL,
+		startDistance:             c.StartDistance,
+		maxDistance:               c.MaxDistance,
 		httpClient:                c.HTTPClient,
 		rp:                        rp,
 		onRequest:                 c.OnRequest,
