@@ -118,6 +118,8 @@ type clientPrimaryDownloaderClient interface {
 
 type clientPrimaryDownloader struct {
 	primaryPlaylistURL        *url.URL
+	startDistance             int
+	maxDistance               int
 	httpClient                *http.Client
 	rp                        *clientRoutinePool
 	onRequest                 ClientOnRequestFunc
@@ -148,6 +150,8 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 	case *playlist.Media:
 		stream := &clientStreamDownloader{
 			isLeading:                true,
+			startDistance:            d.startDistance,
+			maxDistance:              d.maxDistance,
 			httpClient:               d.httpClient,
 			onRequest:                d.onRequest,
 			onDownloadStreamPlaylist: d.onDownloadStreamPlaylist,
@@ -177,6 +181,8 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 
 		stream := &clientStreamDownloader{
 			isLeading:                true,
+			startDistance:            d.startDistance,
+			maxDistance:              d.maxDistance,
 			httpClient:               d.httpClient,
 			onRequest:                d.onRequest,
 			onDownloadStreamPlaylist: d.onDownloadStreamPlaylist,
@@ -213,6 +219,8 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 					stream := &clientStreamDownloader{
 						isLeading:                false,
 						onRequest:                d.onRequest,
+						startDistance:            d.startDistance,
+						maxDistance:              d.maxDistance,
 						httpClient:               d.httpClient,
 						onDownloadStreamPlaylist: d.onDownloadStreamPlaylist,
 						onDownloadSegment:        d.onDownloadSegment,

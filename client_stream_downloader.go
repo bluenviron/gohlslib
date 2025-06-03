@@ -57,6 +57,8 @@ type clientStreamDownloaderClient interface {
 
 type clientStreamDownloader struct {
 	isLeading                bool
+	startDistance            int
+	maxDistance              int
 	httpClient               *http.Client
 	onRequest                ClientOnRequestFunc
 	onDownloadStreamPlaylist ClientOnDownloadStreamPlaylistFunc
@@ -322,7 +324,7 @@ func (d *clientStreamDownloader) fillSegmentQueue(
 			seg = pl.Segments[0]
 		} else {
 			// live stream: start from clientLiveInitialDistance
-			seg, segPos = findSegmentWithInvPosition(pl.Segments, clientLiveInitialDistance)
+			seg, segPos = findSegmentWithInvPosition(pl.Segments, d.startDistance)
 			if seg == nil {
 				return fmt.Errorf("there aren't enough segments to fill the buffer")
 			}
@@ -334,7 +336,7 @@ func (d *clientStreamDownloader) fillSegmentQueue(
 			return fmt.Errorf("next segment not found or not ready yet")
 		}
 
-		if !pl.Endlist && invPos > clientLiveMaxDistanceFromEnd {
+		if !pl.Endlist && invPos > d.maxDistance {
 			return fmt.Errorf("playback is too late")
 		}
 	}
