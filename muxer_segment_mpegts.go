@@ -87,6 +87,33 @@ func (t *muxerSegmentMPEGTS) finalize(nextDTS time.Duration) error {
 	t.bw = nil
 	t.storage.Finalize()
 	t.endDTS = nextDTS
+	fmt.Println("Проверка сегмента!")
+	// --- Фильтрация битых сегментов ---
+	// Открываем сегмент на чтение, читаем первые три TS-пакета (188 байт * 3 = 564)
+	reader, err := t.storage.Reader()
+	if err == nil {
+		defer reader.Close()
+		buf := make([]byte, 188*3)
+		n, _ := reader.Read(buf)
+		if n >= 188 {
+			// Проверяем, что каждый TS-пакет начинается с 0x47 (sync-byte)
+			bad := false
+			for i := 0; i < n; i += 188 {
+				if buf[i] != 0x47 {
+					bad = true
+					break
+				}
+			}
+			if bad {
+				t.storage.Remove()
+				// Можно добавить лог
+				fmt.Println("Битый сегмент удалён!")
+				return nil // Или return ошибку, если нужно
+			}
+		}
+	}
+	// --- конец фильтрации ---
+
 	return nil
 }
 
