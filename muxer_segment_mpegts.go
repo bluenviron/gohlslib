@@ -83,7 +83,7 @@ func (t *muxerSegmentMPEGTS) finalize(nextDTS time.Duration) error {
 	if err != nil {
 		return err
 	}
-
+	fmt.Println("== СВЕЖИЙ КОД 2025-06-16 ==")
 	t.bw = nil
 	t.storage.Finalize()
 	t.endDTS = nextDTS
