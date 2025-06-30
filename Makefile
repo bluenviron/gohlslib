@@ -12,7 +12,6 @@ help:
 	@echo "  test            run tests"
 	@echo "  test32          run tests on a 32-bit system"
 	@echo "  lint            run linter"
-	@echo "  bench           run benchmarks"
 	@echo ""
 
 blank :=
