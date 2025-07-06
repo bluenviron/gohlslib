@@ -370,7 +370,7 @@ segment1.ts
 		},
 	},
 	{
-		"key-none",
+		"missing extinf comma",
 		`#EXTM3U
 #EXT-X-VERSION:3
 #EXT-X-TARGETDURATION:4
