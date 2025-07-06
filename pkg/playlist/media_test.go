@@ -369,6 +369,37 @@ segment1.ts
 			},
 		},
 	},
+	{
+		"missing extinf comma",
+		`#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:4
+#EXT-X-MEDIA-SEQUENCE:0
+#EXT-X-KEY:METHOD=NONE
+#EXTINF:4.00000
+segment1.ts`,
+		`#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:4
+#EXT-X-MEDIA-SEQUENCE:0
+#EXT-X-KEY:METHOD=NONE
+#EXTINF:4.00000,
+segment1.ts
+`,
+		Media{
+			Version:        3,
+			TargetDuration: 4,
+			Segments: []*MediaSegment{
+				{
+					Duration: 4 * time.Second,
+					URI:      "segment1.ts",
+					Key: &MediaKey{
+						Method: MediaKeyMethodNone,
+					},
+				},
+			},
+		},
+	},
 }
 
 func TestMediaUnmarshal(t *testing.T) {
