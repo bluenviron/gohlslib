@@ -539,6 +539,12 @@ func TestMuxer(t *testing.T) {
 				`#EXTINF:1.00000,\n` +
 				`(.*?_seg1\.ts\?key=value)\n$`)
 			require.Regexp(t, re, string(byts))
+			ma := re.FindStringSubmatch(string(byts))
+
+			_, h, err := doRequest(m, ma[1])
+			require.NoError(t, err)
+			require.Equal(t, "video/mp2t", h.Get("Content-Type"))
+			require.Equal(t, "max-age=3600", h.Get("Cache-Control"))
 
 		case variant == "mpegts" && content == "audio":
 			re := regexp.MustCompile(`^#EXTM3U\n` +
@@ -557,13 +563,26 @@ func TestMuxer(t *testing.T) {
 				`#EXT-X-TARGETDURATION:4\n` +
 				`#EXT-X-MEDIA-SEQUENCE:0\n` +
 				`#EXT-X-MAP:URI="(.*?_init.mp4\?key=value)"\n` +
-				`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
+				`#EXT-X-PROGRAM-DATE-TIME:.*?\n` +
 				`#EXTINF:4.00000,\n` +
 				`(.*?_seg0\.mp4\?key=value)\n` +
 				`#EXT-X-PROGRAM-DATE-TIME:(.*?)\n` +
 				`#EXTINF:1.00000,\n` +
 				`(.*?_seg1\.mp4\?key=value)\n$`)
 			require.Regexp(t, re, string(byts))
+			ma := re.FindStringSubmatch(string(byts))
+
+			// init
+			_, h, err := doRequest(m, ma[1])
+			require.NoError(t, err)
+			require.Equal(t, "video/mp4", h.Get("Content-Type"))
+			require.Equal(t, "max-age=30", h.Get("Cache-Control"))
+
+			// segment 1
+			_, h, err = doRequest(m, ma[2])
+			require.NoError(t, err)
+			require.Equal(t, "video/mp4", h.Get("Content-Type"))
+			require.Equal(t, "max-age=3600", h.Get("Cache-Control"))
 
 		case variant == "fmp4" && content == "audio":
 			re := regexp.MustCompile(`^#EXTM3U\n` +
@@ -578,6 +597,19 @@ func TestMuxer(t *testing.T) {
 				`#EXTINF:1.00000,\n` +
 				`(.*?_seg1.mp4\?key=value)\n$`)
 			require.Regexp(t, re, string(byts))
+			ma := re.FindStringSubmatch(string(byts))
+
+			// init
+			_, h, err := doRequest(m, ma[1])
+			require.NoError(t, err)
+			require.Equal(t, "audio/mp4", h.Get("Content-Type"))
+			require.Equal(t, "max-age=30", h.Get("Cache-Control"))
+
+			// segment 1
+			_, h, err = doRequest(m, ma[2])
+			require.NoError(t, err)
+			require.Equal(t, "audio/mp4", h.Get("Content-Type"))
+			require.Equal(t, "max-age=3600", h.Get("Cache-Control"))
 
 		case variant == "lowLatency" && content == "video+audio":
 			re := regexp.MustCompile(`^#EXTM3U\n` +

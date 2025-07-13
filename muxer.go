@@ -92,6 +92,15 @@ func isVideo(codec codecs.Codec) bool {
 	return false
 }
 
+func areAllAudio(tracks []*muxerTrack) bool {
+	for _, track := range tracks {
+		if isVideo(track.Codec) {
+			return false
+		}
+	}
+	return true
+}
+
 // a prefix is needed to prevent usage of cached segments
 // from previous muxing sessions.
 func generatePrefix() (string, error) {
