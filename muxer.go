@@ -84,17 +84,9 @@ func queryVal(q url.Values, key string) string {
 	return ""
 }
 
-func isVideo(codec codecs.Codec) bool {
-	switch codec.(type) {
-	case *codecs.AV1, *codecs.VP9, *codecs.H265, *codecs.H264:
-		return true
-	}
-	return false
-}
-
 func areAllAudio(tracks []*muxerTrack) bool {
 	for _, track := range tracks {
-		if isVideo(track.Codec) {
+		if track.Codec.IsVideo() {
 			return false
 		}
 	}
@@ -245,7 +237,7 @@ func (m *Muxer) Start() error {
 
 	if m.Variant == MuxerVariantMPEGTS {
 		for _, track := range m.Tracks {
-			if isVideo(track.Codec) {
+			if track.Codec.IsVideo() {
 				if hasVideo {
 					return fmt.Errorf("the MPEG-TS variant of HLS supports a single video track only")
 				}
@@ -267,7 +259,7 @@ func (m *Muxer) Start() error {
 		}
 	} else {
 		for _, track := range m.Tracks {
-			if isVideo(track.Codec) {
+			if track.Codec.IsVideo() {
 				if hasVideo {
 					return fmt.Errorf("only one video track is currently supported")
 				}
@@ -281,7 +273,7 @@ func (m *Muxer) Start() error {
 	hasDefaultAudio := false
 
 	for _, track := range m.Tracks {
-		if !isVideo(track.Codec) && track.IsDefault {
+		if !track.Codec.IsVideo() && track.IsDefault {
 			if hasDefaultAudio {
 				return fmt.Errorf("multiple default audio tracks are not supported")
 			}
@@ -321,7 +313,7 @@ func (m *Muxer) Start() error {
 		mtrack := &muxerTrack{
 			Track:     track,
 			variant:   m.Variant,
-			isLeading: isVideo(track.Codec) || (!hasVideo && i == 0),
+			isLeading: track.Codec.IsVideo() || (!hasVideo && i == 0),
 		}
 		mtrack.initialize()
 		m.mtracks = append(m.mtracks, mtrack)
@@ -374,13 +366,13 @@ func (m *Muxer) Start() error {
 
 		for i, track := range m.mtracks {
 			var id string
-			if isVideo(track.Codec) {
+			if track.Codec.IsVideo() {
 				id = "video" + strconv.FormatInt(int64(i+1), 10)
 			} else {
 				id = "audio" + strconv.FormatInt(int64(i+1), 10)
 			}
 
-			isRendition := !track.isLeading || (!isVideo(track.Codec) && len(m.Tracks) > 1)
+			isRendition := !track.isLeading || (!track.Codec.IsVideo() && len(m.Tracks) > 1)
 			isDefault := false
 			name := ""
 
