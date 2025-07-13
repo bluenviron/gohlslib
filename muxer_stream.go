@@ -587,13 +587,20 @@ func (s *muxerStream) generateAndCacheInitFile() error {
 	s.initFilePresent = true
 	initFile := w.Bytes()
 
+	var contentType string
+	if areAllAudio(s.tracks) {
+		contentType = "audio/mp4"
+	} else {
+		contentType = "video/mp4"
+	}
+
 	s.server.registerPath(
 		initFilePath(s.prefix, s.id),
 		func(w http.ResponseWriter, _ *http.Request) {
 			// allow caching but use a small period in order to
 			// allow a stream to change track parameters
 			w.Header().Set("Cache-Control", "max-age="+initMaxAge)
-			w.Header().Set("Content-Type", "video/mp4")
+			w.Header().Set("Content-Type", contentType)
 			w.WriteHeader(http.StatusOK)
 			w.Write(initFile)
 		})
@@ -682,8 +689,15 @@ func (s *muxerStream) rotateParts(
 				}
 				defer r.Close()
 
+				var contentType string
+				if areAllAudio(s.tracks) {
+					contentType = "audio/mp4"
+				} else {
+					contentType = "video/mp4"
+				}
+
 				w.Header().Set("Cache-Control", "max-age="+segmentMaxAge)
-				w.Header().Set("Content-Type", "video/mp4")
+				w.Header().Set("Content-Type", contentType)
 				w.WriteHeader(http.StatusOK)
 				io.Copy(w, r)
 			})
@@ -796,16 +810,20 @@ func (s *muxerStream) rotateSegments(
 			}
 			defer r.Close()
 
+			var contentType string
+			switch {
+			case s.variant == MuxerVariantMPEGTS:
+				contentType = "video/mp2t"
+
+			case areAllAudio(s.tracks):
+				contentType = "audio/mp4"
+
+			default:
+				contentType = "video/mp4"
+			}
+
 			w.Header().Set("Cache-Control", "max-age="+segmentMaxAge)
-			w.Header().Set(
-				"Content-Type",
-				func() string {
-					if s.variant == MuxerVariantMPEGTS {
-						return "video/MP2T"
-					}
-					return "video/mp4"
-				}(),
-			)
+			w.Header().Set("Content-Type", contentType)
 			w.WriteHeader(http.StatusOK)
 			io.Copy(w, r)
 		})
