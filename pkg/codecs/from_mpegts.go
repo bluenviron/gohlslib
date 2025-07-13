@@ -18,18 +18,3 @@ func FromMPEGTS(in mpegts.Codec) Codec {
 
 	return nil
 }
-
-// ToMPEGTS converts a codec in its MPEG-TS equivalent.
-func ToMPEGTS(in Codec) mpegts.Codec {
-	switch in := in.(type) {
-	case *H264:
-		return &mpegts.CodecH264{}
-
-	case *MPEG4Audio:
-		return &mpegts.CodecMPEG4Audio{
-			Config: in.Config,
-		}
-	}
-
-	return nil
-}

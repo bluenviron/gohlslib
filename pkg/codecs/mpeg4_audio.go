@@ -9,5 +9,10 @@ type MPEG4Audio struct {
 	mpeg4audio.Config
 }
 
+// IsVideo returns whether the codec is a video one.
+func (*MPEG4Audio) IsVideo() bool {
+	return false
+}
+
 func (*MPEG4Audio) isCodec() {
 }

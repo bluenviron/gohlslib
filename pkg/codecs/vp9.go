@@ -10,5 +10,10 @@ type VP9 struct {
 	ColorRange        bool
 }
 
+// IsVideo returns whether the codec is a video one.
+func (*VP9) IsVideo() bool {
+	return true
+}
+
 func (*VP9) isCodec() {
 }

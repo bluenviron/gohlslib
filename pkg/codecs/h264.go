@@ -6,5 +6,10 @@ type H264 struct {
 	PPS []byte
 }
 
+// IsVideo returns whether the codec is a video one.
+func (*H264) IsVideo() bool {
+	return true
+}
+
 func (*H264) isCodec() {
 }
