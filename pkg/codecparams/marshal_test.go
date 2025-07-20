@@ -73,7 +73,7 @@ func TestMarshal(t *testing.T) {
 		{
 			"mpeg-4 audio",
 			&codecs.MPEG4Audio{
-				Config: mpeg4audio.Config{
+				Config: mpeg4audio.AudioSpecificConfig{
 					Type:         2,
 					SampleRate:   44100,
 					ChannelCount: 2,

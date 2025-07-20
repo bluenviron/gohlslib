@@ -6,7 +6,7 @@ import (
 
 // MPEG4Audio is a MPEG-4 Audio codec.
 type MPEG4Audio struct {
-	mpeg4audio.Config
+	Config mpeg4audio.AudioSpecificConfig
 }
 
 // IsVideo returns whether the codec is a video one.

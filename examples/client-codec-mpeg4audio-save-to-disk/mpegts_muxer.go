@@ -11,7 +11,7 @@ import (
 // mpegtsMuxer allows to save a MPEG4-audio stream into a MPEG-TS file.
 type mpegtsMuxer struct {
 	fileName string
-	config   *mpeg4audio.Config
+	config   *mpeg4audio.AudioSpecificConfig
 
 	f     *os.File
 	b     *bufio.Writer
