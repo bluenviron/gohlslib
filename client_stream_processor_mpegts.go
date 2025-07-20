@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/asticode/go-astits"
-
 	"github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts"
 
 	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
@@ -103,7 +101,7 @@ func (p *clientStreamProcessorMPEGTS) processSegment(ctx context.Context, seg *s
 	for {
 		err := p.reader.Read()
 		if err != nil {
-			if errors.Is(err, astits.ErrNoMorePackets) {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			return err

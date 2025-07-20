@@ -127,7 +127,7 @@ func partPath(prefix string, streamID string, partID uint64) string {
 func fmp4TimeScale(c codecs.Codec) uint32 {
 	switch codec := c.(type) {
 	case *codecs.MPEG4Audio:
-		return uint32(codec.SampleRate)
+		return uint32(codec.Config.SampleRate)
 
 	case *codecs.Opus:
 		return 48000

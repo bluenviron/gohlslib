@@ -82,7 +82,7 @@ func main() {
 		" ! mpegtsmux alignment=6 ! udpsink host=127.0.0.1 port=9000")
 
 	// create a MPEG-TS reader
-	r := &mpegts.Reader{R: mpegts.NewBufferedReader(newPacketConnReader(pc))}
+	r := &mpegts.Reader{R: newPacketConnReader(pc)}
 	err = r.Initialize()
 	if err != nil {
 		panic(err)
