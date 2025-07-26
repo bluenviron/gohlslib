@@ -541,7 +541,7 @@ func TestMuxer(t *testing.T) {
 			require.Regexp(t, re, string(byts))
 			ma := re.FindStringSubmatch(string(byts))
 
-			_, h, err := doRequest(m, ma[1])
+			_, h, err = doRequest(m, ma[1])
 			require.NoError(t, err)
 			require.Equal(t, "video/mp2t", h.Get("Content-Type"))
 			require.Equal(t, "max-age=3600", h.Get("Cache-Control"))
@@ -573,7 +573,7 @@ func TestMuxer(t *testing.T) {
 			ma := re.FindStringSubmatch(string(byts))
 
 			// init
-			_, h, err := doRequest(m, ma[1])
+			_, h, err = doRequest(m, ma[1])
 			require.NoError(t, err)
 			require.Equal(t, "video/mp4", h.Get("Content-Type"))
 			require.Equal(t, "max-age=30", h.Get("Cache-Control"))
@@ -600,7 +600,7 @@ func TestMuxer(t *testing.T) {
 			ma := re.FindStringSubmatch(string(byts))
 
 			// init
-			_, h, err := doRequest(m, ma[1])
+			_, h, err = doRequest(m, ma[1])
 			require.NoError(t, err)
 			require.Equal(t, "audio/mp4", h.Get("Content-Type"))
 			require.Equal(t, "max-age=30", h.Get("Cache-Control"))
@@ -1300,7 +1300,8 @@ func TestMuxerFMP4SequenceNumber(t *testing.T) {
 	ma := re.FindStringSubmatch(string(byts))
 
 	for i := 0; i < 3; i++ {
-		buf, _, err := doRequest(m, ma[1]+"_part"+strconv.FormatInt(int64(i), 10)+".mp4")
+		var buf []byte
+		buf, _, err = doRequest(m, ma[1]+"_part"+strconv.FormatInt(int64(i), 10)+".mp4")
 		require.NoError(t, err)
 
 		var parts fmp4.Parts
@@ -1336,7 +1337,7 @@ func TestMuxerInvalidFolder(t *testing.T) {
 			defer m.Close()
 
 			for i := 0; i < 2; i++ {
-				err := m.WriteH264(testVideoTrack, testTime,
+				err = m.WriteH264(testVideoTrack, testTime,
 					int64(i)*90000,
 					[][]byte{
 						testSPS, // SPS

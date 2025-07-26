@@ -343,7 +343,8 @@ func (s *muxerStream) handleMediaPlaylist(w http.ResponseWriter, r *http.Request
 					s.cond.Wait()
 				}
 
-				byts, err := s.generateMediaPlaylist(
+				var byts []byte
+				byts, err = s.generateMediaPlaylist(
 					isDeltaUpdate,
 					r.URL.RawQuery,
 				)
@@ -682,8 +683,8 @@ func (s *muxerStream) rotateParts(
 		s.server.registerPath(
 			part.path,
 			func(w http.ResponseWriter, _ *http.Request) {
-				r, err := part.reader()
-				if err != nil {
+				r, err2 := part.reader()
+				if err2 != nil {
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}

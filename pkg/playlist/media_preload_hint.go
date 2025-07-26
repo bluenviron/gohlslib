@@ -41,14 +41,16 @@ func (t *MediaPreloadHint) unmarshal(v string) error {
 			t.URI = val
 
 		case "BYTERANGE-START":
-			tmp, err := strconv.ParseUint(val, 10, 64)
+			var tmp uint64
+			tmp, err = strconv.ParseUint(val, 10, 64)
 			if err != nil {
 				return err
 			}
 			t.ByteRangeStart = tmp
 
 		case "BYTERANGE-LENGTH":
-			tmp, err := strconv.ParseUint(val, 10, 64)
+			var tmp uint64
+			tmp, err = strconv.ParseUint(val, 10, 64)
 			if err != nil {
 				return err
 			}

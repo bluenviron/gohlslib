@@ -31,7 +31,7 @@ func (t *MediaMap) unmarshal(v string) error {
 
 		case "BYTERANGE":
 			var br primitives.ByteRange
-			err := br.Unmarshal(val)
+			err = br.Unmarshal(val)
 			if err != nil {
 				return err
 			}

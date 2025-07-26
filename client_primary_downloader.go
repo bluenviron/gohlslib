@@ -216,7 +216,7 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 						return err
 					}
 
-					stream := &clientStreamDownloader{
+					stream = &clientStreamDownloader{
 						isLeading:                false,
 						onRequest:                d.onRequest,
 						startDistance:            d.startDistance,
