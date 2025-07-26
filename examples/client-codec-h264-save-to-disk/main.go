@@ -60,9 +60,9 @@ func main() {
 			log.Printf("received access unit with pts = %v\n", pts)
 
 			// send data to the MPEG-TS muxer
-			err := m.writeH264(au, pts)
-			if err != nil {
-				panic(err)
+			err2 := m.writeH264(au, pts)
+			if err2 != nil {
+				panic(err2)
 			}
 		})
 

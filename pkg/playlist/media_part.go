@@ -40,7 +40,7 @@ func (p *MediaPart) unmarshal(v string) error {
 		switch key {
 		case "DURATION":
 			var d primitives.Duration
-			err := d.Unmarshal(val)
+			err = d.Unmarshal(val)
 			if err != nil {
 				return err
 			}
@@ -54,7 +54,7 @@ func (p *MediaPart) unmarshal(v string) error {
 
 		case "BYTERANGE":
 			var br primitives.ByteRange
-			err := br.Unmarshal(val)
+			err = br.Unmarshal(val)
 			if err != nil {
 				return err
 			}

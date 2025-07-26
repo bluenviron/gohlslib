@@ -56,14 +56,16 @@ func (v *MultivariantVariant) unmarshal(va string) error {
 	for key, val := range attrs {
 		switch key {
 		case "BANDWIDTH":
-			tmp, err := strconv.ParseUint(val, 10, 31)
+			var tmp uint64
+			tmp, err = strconv.ParseUint(val, 10, 31)
 			if err != nil {
 				return err
 			}
 			v.Bandwidth = int(tmp)
 
 		case "AVERAGE-BANDWIDTH":
-			tmp, err := strconv.ParseUint(val, 10, 31)
+			var tmp uint64
+			tmp, err = strconv.ParseUint(val, 10, 31)
 			if err != nil {
 				return err
 			}
@@ -77,7 +79,8 @@ func (v *MultivariantVariant) unmarshal(va string) error {
 			v.Resolution = val
 
 		case "FRAME-RATE":
-			tmp, err := strconv.ParseFloat(val, 64)
+			var tmp float64
+			tmp, err = strconv.ParseFloat(val, 64)
 			if err != nil {
 				return err
 			}

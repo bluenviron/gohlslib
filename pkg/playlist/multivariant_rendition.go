@@ -94,16 +94,16 @@ func (t *MultivariantRendition) unmarshal(v string) error {
 			t.Forced = (val == "YES")
 
 		case "CHANNELS":
-			v := val
-			t.Channels = &v
+			cval := val
+			t.Channels = &cval
 
 		case "URI":
-			v := val
-			t.URI = &v
+			cval := val
+			t.URI = &cval
 
 		case "INSTREAM-ID":
-			v := val
-			t.InStreamID = &v
+			cval := val
+			t.InStreamID = &cval
 		}
 	}
 

@@ -120,12 +120,13 @@ func (p *clientStreamProcessorFMP4) run(ctx context.Context) error {
 	}
 
 	for {
-		seg, ok := p.segmentQueue.pull(ctx)
+		var seg *segmentData
+		seg, ok = p.segmentQueue.pull(ctx)
 		if !ok {
 			return fmt.Errorf("terminated")
 		}
 
-		err := p.processSegment(ctx, seg)
+		err = p.processSegment(ctx, seg)
 		if err != nil {
 			return err
 		}
@@ -151,7 +152,7 @@ func (p *clientStreamProcessorFMP4) processSegment(ctx context.Context, seg *seg
 	}
 
 	if p.trackProcessors == nil {
-		err := p.initializeTrackProcessors(ctx, leadingPartTrack)
+		err = p.initializeTrackProcessors(ctx, leadingPartTrack)
 		if err != nil {
 			return err
 		}
@@ -180,7 +181,7 @@ func (p *clientStreamProcessorFMP4) processSegment(ctx context.Context, seg *seg
 			dts := leadingTimeConvFMP4(p.client).convert(int64(partTrack.BaseTime), trackProc.track.track.ClockRate)
 			ntp := leadingTimeConvFMP4(p.client).getNTP(ctx, dts, trackProc.track.track.ClockRate)
 
-			err := trackProc.push(ctx, &procEntryFMP4{
+			err = trackProc.push(ctx, &procEntryFMP4{
 				partTrack: partTrack,
 				dts:       dts,
 				ntp:       ntp,

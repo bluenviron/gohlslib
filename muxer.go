@@ -355,7 +355,7 @@ func (m *Muxer) Start() error {
 			id:             "main",
 			nextSegmentID:  nextSegmentID,
 		}
-		err := stream.initialize()
+		err = stream.initialize()
 		if err != nil {
 			return err
 		}
@@ -412,7 +412,7 @@ func (m *Muxer) Start() error {
 				isDefault:      isDefault,
 				nextSegmentID:  nextSegmentID,
 			}
-			err := stream.initialize()
+			err = stream.initialize()
 			if err != nil {
 				return err
 			}
@@ -545,7 +545,7 @@ func (m *Muxer) rotatePartsInner(nextDTS time.Duration) error {
 
 	for _, stream := range m.streams {
 		if !stream.isLeading {
-			err := stream.rotateParts(nextDTS, true)
+			err = stream.rotateParts(nextDTS, true)
 			if err != nil {
 				return err
 			}
@@ -586,7 +586,7 @@ func (m *Muxer) rotateSegmentsInner(
 
 	for _, stream := range m.streams {
 		if !stream.isLeading {
-			err := stream.rotateSegments(nextDTS, nextNTP, force)
+			err = stream.rotateSegments(nextDTS, nextNTP, force)
 			if err != nil {
 				return err
 			}

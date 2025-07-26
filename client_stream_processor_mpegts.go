@@ -198,9 +198,9 @@ func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, firs
 				p.leadingTrackFound = true
 
 				if p.trackProcessors == nil {
-					err := p.initializeTrackProcessors(ctx, rawDTS)
-					if err != nil {
-						return err
+					err2 := p.initializeTrackProcessors(ctx, rawDTS)
+					if err2 != nil {
+						return err2
 					}
 				}
 			}

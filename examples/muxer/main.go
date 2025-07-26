@@ -110,7 +110,7 @@ func main() {
 
 	// read from the MPEG-TS stream
 	for {
-		err := r.Read()
+		err = r.Read()
 		if err != nil {
 			panic(err)
 		}

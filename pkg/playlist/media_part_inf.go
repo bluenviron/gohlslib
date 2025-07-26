@@ -25,7 +25,7 @@ func (t *MediaPartInf) unmarshal(v string) error {
 	for key, val := range attrs {
 		if key == "PART-TARGET" {
 			var d primitives.Duration
-			err := d.Unmarshal(val)
+			err = d.Unmarshal(val)
 			if err != nil {
 				return err
 			}

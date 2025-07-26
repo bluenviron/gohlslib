@@ -25,7 +25,7 @@ func (t *MultivariantStart) unmarshal(v string) error {
 	for key, val := range attrs {
 		if key == "TIME-OFFSET" {
 			var d primitives.Duration
-			err := d.Unmarshal(val)
+			err = d.Unmarshal(val)
 			if err != nil {
 				return err
 			}

@@ -25,7 +25,8 @@ func (t *MediaSkip) unmarshal(v string) error {
 
 	for key, val := range attrs {
 		if key == "SKIPPED-SEGMENTS" {
-			tmp, err := strconv.ParseUint(val, 10, 31)
+			var tmp uint64
+			tmp, err = strconv.ParseUint(val, 10, 31)
 			if err != nil {
 				return err
 			}

@@ -66,9 +66,9 @@ func main() {
 			log.Printf("received access unit with pts = %v\n", pts)
 
 			// send data to the MPEG-TS muxer
-			err := m.writeMPEG4Audio(aus, multiplyAndDivide(pts, 90000, int64(time.Second)))
-			if err != nil {
-				panic(err)
+			err2 := m.writeMPEG4Audio(aus, multiplyAndDivide(pts, 90000, int64(time.Second)))
+			if err2 != nil {
+				panic(err2)
 			}
 		})
 

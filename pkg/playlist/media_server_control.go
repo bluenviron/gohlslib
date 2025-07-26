@@ -43,7 +43,7 @@ func (t *MediaServerControl) unmarshal(v string) error {
 
 		case "PART-HOLD-BACK":
 			var d primitives.Duration
-			err := d.Unmarshal(val)
+			err = d.Unmarshal(val)
 			if err != nil {
 				return err
 			}
@@ -52,7 +52,7 @@ func (t *MediaServerControl) unmarshal(v string) error {
 
 		case "CAN-SKIP-UNTIL":
 			var d primitives.Duration
-			err := d.Unmarshal(val)
+			err = d.Unmarshal(val)
 			if err != nil {
 				return err
 			}
