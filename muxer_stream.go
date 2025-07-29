@@ -92,6 +92,7 @@ func partTargetDuration(
 type generateMediaPlaylistFunc func(
 	isDeltaUpdate bool,
 	rawQuery string,
+	baseURL string,
 ) ([]byte, error)
 
 type muxerStream struct {
@@ -113,6 +114,7 @@ type muxerStream struct {
 	isDefault      bool
 	nextSegmentID  uint64
 	nextPartID     uint64
+	baseURL        string
 
 	generateMediaPlaylist  generateMediaPlaylistFunc
 	mpegtsSwitchableWriter *switchableWriter // mpegts only
@@ -347,6 +349,7 @@ func (s *muxerStream) handleMediaPlaylist(w http.ResponseWriter, r *http.Request
 				byts, err = s.generateMediaPlaylist(
 					isDeltaUpdate,
 					r.URL.RawQuery,
+					s.baseURL,
 				)
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
@@ -390,6 +393,7 @@ func (s *muxerStream) handleMediaPlaylist(w http.ResponseWriter, r *http.Request
 		byts, err := s.generateMediaPlaylist(
 			isDeltaUpdate,
 			r.URL.RawQuery,
+			s.baseURL,
 		)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -407,9 +411,18 @@ func (s *muxerStream) handleMediaPlaylist(w http.ResponseWriter, r *http.Request
 	}
 }
 
+func joinURL(baseURL, path, rawQuery string) string {
+	uri := strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(path, "/")
+	if rawQuery != "" {
+		uri += "?" + rawQuery
+	}
+	return uri
+}
+
 func (s *muxerStream) generateMediaPlaylistMPEGTS(
 	_ bool,
 	rawQuery string,
+	baseURL string,
 ) ([]byte, error) {
 	pl := &playlist.Media{
 		Version:        3,
@@ -420,15 +433,10 @@ func (s *muxerStream) generateMediaPlaylistMPEGTS(
 
 	for _, s := range s.segments {
 		if seg, ok := s.(*muxerSegmentMPEGTS); ok {
-			uri := seg.path
-			if rawQuery != "" {
-				uri += "?" + rawQuery
-			}
-
 			pl.Segments = append(pl.Segments, &playlist.MediaSegment{
 				DateTime: &seg.startNTP,
 				Duration: seg.getDuration(),
-				URI:      uri,
+				URI:      joinURL(baseURL, seg.path, rawQuery),
 			})
 		}
 	}
@@ -439,6 +447,7 @@ func (s *muxerStream) generateMediaPlaylistMPEGTS(
 func (s *muxerStream) generateMediaPlaylistFMP4(
 	isDeltaUpdate bool,
 	rawQuery string,
+	baseURL string,
 ) ([]byte, error) {
 	skipBoundary := time.Duration(s.targetDuration) * 6 * time.Second
 	rawQuery = filterOutHLSParams(rawQuery)
@@ -466,13 +475,9 @@ func (s *muxerStream) generateMediaPlaylistFMP4(
 	skipped := 0
 
 	if !isDeltaUpdate {
-		uri := initFilePath(s.prefix, s.id)
-		if rawQuery != "" {
-			uri += "?" + rawQuery
-		}
-
+		path := initFilePath(s.prefix, s.id)
 		pl.Map = &playlist.MediaMap{
-			URI: uri,
+			URI: joinURL(baseURL, path, rawQuery),
 		}
 	} else {
 		var curDuration time.Duration
@@ -498,14 +503,9 @@ func (s *muxerStream) generateMediaPlaylistFMP4(
 
 		switch seg := sog.(type) {
 		case *muxerSegmentFMP4:
-			u := seg.path
-			if rawQuery != "" {
-				u += "?" + rawQuery
-			}
-
 			plse := &playlist.MediaSegment{
 				Duration: seg.getDuration(),
-				URI:      u,
+				URI:      joinURL(baseURL, seg.path, rawQuery),
 			}
 
 			if (len(s.segments) - i) <= 2 {
@@ -514,14 +514,9 @@ func (s *muxerStream) generateMediaPlaylistFMP4(
 
 			if s.variant == MuxerVariantLowLatency && (len(s.segments)-i) <= 2 {
 				for _, part := range seg.parts {
-					u = part.path
-					if rawQuery != "" {
-						u += "?" + rawQuery
-					}
-
 					plse.Parts = append(plse.Parts, &playlist.MediaPart{
 						Duration:    part.getDuration(),
-						URI:         u,
+						URI:         joinURL(baseURL, part.path, rawQuery),
 						Independent: part.isIndependent,
 					})
 				}
@@ -533,21 +528,16 @@ func (s *muxerStream) generateMediaPlaylistFMP4(
 			pl.Segments = append(pl.Segments, &playlist.MediaSegment{
 				Gap:      true,
 				Duration: seg.duration,
-				URI:      "gap.mp4",
+				URI:      joinURL(baseURL, "gap.mp4", rawQuery),
 			})
 		}
 	}
 
 	if s.variant == MuxerVariantLowLatency {
 		for _, part := range s.nextSegment.(*muxerSegmentFMP4).parts {
-			u := part.path
-			if rawQuery != "" {
-				u += "?" + rawQuery
-			}
-
 			pl.Parts = append(pl.Parts, &playlist.MediaPart{
 				Duration:    part.getDuration(),
-				URI:         u,
+				URI:         joinURL(baseURL, part.path, rawQuery),
 				Independent: part.isIndependent,
 			})
 		}
@@ -555,11 +545,8 @@ func (s *muxerStream) generateMediaPlaylistFMP4(
 		// preload hint must always be present
 		// otherwise hls.js goes into a loop
 		uri := partPath(s.prefix, s.id, s.nextPartID)
-		if rawQuery != "" {
-			uri += "?" + rawQuery
-		}
 		pl.PreloadHint = &playlist.MediaPreloadHint{
-			URI: uri,
+			URI: joinURL(baseURL, uri, rawQuery),
 		}
 	}
 
