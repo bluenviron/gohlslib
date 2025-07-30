@@ -181,6 +181,8 @@ type Muxer struct {
 	// This decreases performance, since saving segments on disk is less performant
 	// than saving them on RAM, but allows to preserve RAM.
 	Directory string
+	// The base URL used to prefix every entry in the playlist.
+	BaseURL string
 
 	//
 	// callbacks (all optional)
@@ -354,6 +356,7 @@ func (m *Muxer) Start() error {
 			tracks:         m.mtracks,
 			id:             "main",
 			nextSegmentID:  nextSegmentID,
+			baseURL:        m.BaseURL,
 		}
 		err = stream.initialize()
 		if err != nil {
@@ -411,6 +414,7 @@ func (m *Muxer) Start() error {
 				language:       track.Language,
 				isDefault:      isDefault,
 				nextSegmentID:  nextSegmentID,
+				baseURL:        m.BaseURL,
 			}
 			err = stream.initialize()
 			if err != nil {
