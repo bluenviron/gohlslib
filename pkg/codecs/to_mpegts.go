@@ -8,10 +8,16 @@ func ToMPEGTS(in Codec) mpegts.Codec {
 	case *H264:
 		return &mpegts.CodecH264{}
 
+	case *H265:
+		return &mpegts.CodecH265{}
+
 	case *MPEG4Audio:
 		return &mpegts.CodecMPEG4Audio{
 			Config: in.Config,
 		}
+
+	case *MPEG1Audio:
+		return &mpegts.CodecMPEG1Audio{}
 	}
 
 	return nil

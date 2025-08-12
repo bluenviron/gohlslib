@@ -241,18 +241,22 @@ func (m *Muxer) Start() error {
 				if hasVideo {
 					return fmt.Errorf("the MPEG-TS variant of HLS supports a single video track only")
 				}
-				if _, ok := track.Codec.(*codecs.H264); !ok {
-					return fmt.Errorf(
-						"the MPEG-TS variant of HLS supports H264 video only")
+				switch track.Codec.(type) {
+				case *codecs.H264, *codecs.H265:
+					// ok
+				default:
+					return fmt.Errorf("the MPEG-TS variant of HLS supports H264/H265 video only")
 				}
 				hasVideo = true
 			} else {
 				if hasAudio {
 					return fmt.Errorf("the MPEG-TS variant of HLS supports a single audio track only")
 				}
-				if _, ok := track.Codec.(*codecs.MPEG4Audio); !ok {
-					return fmt.Errorf(
-						"the MPEG-TS variant of HLS supports MPEG-4 Audio only")
+				switch track.Codec.(type) {
+				case *codecs.MPEG4Audio, *codecs.MPEG1Audio:
+					// ok
+				default:
+					return fmt.Errorf("the MPEG-TS variant of HLS supports MPEG-4 Audio or MPEG-1 Audio only")
 				}
 				hasAudio = true
 			}
@@ -505,6 +509,16 @@ func (m *Muxer) WriteMPEG4Audio(
 	aus [][]byte,
 ) error {
 	return m.segmenter.writeMPEG4Audio(m.mtracksByTrack[track], ntp, pts, aus)
+}
+
+// WriteMPEG1Audio writes MPEG-1 Audio frames.
+func (m *Muxer) WriteMPEG1Audio(
+	track *Track,
+	ntp time.Time,
+	pts int64,
+	frames [][]byte,
+) error {
+	return m.segmenter.writeMPEG1Audio(m.mtracksByTrack[track], ntp, pts, frames)
 }
 
 // Handle handles a HTTP request.

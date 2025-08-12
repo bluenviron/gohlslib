@@ -280,6 +280,35 @@ func (s *muxerSegmenter) writeH265(
 		return fmt.Errorf("unable to extract DTS: %w", err)
 	}
 
+	if s.variant == MuxerVariantMPEGTS {
+		if track.stream.nextSegment == nil {
+			err = s.parent.createFirstSegment(timestampToDuration(dts, track.ClockRate), ntp)
+			if err != nil {
+				return err
+			}
+		} else if randomAccess && // switch segment
+			((timestampToDuration(dts, track.ClockRate)-
+				track.stream.nextSegment.(*muxerSegmentMPEGTS).startDTS) >= s.segmentMinDuration ||
+				paramsChanged) {
+			err = s.parent.rotateSegments(timestampToDuration(dts, track.ClockRate), ntp, false)
+			if err != nil {
+				return err
+			}
+		}
+
+		err = track.stream.nextSegment.(*muxerSegmentMPEGTS).writeH265(
+			track,
+			pts,
+			dts,
+			au,
+		)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+
 	ps := &fmp4.Sample{}
 	err = ps.FillH265(
 		int32(pts-dts),
@@ -500,6 +529,46 @@ func (s *muxerSegmenter) writeMPEG4Audio(
 	}
 
 	return nil
+}
+
+func (s *muxerSegmenter) writeMPEG1Audio(
+	track *muxerTrack,
+	ntp time.Time,
+	pts int64,
+	frames [][]byte,
+) error {
+	if s.variant == MuxerVariantMPEGTS {
+		if track.isLeading {
+			if track.stream.nextSegment == nil {
+				err := s.parent.createFirstSegment(timestampToDuration(pts, track.ClockRate), ntp)
+				if err != nil {
+					return err
+				}
+			} else if track.stream.nextSegment.(*muxerSegmentMPEGTS).audioAUCount >= mpegtsSegmentMinAUCount && // switch segment
+				(timestampToDuration(pts, track.ClockRate)-
+					track.stream.nextSegment.(*muxerSegmentMPEGTS).startDTS) >= s.segmentMinDuration {
+				err := s.parent.rotateSegments(timestampToDuration(pts, track.ClockRate), ntp, false)
+				if err != nil {
+					return err
+				}
+			}
+		} else {
+			// wait for the video track
+			if track.stream.nextSegment == nil {
+				return nil
+			}
+		}
+
+		err := track.stream.nextSegment.(*muxerSegmentMPEGTS).writeMPEG1Audio(track, pts, frames)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	// fMP4/LL-HLS variants do not support raw MPEG-1 audio frames; require transcoding.
+	return fmt.Errorf("MPEG-1 Audio is supported only with MPEG-TS variant")
 }
 
 // iPhone iOS fails if part durations are less than 85% of maximum part duration.

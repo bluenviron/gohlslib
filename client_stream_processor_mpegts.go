@@ -158,7 +158,7 @@ func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, firs
 
 	for _, track := range p.reader.Tracks() {
 		switch track.Codec.(type) {
-		case *mpegts.CodecH264, *mpegts.CodecMPEG4Audio:
+		case *mpegts.CodecH264, *mpegts.CodecH265, *mpegts.CodecMPEG4Audio:
 			supportedTracks = append(supportedTracks, track)
 		}
 	}
@@ -239,6 +239,11 @@ func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, firs
 		switch track.track.Codec.(type) {
 		case *codecs.H264:
 			p.reader.OnDataH264(mpegtsTrack, func(pts int64, dts int64, au [][]byte) error {
+				return processSample(pts, dts, au)
+			})
+
+		case *codecs.H265:
+			p.reader.OnDataH265(mpegtsTrack, func(pts int64, dts int64, au [][]byte) error {
 				return processSample(pts, dts, au)
 			})
 

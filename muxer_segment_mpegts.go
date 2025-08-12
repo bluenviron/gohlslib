@@ -109,6 +109,34 @@ func (s *muxerSegmentMPEGTS) writeH264(
 	return nil
 }
 
+func (s *muxerSegmentMPEGTS) writeH265(
+	track *muxerTrack,
+	pts int64,
+	dts int64,
+	au [][]byte,
+) error {
+	size := uint64(0)
+	for _, nalu := range au {
+		size += uint64(len(nalu))
+	}
+	if (s.size + size) > s.segmentMaxSize {
+		return fmt.Errorf("reached maximum segment size")
+	}
+	s.size += size
+
+	err := s.mpegtsWriter.WriteH265(
+		track.mpegtsTrack,
+		multiplyAndDivide(pts, 90000, int64(track.ClockRate)),
+		multiplyAndDivide(dts, 90000, int64(track.ClockRate)),
+		au,
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (s *muxerSegmentMPEGTS) writeMPEG4Audio(
 	track *muxerTrack,
 	pts int64,
@@ -128,6 +156,37 @@ func (s *muxerSegmentMPEGTS) writeMPEG4Audio(
 		track.mpegtsTrack,
 		multiplyAndDivide(pts, 90000, int64(track.ClockRate)),
 		aus,
+	)
+	if err != nil {
+		return err
+	}
+
+	if track.isLeading {
+		s.audioAUCount++
+	}
+
+	return nil
+}
+
+func (s *muxerSegmentMPEGTS) writeMPEG1Audio(
+	track *muxerTrack,
+	pts int64,
+	frames [][]byte,
+) error {
+	size := uint64(0)
+	for _, f := range frames {
+		size += uint64(len(f))
+	}
+
+	if (s.size + size) > s.segmentMaxSize {
+		return fmt.Errorf("reached maximum segment size")
+	}
+	s.size += size
+
+	err := s.mpegtsWriter.WriteMPEG1Audio(
+		track.mpegtsTrack,
+		multiplyAndDivide(pts, 90000, int64(track.ClockRate)),
+		frames,
 	)
 	if err != nil {
 		return err
