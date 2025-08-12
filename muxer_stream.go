@@ -6,6 +6,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -35,15 +36,6 @@ func filterOutHLSParams(rawQuery string) string {
 		}
 	}
 	return rawQuery
-}
-
-func containsCodec(cs []string, c string) bool {
-	for _, c0 := range cs {
-		if c0 == c {
-			return true
-		}
-	}
-	return false
 }
 
 func targetDuration(segments []muxerSegment) int {
@@ -178,7 +170,7 @@ func (s *muxerStream) populateMultivariantPlaylist(
 
 	for _, track := range s.tracks {
 		codec := codecparams.Marshal(track.Codec)
-		if !containsCodec(mv.Codecs, codec) {
+		if !slices.Contains(mv.Codecs, codec) {
 			mv.Codecs = append(mv.Codecs, codec)
 		}
 
