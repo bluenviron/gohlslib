@@ -16,7 +16,7 @@ test-nodocker: test-examples test-pkg test-root
 
 define DOCKERFILE_TEST
 ARG ARCH
-FROM $$ARCH/$(BASE_IMAGE)
+FROM --platform=$$ARCH $(BASE_IMAGE)
 RUN apk add --no-cache make git gcc musl-dev pkgconfig ffmpeg-dev
 WORKDIR /s
 COPY go.mod go.sum ./
@@ -32,7 +32,7 @@ test:
 	temp \
 	make test-nodocker
 
-test32:
+test-32:
 	echo "$$DOCKERFILE_TEST" | docker build -q . -f - -t temp --build-arg ARCH=i386
 	docker run --rm \
 	--name temp \
