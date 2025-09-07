@@ -405,7 +405,7 @@ func (s *muxerStream) generateMediaPlaylistMPEGTS(
 ) ([]byte, error) {
 	pl := &playlist.Media{
 		Version:        3,
-		AllowCache:     boolPtr(false),
+		AllowCache:     ptrOf(false),
 		TargetDuration: s.targetDuration,
 		MediaSequence:  s.segmentDeleteCount,
 	}
