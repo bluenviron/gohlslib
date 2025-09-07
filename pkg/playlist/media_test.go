@@ -47,7 +47,8 @@ var casesMedia = []struct {
 			"seg2.mp4\n" +
 			"#EXT-X-PART:DURATION=1.50000,URI=\"part3.mp4\",INDEPENDENT=YES,GAP=YES\n" +
 			"#EXT-X-PART:DURATION=1.50000,URI=\"part4.mp4\"\n" +
-			"#EXT-X-PRELOAD-HINT:TYPE=PART,URI=\"part5.mp4\",BYTERANGE-START=43523,BYTERANGE-LENGTH=123\n",
+			"#EXT-X-PRELOAD-HINT:TYPE=PART,URI=\"part5.mp4\",BYTERANGE-START=43523,BYTERANGE-LENGTH=123\n" +
+			"#EXT-X-RENDITION-REPORT:URI=\"media_2.m3u8\",LAST-MSN=2,LAST-PART=5\n",
 		"#EXTM3U\n" +
 			"#EXT-X-VERSION:9\n" +
 			"#EXT-X-INDEPENDENT-SEGMENTS\n" +
@@ -76,7 +77,8 @@ var casesMedia = []struct {
 			"seg2.mp4\n" +
 			"#EXT-X-PART:DURATION=1.50000,URI=\"part3.mp4\",INDEPENDENT=YES,GAP=YES\n" +
 			"#EXT-X-PART:DURATION=1.50000,URI=\"part4.mp4\"\n" +
-			"#EXT-X-PRELOAD-HINT:TYPE=PART,URI=\"part5.mp4\",BYTERANGE-START=43523,BYTERANGE-LENGTH=123\n",
+			"#EXT-X-PRELOAD-HINT:TYPE=PART,URI=\"part5.mp4\",BYTERANGE-START=43523,BYTERANGE-LENGTH=123\n" +
+			"#EXT-X-RENDITION-REPORT:URI=\"media_2.m3u8\",LAST-MSN=2,LAST-PART=5\n",
 		Media{
 			Version:             9,
 			IndependentSegments: true,
@@ -148,6 +150,13 @@ var casesMedia = []struct {
 				URI:             "part5.mp4",
 				ByteRangeStart:  43523,
 				ByteRangeLength: ptrOf(uint64(123)),
+			},
+			RenditionReport: []*MediaRenditionReport{
+				{
+					URI:      "media_2.m3u8",
+					LastMSN:  2,
+					LastPart: ptrOf(5),
+				},
 			},
 		},
 	},
