@@ -11,10 +11,10 @@ type MultivariantRenditionType string
 
 // standard rendition types.
 const (
-	MultivariantRenditionTypeAudio          = "AUDIO"
-	MultivariantRenditionTypeVideo          = "VIDEO"
-	MultivariantRenditionTypeSubtitles      = "SUBTITLES"
-	MultivariantRenditionTypeClosedCaptions = "CLOSED-CAPTIONS"
+	MultivariantRenditionTypeAudio          MultivariantRenditionType = "AUDIO"
+	MultivariantRenditionTypeVideo          MultivariantRenditionType = "VIDEO"
+	MultivariantRenditionTypeSubtitles      MultivariantRenditionType = "SUBTITLES"
+	MultivariantRenditionTypeClosedCaptions MultivariantRenditionType = "CLOSED-CAPTIONS"
 )
 
 // MultivariantRendition is a EXT-X-MEDIA tag.

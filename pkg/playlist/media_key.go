@@ -11,9 +11,9 @@ type MediaKeyMethod string
 
 // standard encryption methods
 const (
-	MediaKeyMethodNone      = "NONE"
-	MediaKeyMethodAES128    = "AES-128"
-	MediaKeyMethodSampleAES = "SAMPLE-AES"
+	MediaKeyMethodNone      MediaKeyMethod = "NONE"
+	MediaKeyMethodAES128    MediaKeyMethod = "AES-128"
+	MediaKeyMethodSampleAES MediaKeyMethod = "SAMPLE-AES"
 )
 
 // MediaKey is a EXT-X-KEY tag.
