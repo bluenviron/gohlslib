@@ -8,34 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func intPtr(v int) *int {
-	return &v
-}
-
-func floatPtr(v float64) *float64 {
-	return &v
-}
-
-func boolPtr(v bool) *bool {
-	return &v
-}
-
-func uint64Ptr(v uint64) *uint64 {
-	return &v
-}
-
-func durationPtr(v time.Duration) *time.Duration {
-	return &v
-}
-
-func timePtr(v time.Time) *time.Time {
-	return &v
-}
-
-func stringPtr(v string) *string {
-	return &v
-}
-
 var casesMultivariant = []struct {
 	name   string
 	input  string
@@ -85,43 +57,43 @@ var casesMultivariant = []struct {
 			Variants: []*MultivariantVariant{
 				{
 					Bandwidth:        155000,
-					AverageBandwidth: intPtr(120000),
+					AverageBandwidth: ptrOf(120000),
 					Codecs: []string{
 						"avc1.42c028",
 						"mp4a.40.2",
 					},
 					Resolution: "1280x720",
-					FrameRate:  floatPtr(24.0),
+					FrameRate:  ptrOf(float64(24.0)),
 					Audio:      "aud1",
 					Subtitles:  "sub1",
 					URI:        "stream1.m3u8",
 				},
 				{
 					Bandwidth:        55000,
-					AverageBandwidth: intPtr(20000),
+					AverageBandwidth: ptrOf(20000),
 					Codecs: []string{
 						"avc1.42c028",
 						"mp4a.40.2",
 					},
 					Resolution: "1280x720",
-					FrameRate:  floatPtr(24.0),
+					FrameRate:  ptrOf(float64(24.0)),
 					URI:        "stream2.m3u8",
 				},
 			},
 			Renditions: []*MultivariantRendition{
 				{
 					Type:       MultivariantRenditionTypeAudio,
-					URI:        stringPtr("audio.m3u8"),
+					URI:        ptrOf("audio.m3u8"),
 					GroupID:    "aud1",
 					Language:   "en",
 					Name:       "english",
 					Autoselect: true,
 					Default:    true,
-					Channels:   stringPtr("2"),
+					Channels:   ptrOf("2"),
 				},
 				{
 					Type:       MultivariantRenditionTypeSubtitles,
-					URI:        stringPtr("sub.m3u8"),
+					URI:        ptrOf("sub.m3u8"),
 					GroupID:    "sub1",
 					Language:   "en",
 					Name:       "english",
@@ -269,13 +241,13 @@ v2/prog_index.m3u8
 			Variants: []*MultivariantVariant{
 				{
 					Bandwidth:        2177116,
-					AverageBandwidth: intPtr(2168183),
+					AverageBandwidth: ptrOf(2168183),
 					Codecs: []string{
 						"avc1.640020",
 						"mp4a.40.2",
 					},
 					Resolution:     "960x540",
-					FrameRate:      floatPtr(60),
+					FrameRate:      ptrOf(float64(60)),
 					Audio:          "aud1",
 					Subtitles:      "sub1",
 					ClosedCaptions: "cc1",
@@ -283,13 +255,13 @@ v2/prog_index.m3u8
 				},
 				{
 					Bandwidth:        8001098,
-					AverageBandwidth: intPtr(7968416),
+					AverageBandwidth: ptrOf(7968416),
 					Codecs: []string{
 						"avc1.64002a",
 						"mp4a.40.2",
 					},
 					Resolution:     "1920x1080",
-					FrameRate:      floatPtr(60),
+					FrameRate:      ptrOf(float64(60)),
 					Audio:          "aud1",
 					Subtitles:      "sub1",
 					ClosedCaptions: "cc1",
@@ -297,13 +269,13 @@ v2/prog_index.m3u8
 				},
 				{
 					Bandwidth:        6312875,
-					AverageBandwidth: intPtr(6170000),
+					AverageBandwidth: ptrOf(6170000),
 					Codecs: []string{
 						"avc1.64002a",
 						"mp4a.40.2",
 					},
 					Resolution:     "1920x1080",
-					FrameRate:      floatPtr(60),
+					FrameRate:      ptrOf(float64(60)),
 					Audio:          "aud1",
 					Subtitles:      "sub1",
 					ClosedCaptions: "cc1",
@@ -311,13 +283,13 @@ v2/prog_index.m3u8
 				},
 				{
 					Bandwidth:        4943747,
-					AverageBandwidth: intPtr(4670769),
+					AverageBandwidth: ptrOf(4670769),
 					Codecs: []string{
 						"avc1.64002a",
 						"mp4a.40.2",
 					},
 					Resolution:     "1920x1080",
-					FrameRate:      floatPtr(60),
+					FrameRate:      ptrOf(float64(60)),
 					Audio:          "aud1",
 					Subtitles:      "sub1",
 					ClosedCaptions: "cc1",
@@ -325,13 +297,13 @@ v2/prog_index.m3u8
 				},
 				{
 					Bandwidth:        3216424,
-					AverageBandwidth: intPtr(3168702),
+					AverageBandwidth: ptrOf(3168702),
 					Codecs: []string{
 						"avc1.640020",
 						"mp4a.40.2",
 					},
 					Resolution:     "1280x720",
-					FrameRate:      floatPtr(60),
+					FrameRate:      ptrOf(float64(60)),
 					Audio:          "aud1",
 					Subtitles:      "sub1",
 					ClosedCaptions: "cc1",
@@ -339,13 +311,13 @@ v2/prog_index.m3u8
 				},
 				{
 					Bandwidth:        1268994,
-					AverageBandwidth: intPtr(1265132),
+					AverageBandwidth: ptrOf(1265132),
 					Codecs: []string{
 						"avc1.64001e",
 						"mp4a.40.2",
 					},
 					Resolution:     "768x432",
-					FrameRate:      floatPtr(30),
+					FrameRate:      ptrOf(float64(30)),
 					Audio:          "aud1",
 					Subtitles:      "sub1",
 					ClosedCaptions: "cc1",
@@ -353,13 +325,13 @@ v2/prog_index.m3u8
 				},
 				{
 					Bandwidth:        902298,
-					AverageBandwidth: intPtr(895755),
+					AverageBandwidth: ptrOf(895755),
 					Codecs: []string{
 						"avc1.64001e",
 						"mp4a.40.2",
 					},
 					Resolution:     "640x360",
-					FrameRate:      floatPtr(30),
+					FrameRate:      ptrOf(float64(30)),
 					Audio:          "aud1",
 					Subtitles:      "sub1",
 					ClosedCaptions: "cc1",
@@ -367,13 +339,13 @@ v2/prog_index.m3u8
 				},
 				{
 					Bandwidth:        541052,
-					AverageBandwidth: intPtr(530721),
+					AverageBandwidth: ptrOf(530721),
 					Codecs: []string{
 						"avc1.640015",
 						"mp4a.40.2",
 					},
 					Resolution:     "480x270",
-					FrameRate:      floatPtr(30),
+					FrameRate:      ptrOf(float64(30)),
 					Audio:          "aud1",
 					Subtitles:      "sub1",
 					ClosedCaptions: "cc1",
@@ -381,13 +353,13 @@ v2/prog_index.m3u8
 				},
 				{
 					Bandwidth:        2399619,
-					AverageBandwidth: intPtr(2390686),
+					AverageBandwidth: ptrOf(2390686),
 					Codecs: []string{
 						"avc1.640020",
 						"ac-3",
 					},
 					Resolution:     "960x540",
-					FrameRate:      floatPtr(60),
+					FrameRate:      ptrOf(float64(60)),
 					Audio:          "aud2",
 					Subtitles:      "sub1",
 					ClosedCaptions: "cc1",
@@ -395,13 +367,13 @@ v2/prog_index.m3u8
 				},
 				{
 					Bandwidth:        8223601,
-					AverageBandwidth: intPtr(8190919),
+					AverageBandwidth: ptrOf(8190919),
 					Codecs: []string{
 						"avc1.64002a",
 						"ac-3",
 					},
 					Resolution:     "1920x1080",
-					FrameRate:      floatPtr(60),
+					FrameRate:      ptrOf(float64(60)),
 					Audio:          "aud2",
 					Subtitles:      "sub1",
 					ClosedCaptions: "cc1",
@@ -409,13 +381,13 @@ v2/prog_index.m3u8
 				},
 				{
 					Bandwidth:        6535378,
-					AverageBandwidth: intPtr(6392503),
+					AverageBandwidth: ptrOf(6392503),
 					Codecs: []string{
 						"avc1.64002a",
 						"ac-3",
 					},
 					Resolution:     "1920x1080",
-					FrameRate:      floatPtr(60),
+					FrameRate:      ptrOf(float64(60)),
 					Audio:          "aud2",
 					Subtitles:      "sub1",
 					ClosedCaptions: "cc1",
@@ -423,13 +395,13 @@ v2/prog_index.m3u8
 				},
 				{
 					Bandwidth:        5166250,
-					AverageBandwidth: intPtr(4893272),
+					AverageBandwidth: ptrOf(4893272),
 					Codecs: []string{
 						"avc1.64002a",
 						"ac-3",
 					},
 					Resolution:     "1920x1080",
-					FrameRate:      floatPtr(60),
+					FrameRate:      ptrOf(float64(60)),
 					Audio:          "aud2",
 					Subtitles:      "sub1",
 					ClosedCaptions: "cc1",
@@ -437,13 +409,13 @@ v2/prog_index.m3u8
 				},
 				{
 					Bandwidth:        3438927,
-					AverageBandwidth: intPtr(3391205),
+					AverageBandwidth: ptrOf(3391205),
 					Codecs: []string{
 						"avc1.640020",
 						"ac-3",
 					},
 					Resolution:     "1280x720",
-					FrameRate:      floatPtr(60),
+					FrameRate:      ptrOf(float64(60)),
 					Audio:          "aud2",
 					Subtitles:      "sub1",
 					ClosedCaptions: "cc1",
@@ -451,13 +423,13 @@ v2/prog_index.m3u8
 				},
 				{
 					Bandwidth:        1491497,
-					AverageBandwidth: intPtr(1487635),
+					AverageBandwidth: ptrOf(1487635),
 					Codecs: []string{
 						"avc1.64001e",
 						"ac-3",
 					},
 					Resolution:     "768x432",
-					FrameRate:      floatPtr(30),
+					FrameRate:      ptrOf(float64(30)),
 					Audio:          "aud2",
 					Subtitles:      "sub1",
 					ClosedCaptions: "cc1",
@@ -465,13 +437,13 @@ v2/prog_index.m3u8
 				},
 				{
 					Bandwidth:        1124801,
-					AverageBandwidth: intPtr(1118258),
+					AverageBandwidth: ptrOf(1118258),
 					Codecs: []string{
 						"avc1.64001e",
 						"ac-3",
 					},
 					Resolution:     "640x360",
-					FrameRate:      floatPtr(30),
+					FrameRate:      ptrOf(float64(30)),
 					Audio:          "aud2",
 					Subtitles:      "sub1",
 					ClosedCaptions: "cc1",
@@ -479,13 +451,13 @@ v2/prog_index.m3u8
 				},
 				{
 					Bandwidth:        763555,
-					AverageBandwidth: intPtr(753224),
+					AverageBandwidth: ptrOf(753224),
 					Codecs: []string{
 						"avc1.640015",
 						"ac-3",
 					},
 					Resolution:     "480x270",
-					FrameRate:      floatPtr(30),
+					FrameRate:      ptrOf(float64(30)),
 					Audio:          "aud2",
 					Subtitles:      "sub1",
 					ClosedCaptions: "cc1",
@@ -493,13 +465,13 @@ v2/prog_index.m3u8
 				},
 				{
 					Bandwidth:        2207619,
-					AverageBandwidth: intPtr(2198686),
+					AverageBandwidth: ptrOf(2198686),
 					Codecs: []string{
 						"avc1.640020",
 						"ec-3",
 					},
 					Resolution:     "960x540",
-					FrameRate:      floatPtr(60),
+					FrameRate:      ptrOf(float64(60)),
 					Audio:          "aud3",
 					Subtitles:      "sub1",
 					ClosedCaptions: "cc1",
@@ -507,13 +479,13 @@ v2/prog_index.m3u8
 				},
 				{
 					Bandwidth:        8031601,
-					AverageBandwidth: intPtr(7998919),
+					AverageBandwidth: ptrOf(7998919),
 					Codecs: []string{
 						"avc1.64002a",
 						"ec-3",
 					},
 					Resolution:     "1920x1080",
-					FrameRate:      floatPtr(60),
+					FrameRate:      ptrOf(float64(60)),
 					Audio:          "aud3",
 					Subtitles:      "sub1",
 					ClosedCaptions: "cc1",
@@ -521,13 +493,13 @@ v2/prog_index.m3u8
 				},
 				{
 					Bandwidth:        6343378,
-					AverageBandwidth: intPtr(6200503),
+					AverageBandwidth: ptrOf(6200503),
 					Codecs: []string{
 						"avc1.64002a",
 						"ec-3",
 					},
 					Resolution:     "1920x1080",
-					FrameRate:      floatPtr(60),
+					FrameRate:      ptrOf(float64(60)),
 					Audio:          "aud3",
 					Subtitles:      "sub1",
 					ClosedCaptions: "cc1",
@@ -535,13 +507,13 @@ v2/prog_index.m3u8
 				},
 				{
 					Bandwidth:        4974250,
-					AverageBandwidth: intPtr(4701272),
+					AverageBandwidth: ptrOf(4701272),
 					Codecs: []string{
 						"avc1.64002a",
 						"ec-3",
 					},
 					Resolution:     "1920x1080",
-					FrameRate:      floatPtr(60),
+					FrameRate:      ptrOf(float64(60)),
 					Audio:          "aud3",
 					Subtitles:      "sub1",
 					ClosedCaptions: "cc1",
@@ -549,13 +521,13 @@ v2/prog_index.m3u8
 				},
 				{
 					Bandwidth:        3246927,
-					AverageBandwidth: intPtr(3199205),
+					AverageBandwidth: ptrOf(3199205),
 					Codecs: []string{
 						"avc1.640020",
 						"ec-3",
 					},
 					Resolution:     "1280x720",
-					FrameRate:      floatPtr(60),
+					FrameRate:      ptrOf(float64(60)),
 					Audio:          "aud3",
 					Subtitles:      "sub1",
 					ClosedCaptions: "cc1",
@@ -563,13 +535,13 @@ v2/prog_index.m3u8
 				},
 				{
 					Bandwidth:        1299497,
-					AverageBandwidth: intPtr(1295635),
+					AverageBandwidth: ptrOf(1295635),
 					Codecs: []string{
 						"avc1.64001e",
 						"ec-3",
 					},
 					Resolution:     "768x432",
-					FrameRate:      floatPtr(30),
+					FrameRate:      ptrOf(float64(30)),
 					Audio:          "aud3",
 					Subtitles:      "sub1",
 					ClosedCaptions: "cc1",
@@ -577,13 +549,13 @@ v2/prog_index.m3u8
 				},
 				{
 					Bandwidth:        932801,
-					AverageBandwidth: intPtr(926258),
+					AverageBandwidth: ptrOf(926258),
 					Codecs: []string{
 						"avc1.64001e",
 						"ec-3",
 					},
 					Resolution:     "640x360",
-					FrameRate:      floatPtr(30),
+					FrameRate:      ptrOf(float64(30)),
 					Audio:          "aud3",
 					Subtitles:      "sub1",
 					ClosedCaptions: "cc1",
@@ -591,13 +563,13 @@ v2/prog_index.m3u8
 				},
 				{
 					Bandwidth:        571555,
-					AverageBandwidth: intPtr(561224),
+					AverageBandwidth: ptrOf(561224),
 					Codecs: []string{
 						"avc1.640015",
 						"ec-3",
 					},
 					Resolution:     "480x270",
-					FrameRate:      floatPtr(30),
+					FrameRate:      ptrOf(float64(30)),
 					Audio:          "aud3",
 					Subtitles:      "sub1",
 					ClosedCaptions: "cc1",
@@ -607,33 +579,33 @@ v2/prog_index.m3u8
 			Renditions: []*MultivariantRendition{
 				{
 					Type:       MultivariantRenditionTypeAudio,
-					URI:        stringPtr("a1/prog_index.m3u8"),
+					URI:        ptrOf("a1/prog_index.m3u8"),
 					GroupID:    "aud1",
 					Language:   "en",
 					Name:       "English",
 					Default:    true,
 					Autoselect: true,
-					Channels:   stringPtr("2"),
+					Channels:   ptrOf("2"),
 				},
 				{
 					Type:       MultivariantRenditionTypeAudio,
-					URI:        stringPtr("a2/prog_index.m3u8"),
+					URI:        ptrOf("a2/prog_index.m3u8"),
 					GroupID:    "aud2",
 					Language:   "en",
 					Name:       "English",
 					Default:    true,
 					Autoselect: true,
-					Channels:   stringPtr("6"),
+					Channels:   ptrOf("6"),
 				},
 				{
 					Type:       MultivariantRenditionTypeAudio,
-					URI:        stringPtr("a3/prog_index.m3u8"),
+					URI:        ptrOf("a3/prog_index.m3u8"),
 					GroupID:    "aud3",
 					Language:   "en",
 					Name:       "English",
 					Default:    true,
 					Autoselect: true,
-					Channels:   stringPtr("6"),
+					Channels:   ptrOf("6"),
 				},
 				{
 					Type:       MultivariantRenditionTypeClosedCaptions,
@@ -642,11 +614,11 @@ v2/prog_index.m3u8
 					Name:       "English",
 					Default:    true,
 					Autoselect: true,
-					InStreamID: stringPtr("CC1"),
+					InStreamID: ptrOf("CC1"),
 				},
 				{
 					Type:       MultivariantRenditionTypeSubtitles,
-					URI:        stringPtr("s1/en/prog_index.m3u8"),
+					URI:        ptrOf("s1/en/prog_index.m3u8"),
 					GroupID:    "sub1",
 					Language:   "en",
 					Name:       "English",
@@ -799,13 +771,13 @@ QualityLevels(5977913)/Manifest(video,format=m3u8-aapl)
 				{
 					Type:    MultivariantRenditionTypeAudio,
 					GroupID: "audio",
-					URI:     stringPtr("QualityLevels(125615)/Manifest(AAC_und_ch2_128kbps,format=m3u8-aapl)"),
+					URI:     ptrOf("QualityLevels(125615)/Manifest(AAC_und_ch2_128kbps,format=m3u8-aapl)"),
 					Name:    "AAC_und_ch2_128kbps",
 				},
 				{
 					Type:    MultivariantRenditionTypeAudio,
 					GroupID: "audio",
-					URI:     stringPtr("QualityLevels(53620)/Manifest(AAC_und_ch2_56kbps,format=m3u8-aapl)"),
+					URI:     ptrOf("QualityLevels(53620)/Manifest(AAC_und_ch2_56kbps,format=m3u8-aapl)"),
 					Name:    "AAC_und_ch2_56kbps",
 					Default: true,
 				},

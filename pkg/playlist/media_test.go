@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func playlistTypePtr(v MediaPlaylistType) *MediaPlaylistType {
+func ptrOf[T any](v T) *T {
 	return &v
 }
 
@@ -74,12 +74,12 @@ var casesMedia = []struct {
 		Media{
 			Version:             9,
 			IndependentSegments: true,
-			AllowCache:          boolPtr(false),
+			AllowCache:          ptrOf(false),
 			TargetDuration:      8,
 			ServerControl: &MediaServerControl{
 				CanBlockReload: true,
-				PartHoldBack:   durationPtr(5 * time.Second),
-				CanSkipUntil:   durationPtr(7 * time.Second),
+				PartHoldBack:   ptrOf(5 * time.Second),
+				CanSkipUntil:   ptrOf(7 * time.Second),
 			},
 			PartInf: &MediaPartInf{
 				PartTarget: 2 * time.Second,
@@ -98,13 +98,13 @@ var casesMedia = []struct {
 					URI:      "gap.mp4",
 				},
 				{
-					DateTime: timePtr(time.Date(2014, 8, 25, 0, 0, 0, 0, time.UTC)),
+					DateTime: ptrOf(time.Date(2014, 8, 25, 0, 0, 0, 0, time.UTC)),
 					Duration: 2 * time.Second,
 					URI:      "seg1.mp4",
 				},
 				{
-					DateTime:      timePtr(time.Date(2014, 8, 25, 0, 0, 0, 0, time.UTC)),
-					Bitrate:       intPtr(14213213),
+					DateTime:      ptrOf(time.Date(2014, 8, 25, 0, 0, 0, 0, time.UTC)),
+					Bitrate:       ptrOf(14213213),
 					Duration:      3 * time.Second,
 					URI:           "seg2.mp4",
 					Discontinuity: true,
@@ -117,8 +117,8 @@ var casesMedia = []struct {
 						{
 							Duration:        1500 * time.Millisecond,
 							URI:             "part2.mp4",
-							ByteRangeLength: uint64Ptr(456),
-							ByteRangeStart:  uint64Ptr(123),
+							ByteRangeLength: ptrOf(uint64(456)),
+							ByteRangeStart:  ptrOf(uint64(123)),
 						},
 					},
 				},
@@ -137,7 +137,7 @@ var casesMedia = []struct {
 			PreloadHint: &MediaPreloadHint{
 				URI:             "part5.mp4",
 				ByteRangeStart:  43523,
-				ByteRangeLength: uint64Ptr(123),
+				ByteRangeLength: ptrOf(uint64(123)),
 			},
 		},
 	},
@@ -190,35 +190,35 @@ main.mp4
 			IndependentSegments: true,
 			TargetDuration:      6,
 			MediaSequence:       1,
-			PlaylistType:        playlistTypePtr(MediaPlaylistTypeVOD),
+			PlaylistType:        ptrOf(MediaPlaylistTypeVOD),
 			Map: &MediaMap{
 				URI:             "main.mp4",
-				ByteRangeLength: uint64Ptr(721),
-				ByteRangeStart:  uint64Ptr(0),
+				ByteRangeLength: ptrOf(uint64(721)),
+				ByteRangeStart:  ptrOf(uint64(0)),
 			},
 			Segments: []*MediaSegment{
 				{
 					Duration:        6 * time.Second,
-					ByteRangeLength: uint64Ptr(5874288),
-					ByteRangeStart:  uint64Ptr(721),
+					ByteRangeLength: ptrOf(uint64(5874288)),
+					ByteRangeStart:  ptrOf(uint64(721)),
 					URI:             "main.mp4",
 				},
 				{
 					Duration:        6 * time.Second,
-					ByteRangeLength: uint64Ptr(5863101),
-					ByteRangeStart:  uint64Ptr(5875009),
+					ByteRangeLength: ptrOf(uint64(5863101)),
+					ByteRangeStart:  ptrOf(uint64(5875009)),
 					URI:             "main.mp4",
 				},
 				{
 					Duration:        6 * time.Second,
-					ByteRangeLength: uint64Ptr(5856476),
-					ByteRangeStart:  uint64Ptr(11738110),
+					ByteRangeLength: ptrOf(uint64(5856476)),
+					ByteRangeStart:  ptrOf(uint64(11738110)),
 					URI:             "main.mp4",
 				},
 				{
 					Duration:        6 * time.Second,
-					ByteRangeLength: uint64Ptr(5859643),
-					ByteRangeStart:  uint64Ptr(17594586),
+					ByteRangeLength: ptrOf(uint64(5859643)),
+					ByteRangeStart:  ptrOf(uint64(17594586)),
 					URI:             "main.mp4",
 				},
 			},

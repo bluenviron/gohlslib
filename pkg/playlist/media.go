@@ -36,8 +36,8 @@ type MediaPlaylistType string
 
 // standard values
 const (
-	MediaPlaylistTypeEvent = "EVENT"
-	MediaPlaylistTypeVOD   = "VOD"
+	MediaPlaylistTypeEvent MediaPlaylistType = "EVENT"
+	MediaPlaylistTypeVOD   MediaPlaylistType = "VOD"
 )
 
 // Media is a media playlist.

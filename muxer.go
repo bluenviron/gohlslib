@@ -25,7 +25,7 @@ const (
 	segmentMaxAge              = "3600"
 )
 
-func boolPtr(v bool) *bool {
+func ptrOf[T any](v T) *T {
 	return &v
 }
 
