@@ -42,22 +42,16 @@ const (
 
 // Media is a media playlist.
 type Media struct {
-	// EXT-X-VERSION
-	// required
+	// EXT-X-VERSION (required)
 	Version int
 
 	// EXT-X-INDEPENDENT-SEGMENTS
 	IndependentSegments bool
 
-	// EXT-X-START
-	Start *MediaStart
-
-	// EXT-X-ALLOWCACHE
-	// removed since v7
+	// EXT-X-ALLOWCACHE (removed since v7)
 	AllowCache *bool
 
-	// EXT-X-TARGETDURATION
-	// required
+	// EXT-X-TARGETDURATION (required)
 	TargetDuration int
 
 	// EXT-X-SERVER-CONTROL
@@ -66,8 +60,7 @@ type Media struct {
 	// EXT-X-PART-INF
 	PartInf *MediaPartInf
 
-	// EXT-X-MEDIA-SEQUENCE
-	// required
+	// EXT-X-MEDIA-SEQUENCE (required)
 	MediaSequence int
 
 	// EXT-X-DISCONTINUITY-SEQUENCE
@@ -79,11 +72,13 @@ type Media struct {
 	// EXT-X-MAP
 	Map *MediaMap
 
+	// EXT-X-START
+	Start *MediaStart
+
 	// EXT-X-SKIP
 	Skip *MediaSkip
 
-	// segments
-	// at least one is required
+	// segments (at least one is required)
 	Segments []*MediaSegment
 
 	// EXT-X-PART
@@ -135,15 +130,6 @@ func (m *Media) Unmarshal(buf []byte) error {
 
 		case strings.HasPrefix(line, "#EXT-X-INDEPENDENT-SEGMENTS"):
 			m.IndependentSegments = true
-
-		case strings.HasPrefix(line, "#EXT-X-START:"):
-			line = line[len("#EXT-X-START:"):]
-
-			m.Start = &MultivariantStart{}
-			err = m.Start.unmarshal(line)
-			if err != nil {
-				return err
-			}
 
 		case strings.HasPrefix(line, "#EXT-X-ALLOW-CACHE:"):
 			line = line[len("#EXT-X-ALLOW-CACHE:"):]
@@ -235,6 +221,15 @@ func (m *Media) Unmarshal(buf []byte) error {
 				return err
 			}
 
+		case strings.HasPrefix(line, "#EXT-X-START:"):
+			line = line[len("#EXT-X-START:"):]
+
+			m.Start = &MultivariantStart{}
+			err = m.Start.unmarshal(line)
+			if err != nil {
+				return err
+			}
+
 		case strings.HasPrefix(line, "#EXT-X-SKIP:"):
 			line = line[len("#EXT-X-SKIP:"):]
 
@@ -276,9 +271,6 @@ func (m *Media) Unmarshal(buf []byte) error {
 		case strings.HasPrefix(line, "#EXTINF:"):
 			line = line[len("#EXTINF:"):]
 			parts := strings.SplitN(line, ",", 2)
-			if len(parts) < 1 || len(parts) > 2 {
-				return fmt.Errorf("invalid EXTINF: %s", line)
-			}
 
 			var d primitives.Duration
 			err = d.Unmarshal(parts[0])
@@ -389,7 +381,7 @@ func (m Media) Marshal() ([]byte, error) {
 	ret += "#EXT-X-MEDIA-SEQUENCE:" + strconv.FormatInt(int64(m.MediaSequence), 10) + "\n"
 
 	if m.DiscontinuitySequence != nil {
-		ret += "#EXT-X-DISCONTINUITY-SEQUENCE:" + strconv.FormatInt(int64(m.MediaSequence), 10) + "\n"
+		ret += "#EXT-X-DISCONTINUITY-SEQUENCE:" + strconv.FormatInt(int64(*m.DiscontinuitySequence), 10) + "\n"
 	}
 
 	if m.PlaylistType != nil {
@@ -398,6 +390,10 @@ func (m Media) Marshal() ([]byte, error) {
 
 	if m.Map != nil {
 		ret += m.Map.marshal()
+	}
+
+	if m.Start != nil {
+		ret += m.Start.marshal()
 	}
 
 	if m.Skip != nil {

@@ -1,2 +1,0 @@
-go test fuzz v1
-string("#EXTM3U\n#EXT-X-STREAM-INF:FRAME-RATE=\n\n")
