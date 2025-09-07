@@ -44,10 +44,7 @@ type MediaSegment struct {
 
 func (s MediaSegment) validate() error {
 	if s.Duration == 0 {
-		return fmt.Errorf("duration missing")
-	}
-	if s.URI == "" {
-		return fmt.Errorf("URI missing")
+		return fmt.Errorf("duration is missing")
 	}
 
 	return nil

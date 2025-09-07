@@ -11,7 +11,7 @@ func TestUnmarshal(t *testing.T) {
 		t.Run("multivariant_"+ca.name, func(t *testing.T) {
 			dec, err := Unmarshal([]byte(ca.input))
 			require.NoError(t, err)
-			require.Equal(t, dec, &ca.dec)
+			require.Equal(t, &ca.dec, dec)
 		})
 	}
 
@@ -19,7 +19,7 @@ func TestUnmarshal(t *testing.T) {
 		t.Run("media_"+ca.name, func(t *testing.T) {
 			dec, err := Unmarshal([]byte(ca.input))
 			require.NoError(t, err)
-			require.Equal(t, dec, &ca.dec)
+			require.Equal(t, &ca.dec, dec)
 		})
 	}
 }

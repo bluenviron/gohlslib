@@ -18,7 +18,7 @@ var casesMedia = []struct {
 	dec    Media
 }{
 	{
-		"gohlslib",
+		"full",
 		"#EXTM3U\n" +
 			"#EXT-X-VERSION:9\n" +
 			"#EXT-X-INDEPENDENT-SEGMENTS\n" +
@@ -27,7 +27,10 @@ var casesMedia = []struct {
 			"#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=5.00000,CAN-SKIP-UNTIL=7.00000\n" +
 			"#EXT-X-PART-INF:PART-TARGET=2.00000\n" +
 			"#EXT-X-MEDIA-SEQUENCE:27\n" +
+			"#EXT-X-DISCONTINUITY-SEQUENCE:36\n" +
+			"#EXT-X-PLAYLIST-TYPE:EVENT\n" +
 			"#EXT-X-MAP:URI=\"init.mp4\"\n" +
+			"#EXT-X-START:TIME-OFFSET=4.56\n" +
 			"#EXT-X-SKIP:SKIPPED-SEGMENTS=15\n" +
 			"#EXT-X-GAP\n" +
 			"#EXTINF:2.00000,\n" +
@@ -42,7 +45,7 @@ var casesMedia = []struct {
 			"#EXT-X-PART:DURATION=1.50000,URI=\"part2.mp4\",BYTERANGE=456@123\n" +
 			"#EXTINF:3.00000,\n" +
 			"seg2.mp4\n" +
-			"#EXT-X-PART:DURATION=1.50000,URI=\"part3.mp4\",INDEPENDENT=YES\n" +
+			"#EXT-X-PART:DURATION=1.50000,URI=\"part3.mp4\",INDEPENDENT=YES,GAP=YES\n" +
 			"#EXT-X-PART:DURATION=1.50000,URI=\"part4.mp4\"\n" +
 			"#EXT-X-PRELOAD-HINT:TYPE=PART,URI=\"part5.mp4\",BYTERANGE-START=43523,BYTERANGE-LENGTH=123\n",
 		"#EXTM3U\n" +
@@ -53,7 +56,10 @@ var casesMedia = []struct {
 			"#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=5.00000,CAN-SKIP-UNTIL=7.00000\n" +
 			"#EXT-X-PART-INF:PART-TARGET=2.00000\n" +
 			"#EXT-X-MEDIA-SEQUENCE:27\n" +
+			"#EXT-X-DISCONTINUITY-SEQUENCE:36\n" +
+			"#EXT-X-PLAYLIST-TYPE:EVENT\n" +
 			"#EXT-X-MAP:URI=\"init.mp4\"\n" +
+			"#EXT-X-START:TIME-OFFSET=4.56000\n" +
 			"#EXT-X-SKIP:SKIPPED-SEGMENTS=15\n" +
 			"#EXT-X-GAP\n" +
 			"#EXTINF:2.00000,\n" +
@@ -68,7 +74,7 @@ var casesMedia = []struct {
 			"#EXT-X-PART:DURATION=1.50000,URI=\"part2.mp4\",BYTERANGE=456@123\n" +
 			"#EXTINF:3.00000,\n" +
 			"seg2.mp4\n" +
-			"#EXT-X-PART:DURATION=1.50000,URI=\"part3.mp4\",INDEPENDENT=YES\n" +
+			"#EXT-X-PART:DURATION=1.50000,URI=\"part3.mp4\",INDEPENDENT=YES,GAP=YES\n" +
 			"#EXT-X-PART:DURATION=1.50000,URI=\"part4.mp4\"\n" +
 			"#EXT-X-PRELOAD-HINT:TYPE=PART,URI=\"part5.mp4\",BYTERANGE-START=43523,BYTERANGE-LENGTH=123\n",
 		Media{
@@ -84,10 +90,13 @@ var casesMedia = []struct {
 			PartInf: &MediaPartInf{
 				PartTarget: 2 * time.Second,
 			},
-			MediaSequence: 27,
+			MediaSequence:         27,
+			DiscontinuitySequence: ptrOf(36),
+			PlaylistType:          ptrOf(MediaPlaylistTypeEvent),
 			Map: &MediaMap{
 				URI: "init.mp4",
 			},
+			Start: &MediaStart{TimeOffset: 4560 * time.Millisecond},
 			Skip: &MediaSkip{
 				SkippedSegments: 15,
 			},
@@ -127,6 +136,7 @@ var casesMedia = []struct {
 				{
 					Duration:    1500 * time.Millisecond,
 					Independent: true,
+					Gap:         true,
 					URI:         "part3.mp4",
 				},
 				{
@@ -481,27 +491,7 @@ func TestMediaMarshal(t *testing.T) {
 		t.Run(ca.name, func(t *testing.T) {
 			byts, err := ca.dec.Marshal()
 			require.NoError(t, err)
-			require.Equal(t, string(byts), ca.output)
+			require.Equal(t, ca.output, string(byts))
 		})
 	}
-}
-
-func FuzzMediaUnmarshal(f *testing.F) {
-	for _, ca := range casesMedia {
-		f.Add(ca.input)
-	}
-
-	f.Add("#EXTM3U\n" +
-		"#EXT-X-PART:DURATION=1.50000,URI=\"part3.mp4\",INDEPENDENT=YES,BYTERANGE=\n")
-
-	f.Fuzz(func(t *testing.T, a string) {
-		var m Media
-		err := m.Unmarshal([]byte(a))
-		if err != nil {
-			return
-		}
-
-		_, err = m.Marshal()
-		require.NoError(t, err)
-	})
 }

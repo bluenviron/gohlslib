@@ -15,7 +15,7 @@ var casesMultivariant = []struct {
 	dec    Multivariant
 }{
 	{
-		"gohlslib",
+		"full",
 		"#EXTM3U\n" +
 			"#EXT-X-VERSION:9\n" +
 			"#EXT-X-INDEPENDENT-SEGMENTS\n" +
@@ -31,7 +31,7 @@ var casesMultivariant = []struct {
 			"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aud1\",LANGUAGE=\"en\",NAME=\"english\"" +
 			",AUTOSELECT=YES,DEFAULT=YES,CHANNELS=\"2\",URI=\"audio.m3u8\"\n" +
 			"#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"sub1\",LANGUAGE=\"en\",NAME=\"english\"" +
-			",AUTOSELECT=YES,DEFAULT=YES,FORCED=NO,URI=\"sub.m3u8\"\n",
+			",AUTOSELECT=YES,DEFAULT=YES,FORCED=YES,URI=\"sub.m3u8\"\n",
 		"#EXTM3U\n" +
 			"#EXT-X-VERSION:9\n" +
 			"#EXT-X-INDEPENDENT-SEGMENTS\n" +
@@ -40,7 +40,7 @@ var casesMultivariant = []struct {
 			"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aud1\",LANGUAGE=\"en\",NAME=\"english\"" +
 			",AUTOSELECT=YES,DEFAULT=YES,CHANNELS=\"2\",URI=\"audio.m3u8\"\n" +
 			"#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"sub1\",LANGUAGE=\"en\",NAME=\"english\"" +
-			",AUTOSELECT=YES,DEFAULT=YES,URI=\"sub.m3u8\"\n" +
+			",AUTOSELECT=YES,DEFAULT=YES,FORCED=YES,URI=\"sub.m3u8\"\n" +
 			"\n" +
 			"#EXT-X-STREAM-INF:BANDWIDTH=155000,AVERAGE-BANDWIDTH=120000,CODECS=\"avc1.42c028,mp4a.40.2\"" +
 			",RESOLUTION=1280x720,FRAME-RATE=24.000,AUDIO=\"aud1\",SUBTITLES=\"sub1\"\n" +
@@ -99,7 +99,7 @@ var casesMultivariant = []struct {
 					Name:       "english",
 					Autoselect: true,
 					Default:    true,
-					Forced:     false,
+					Forced:     true,
 				},
 			},
 		},
@@ -784,6 +784,70 @@ QualityLevels(5977913)/Manifest(video,format=m3u8-aapl)
 			},
 		},
 	},
+	{
+		"apple multivideo",
+		"#EXTM3U\n" +
+			"#EXT-X-MEDIA:TYPE=VIDEO,GROUP-ID=\"500kbs\",NAME=\"Angle1\",AUTOSELECT=YES,DEFAULT=YES\n" +
+			"#EXT-X-MEDIA:TYPE=VIDEO,GROUP-ID=\"500kbs\",NAME=\"Angle2\",AUTOSELECT=YES,DEFAULT=NO,URI=\"Angle2/500kbs/prog_index.m3u8\"\n" +
+			"#EXT-X-MEDIA:TYPE=VIDEO,GROUP-ID=\"500kbs\",NAME=\"Angle3\",AUTOSELECT=YES,DEFAULT=NO,URI=\"Angle3/500kbs/prog_index.m3u8\"\n" +
+			"\n" +
+			"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aac\",LANGUAGE=\"en\",NAME=\"English\",AUTOSELECT=YES,DEFAULT=YES,URI=\"eng/prog_index.m3u8\"\n" +
+			"#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=754857,CODECS=\"mp4a.40.2,avc1.4d401e\",VIDEO=\"500kbs\",AUDIO=\"aac\"\n" +
+			"Angle1/500kbs/prog_index.m3u8\n",
+		"#EXTM3U\n" +
+			"#EXT-X-VERSION:0\n" +
+			"\n" +
+			"#EXT-X-MEDIA:TYPE=VIDEO,GROUP-ID=\"500kbs\",NAME=\"Angle1\",AUTOSELECT=YES,DEFAULT=YES\n" +
+			"#EXT-X-MEDIA:TYPE=VIDEO,GROUP-ID=\"500kbs\",NAME=\"Angle2\",AUTOSELECT=YES,URI=\"Angle2/500kbs/prog_index.m3u8\"\n" +
+			"#EXT-X-MEDIA:TYPE=VIDEO,GROUP-ID=\"500kbs\",NAME=\"Angle3\",AUTOSELECT=YES,URI=\"Angle3/500kbs/prog_index.m3u8\"\n" +
+			"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aac\",LANGUAGE=\"en\",NAME=\"English\",AUTOSELECT=YES,DEFAULT=YES,URI=\"eng/prog_index.m3u8\"\n" +
+			"\n" +
+			"#EXT-X-STREAM-INF:BANDWIDTH=754857,CODECS=\"mp4a.40.2,avc1.4d401e\",VIDEO=\"500kbs\",AUDIO=\"aac\"\n" +
+			"Angle1/500kbs/prog_index.m3u8\n",
+		Multivariant{
+			Variants: []*MultivariantVariant{
+				{
+					Bandwidth: 754857,
+					Codecs:    []string{"mp4a.40.2", "avc1.4d401e"},
+					URI:       "Angle1/500kbs/prog_index.m3u8",
+					Video:     "500kbs",
+					Audio:     "aac",
+				},
+			},
+			Renditions: []*MultivariantRendition{
+				{
+					Type:       MultivariantRenditionTypeVideo,
+					GroupID:    "500kbs",
+					Name:       "Angle1",
+					Autoselect: true,
+					Default:    true,
+				},
+				{
+					Type:       MultivariantRenditionTypeVideo,
+					GroupID:    "500kbs",
+					Name:       "Angle2",
+					Autoselect: true,
+					URI:        ptrOf("Angle2/500kbs/prog_index.m3u8"),
+				},
+				{
+					Type:       MultivariantRenditionTypeVideo,
+					GroupID:    "500kbs",
+					Name:       "Angle3",
+					Autoselect: true,
+					URI:        ptrOf("Angle3/500kbs/prog_index.m3u8"),
+				},
+				{
+					Type:       MultivariantRenditionTypeAudio,
+					GroupID:    "aac",
+					Name:       "English",
+					Language:   "en",
+					Autoselect: true,
+					Default:    true,
+					URI:        ptrOf("eng/prog_index.m3u8"),
+				},
+			},
+		},
+	},
 }
 
 func TestMultivariantUnmarshal(t *testing.T) {
@@ -843,24 +907,4 @@ func TestMultivariantMarshal(t *testing.T) {
 			require.Equal(t, ca.output, string(byts))
 		})
 	}
-}
-
-func FuzzMultivariantUnmarshal(f *testing.F) {
-	for _, ca := range casesMultivariant {
-		f.Add(ca.input)
-	}
-
-	f.Add("#EXTM3U\n" +
-		"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aud1\",LANGUAGE=\"en\",NAME=\"English\",AUTOSELECT=YES,DEFAULT=YES,CHANNELS=\"2\",URI=\"a1/prog_index.m3u8\",INSTREAM-ID=\"a\"\n")
-
-	f.Fuzz(func(t *testing.T, a string) {
-		var m Multivariant
-		err := m.Unmarshal([]byte(a))
-		if err != nil {
-			return
-		}
-
-		_, err = m.Marshal()
-		require.NoError(t, err)
-	})
 }
