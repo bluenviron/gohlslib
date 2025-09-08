@@ -87,6 +87,9 @@ type Media struct {
 	// EXT-X-PRELOAD-HINT
 	PreloadHint *MediaPreloadHint
 
+	// EXT-X-RENDITION-REPORT
+	RenditionReport []*MediaRenditionReport
+
 	// EXT-X-ENDLIST
 	Endlist bool
 }
@@ -332,6 +335,16 @@ func (m *Media) Unmarshal(buf []byte) error {
 				return err
 			}
 
+		case strings.HasPrefix(line, "#EXT-X-RENDITION-REPORT:"):
+			line = line[len("#EXT-X-RENDITION-REPORT:"):]
+
+			report := &MediaRenditionReport{}
+			err = report.unmarshal(line)
+			if err != nil {
+				return err
+			}
+			m.RenditionReport = append(m.RenditionReport, report)
+
 		case line == "#EXT-X-ENDLIST":
 			m.Endlist = true
 		}
@@ -416,6 +429,10 @@ func (m Media) Marshal() ([]byte, error) {
 
 	if m.PreloadHint != nil {
 		ret += m.PreloadHint.marshal()
+	}
+
+	for _, report := range m.RenditionReport {
+		ret += report.marshal()
 	}
 
 	if m.Endlist {
