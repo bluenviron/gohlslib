@@ -111,13 +111,9 @@ func (s *muxerSegmenter) writeAV1(
 	randomAccess := false
 
 	for _, obu := range tu {
-		var h av1.OBUHeader
-		err := h.Unmarshal(obu)
-		if err != nil {
-			return err
-		}
+		typ := av1.OBUType((obu[0] >> 3) & 0b1111)
 
-		if h.Type == av1.OBUTypeSequenceHeader {
+		if typ == av1.OBUTypeSequenceHeader {
 			randomAccess = true
 
 			if !bytes.Equal(codec.SequenceHeader, obu) {

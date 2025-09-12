@@ -7,7 +7,7 @@ import (
 	"github.com/bluenviron/gohlslib/v2/pkg/playlist/primitives"
 )
 
-// MediaRenditionReport sia EXT-X-RENDITION-REPORT tag.
+// MediaRenditionReport is a EXT-X-RENDITION-REPORT tag.
 type MediaRenditionReport struct {
 	// URI (required)
 	URI string
