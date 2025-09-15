@@ -8,7 +8,7 @@ import (
 	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
 )
 
-// This example shows how to
+// This example shows how to:
 // 1. read a HLS stream
 // 2. get absolute timestamp of incoming data
 

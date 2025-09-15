@@ -10,7 +10,7 @@ import (
 	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
 )
 
-// This example shows how to
+// This example shows how to:
 // 1. read a HLS stream
 // 2. check if there's a MPEG-4 audio track
 // 2. save the MPEG-4 audio track to disk in MPEG-TS format

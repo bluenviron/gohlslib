@@ -16,7 +16,7 @@ import (
 	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
 )
 
-// This example shows how to
+// This example shows how to:
 // 1. read a HLS stream
 // 2. check if there's a H264 track
 // 3. decode H264 access units into RGBA frames
