@@ -1187,7 +1187,7 @@ func TestMuxerFMP4ZeroDuration(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestMuxerFMP4NegativeTimestamp(t *testing.T) {
+func TestMuxerFMP4NegativeInitialDTS(t *testing.T) {
 	m := &Muxer{
 		Variant:            MuxerVariantFMP4,
 		SegmentCount:       3,
@@ -1215,6 +1215,86 @@ func TestMuxerFMP4NegativeTimestamp(t *testing.T) {
 			{1},
 		})
 	require.Error(t, err, "sample timestamp is impossible to handle")
+}
+
+func TestMuxerFMP4NegativeDTSDiff(t *testing.T) {
+	m := &Muxer{
+		Variant:            MuxerVariantFMP4,
+		SegmentCount:       3,
+		SegmentMinDuration: 2 * time.Second,
+		Tracks:             []*Track{testAudioTrack},
+	}
+
+	err := m.Start()
+	require.NoError(t, err)
+	defer m.Close()
+
+	err = m.WriteMPEG4Audio(testAudioTrack, testTime,
+		1*44100,
+		[][]byte{{1, 2}})
+	require.NoError(t, err)
+
+	err = m.WriteMPEG4Audio(testAudioTrack, testTime,
+		3*44100,
+		[][]byte{{1, 2}})
+	require.NoError(t, err)
+
+	err = m.WriteMPEG4Audio(testAudioTrack, testTime,
+		2*44100,
+		[][]byte{{1, 2}})
+	require.NoError(t, err)
+
+	for i := 4; i < 10; i++ {
+		err = m.WriteMPEG4Audio(testAudioTrack, testTime,
+			int64(i)*44100,
+			[][]byte{{1, 2}})
+		require.NoError(t, err)
+	}
+
+	byts, _, err := doRequest(m, "audio1_stream.m3u8")
+	require.NoError(t, err)
+	require.Equal(t, `#EXTM3U`+"\n"+
+		`#EXT-X-VERSION:10`+"\n"+
+		`#EXT-X-TARGETDURATION:2`+"\n"+
+		`#EXT-X-MEDIA-SEQUENCE:1`+"\n"+
+		`#EXT-X-MAP:URI="`+m.prefix+`_audio1_init.mp4"`+"\n"+
+		`#EXTINF:2.00000,`+"\n"+
+		``+m.prefix+`_audio1_seg1.mp4`+"\n"+
+		`#EXT-X-PROGRAM-DATE-TIME:2010-01-01T01:01:01Z`+"\n"+
+		`#EXTINF:2.00000,`+"\n"+
+		``+m.prefix+`_audio1_seg2.mp4`+"\n"+
+		`#EXT-X-PROGRAM-DATE-TIME:2010-01-01T01:01:01Z`+"\n"+
+		`#EXTINF:2.00000,`+"\n"+
+		``+m.prefix+`_audio1_seg3.mp4`+"\n",
+		string(byts))
+
+	byts, _, err = doRequest(m, m.prefix+"_audio1_seg1.mp4")
+	require.NoError(t, err)
+
+	var parts fmp4.Parts
+	err = parts.Unmarshal(byts)
+	require.NoError(t, err)
+
+	require.Equal(t, fmp4.Parts{{
+		SequenceNumber: 1,
+		Tracks: []*fmp4.PartTrack{{
+			ID:       1,
+			BaseTime: 573300,
+			Samples: []*fmp4.Sample{
+				{
+					Payload: []byte{1, 2},
+				},
+				{
+					Duration: 44100,
+					Payload:  []byte{1, 2},
+				},
+				{
+					Duration: 44100,
+					Payload:  []byte{1, 2},
+				},
+			},
+		}},
+	}}, parts)
 }
 
 func TestMuxerFMP4SequenceNumber(t *testing.T) {
