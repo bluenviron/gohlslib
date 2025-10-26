@@ -538,7 +538,13 @@ func (s *muxerSegmenter) fmp4WriteSample(
 	if sample == nil {
 		return nil
 	}
+
 	duration := track.fmp4NextSample.dts - sample.dts
+	if duration < 0 {
+		track.fmp4NextSample.dts = sample.dts
+		duration = 0
+	}
+
 	sample.Duration = uint32(duration)
 
 	if track.isLeading {
@@ -557,7 +563,7 @@ func (s *muxerSegmenter) fmp4WriteSample(
 	}
 
 	if track.isLeading {
-		s.fmp4AdjustPartDuration(timestampToDuration(duration, track.ClockRate))
+		s.fmp4AdjustPartDuration(timestampToDuration(int64(sample.Duration), track.ClockRate))
 	}
 
 	err := track.stream.nextPart.writeSample(
