@@ -3,6 +3,7 @@ package playlist
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/bluenviron/gohlslib/v2/pkg/playlist/primitives"
@@ -51,38 +52,38 @@ func (s MediaSegment) validate() error {
 }
 
 func (s MediaSegment) marshal() string {
-	ret := ""
+	var ret strings.Builder
 
 	if s.Discontinuity {
-		ret += "#EXT-X-DISCONTINUITY\n"
+		ret.WriteString("#EXT-X-DISCONTINUITY\n")
 	}
 
 	if s.Gap {
-		ret += "#EXT-X-GAP\n"
+		ret.WriteString("#EXT-X-GAP\n")
 	}
 
 	if s.DateTime != nil {
-		ret += "#EXT-X-PROGRAM-DATE-TIME:" + s.DateTime.Format(timeRFC3339Millis) + "\n"
+		ret.WriteString("#EXT-X-PROGRAM-DATE-TIME:" + s.DateTime.Format(timeRFC3339Millis) + "\n")
 	}
 
 	if s.Bitrate != nil {
-		ret += "#EXT-X-BITRATE:" + strconv.FormatInt(int64(*s.Bitrate), 10) + "\n"
+		ret.WriteString("#EXT-X-BITRATE:" + strconv.FormatInt(int64(*s.Bitrate), 10) + "\n")
 	}
 
 	for _, part := range s.Parts {
-		ret += part.marshal()
+		ret.WriteString(part.marshal())
 	}
 
-	ret += "#EXTINF:" + strconv.FormatFloat(s.Duration.Seconds(), 'f', 5, 64) + "," + s.Title + "\n"
+	ret.WriteString("#EXTINF:" + strconv.FormatFloat(s.Duration.Seconds(), 'f', 5, 64) + "," + s.Title + "\n")
 
 	if s.ByteRangeLength != nil {
-		ret += "#EXT-X-BYTERANGE:" + primitives.ByteRange{
+		ret.WriteString("#EXT-X-BYTERANGE:" + primitives.ByteRange{
 			Length: *s.ByteRangeLength,
 			Start:  s.ByteRangeStart,
-		}.Marshal() + "\n"
+		}.Marshal() + "\n")
 	}
 
-	ret += s.URI + "\n"
+	ret.WriteString(s.URI + "\n")
 
-	return ret
+	return ret.String()
 }

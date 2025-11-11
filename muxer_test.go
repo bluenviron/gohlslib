@@ -252,7 +252,7 @@ func TestMuxer(t *testing.T) {
 			require.NoError(t, err)
 
 		case "audio":
-			for i := 0; i < 100; i++ {
+			for i := range 100 {
 				d := time.Duration(i) * 4 * time.Millisecond
 				err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second),
 					int64(d)*int64(testAudioTrack.ClockRate)/int64(time.Second),
@@ -338,7 +338,7 @@ func TestMuxer(t *testing.T) {
 			require.NoError(t, err)
 
 		case "multiaudio":
-			for i := 0; i < 100; i++ {
+			for i := range 100 {
 				d := time.Duration(i) * 4 * time.Millisecond
 				err = m.WriteMPEG4Audio(testAudioTrack, testTime.Add(d-1*time.Second),
 					int64(d)*int64(testAudioTrack.ClockRate)/int64(time.Second),
@@ -1316,7 +1316,7 @@ func TestMuxerFMP4SequenceNumber(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		err = m.WriteH264(testVideoTrack, testTime,
 			(1+int64(i))*90000, [][]byte{
 				{1}, // non IDR
@@ -1379,7 +1379,7 @@ func TestMuxerFMP4SequenceNumber(t *testing.T) {
 	require.Regexp(t, re, string(byts))
 	ma := re.FindStringSubmatch(string(byts))
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		var buf []byte
 		buf, _, err = doRequest(m, ma[1]+"_part"+strconv.FormatInt(int64(i), 10)+".mp4")
 		require.NoError(t, err)
@@ -1416,7 +1416,7 @@ func TestMuxerInvalidFolder(t *testing.T) {
 			require.NoError(t, err)
 			defer m.Close()
 
-			for i := 0; i < 2; i++ {
+			for i := range 2 {
 				err = m.WriteH264(testVideoTrack, testTime,
 					int64(i)*90000,
 					[][]byte{
@@ -1447,7 +1447,7 @@ func TestMuxerExpiredSegment(t *testing.T) {
 	require.NoError(t, err)
 	defer m.Close()
 
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		err = m.WriteH264(testVideoTrack, testTime,
 			int64(i)*90000,
 			[][]byte{
@@ -1499,7 +1499,7 @@ func TestMuxerPreloadHint(t *testing.T) {
 	require.NoError(t, err)
 	defer m.Close()
 
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		err2 := m.WriteH264(testVideoTrack, testTime,
 			int64(i)*90000,
 			[][]byte{

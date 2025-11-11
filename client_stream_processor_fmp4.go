@@ -198,7 +198,7 @@ func (p *clientStreamProcessorFMP4) processSegment(ctx context.Context, seg *seg
 }
 
 func (p *clientStreamProcessorFMP4) joinTrackProcessors(ctx context.Context, partTrackCount int) error {
-	for i := 0; i < partTrackCount; i++ {
+	for range partTrackCount {
 		select {
 		case <-p.chPartTrackProcessed:
 		case <-ctx.Done():
