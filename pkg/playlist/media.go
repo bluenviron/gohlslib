@@ -137,8 +137,7 @@ func (m *Media) Unmarshal(buf []byte) error {
 		case strings.HasPrefix(line, "#EXT-X-ALLOW-CACHE:"):
 			line = line[len("#EXT-X-ALLOW-CACHE:"):]
 
-			v := (line == "YES")
-			m.AllowCache = &v
+			m.AllowCache = ptrOf((line == "YES"))
 
 		case strings.HasPrefix(line, "#EXT-X-TARGETDURATION:"):
 			line = line[len("#EXT-X-TARGETDURATION:"):]
@@ -193,8 +192,7 @@ func (m *Media) Unmarshal(buf []byte) error {
 				return err
 			}
 
-			v := int(tmp)
-			m.DiscontinuitySequence = &v
+			m.DiscontinuitySequence = ptrOf(int(tmp))
 
 		case strings.HasPrefix(line, "#EXT-X-PLAYLIST-TYPE:"):
 			line = line[len("#EXT-X-PLAYLIST-TYPE:"):]

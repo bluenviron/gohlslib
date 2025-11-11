@@ -7,6 +7,10 @@ import (
 	"github.com/bluenviron/gohlslib/v2/pkg/playlist/primitives"
 )
 
+func ptrOf[T any](v T) *T {
+	return &v
+}
+
 // MediaRenditionReport is a EXT-X-RENDITION-REPORT tag.
 type MediaRenditionReport struct {
 	// URI (required)
@@ -47,8 +51,7 @@ func (r *MediaRenditionReport) unmarshal(v string) error {
 			if err != nil {
 				return err
 			}
-			value := int(tmp)
-			r.LastPart = &value
+			r.LastPart = ptrOf(int(tmp))
 		}
 	}
 
