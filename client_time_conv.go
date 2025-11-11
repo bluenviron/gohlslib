@@ -1,3 +1,3 @@
 package gohlslib
 
-type clientTimeConv interface{}
+type clientTimeConv any

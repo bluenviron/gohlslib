@@ -108,30 +108,31 @@ func (m *Multivariant) Unmarshal(buf []byte) error {
 
 // Marshal encodes the playlist.
 func (m Multivariant) Marshal() ([]byte, error) {
-	ret := "#EXTM3U\n" +
-		"#EXT-X-VERSION:" + strconv.FormatInt(int64(m.Version), 10) + "\n"
+	var ret strings.Builder
+	ret.WriteString("#EXTM3U\n" +
+		"#EXT-X-VERSION:" + strconv.FormatInt(int64(m.Version), 10) + "\n")
 
 	if m.IndependentSegments {
-		ret += "#EXT-X-INDEPENDENT-SEGMENTS\n"
+		ret.WriteString("#EXT-X-INDEPENDENT-SEGMENTS\n")
 	}
 
 	if m.Start != nil {
-		ret += m.Start.marshal()
+		ret.WriteString(m.Start.marshal())
 	}
 
 	if len(m.Renditions) != 0 {
-		ret += "\n"
+		ret.WriteString("\n")
 
 		for _, r := range m.Renditions {
-			ret += r.marshal()
+			ret.WriteString(r.marshal())
 		}
 	}
 
-	ret += "\n"
+	ret.WriteString("\n")
 
 	for _, v := range m.Variants {
-		ret += v.marshal()
+		ret.WriteString(v.marshal())
 	}
 
-	return []byte(ret), nil
+	return []byte(ret.String()), nil
 }

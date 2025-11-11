@@ -362,11 +362,12 @@ func (m *Media) Unmarshal(buf []byte) error {
 
 // Marshal encodes the playlist.
 func (m Media) Marshal() ([]byte, error) {
-	ret := "#EXTM3U\n" +
-		"#EXT-X-VERSION:" + strconv.FormatInt(int64(m.Version), 10) + "\n"
+	var ret strings.Builder
+	ret.WriteString("#EXTM3U\n" +
+		"#EXT-X-VERSION:" + strconv.FormatInt(int64(m.Version), 10) + "\n")
 
 	if m.IndependentSegments {
-		ret += "#EXT-X-INDEPENDENT-SEGMENTS\n"
+		ret.WriteString("#EXT-X-INDEPENDENT-SEGMENTS\n")
 	}
 
 	if m.AllowCache != nil {
@@ -376,66 +377,66 @@ func (m Media) Marshal() ([]byte, error) {
 		} else {
 			v = "NO"
 		}
-		ret += "#EXT-X-ALLOW-CACHE:" + v + "\n"
+		ret.WriteString("#EXT-X-ALLOW-CACHE:" + v + "\n")
 	}
 
-	ret += "#EXT-X-TARGETDURATION:" + strconv.FormatInt(int64(m.TargetDuration), 10) + "\n"
+	ret.WriteString("#EXT-X-TARGETDURATION:" + strconv.FormatInt(int64(m.TargetDuration), 10) + "\n")
 
 	if m.ServerControl != nil {
-		ret += m.ServerControl.marshal()
+		ret.WriteString(m.ServerControl.marshal())
 	}
 
 	if m.PartInf != nil {
-		ret += m.PartInf.marshal()
+		ret.WriteString(m.PartInf.marshal())
 	}
 
-	ret += "#EXT-X-MEDIA-SEQUENCE:" + strconv.FormatInt(int64(m.MediaSequence), 10) + "\n"
+	ret.WriteString("#EXT-X-MEDIA-SEQUENCE:" + strconv.FormatInt(int64(m.MediaSequence), 10) + "\n")
 
 	if m.DiscontinuitySequence != nil {
-		ret += "#EXT-X-DISCONTINUITY-SEQUENCE:" + strconv.FormatInt(int64(*m.DiscontinuitySequence), 10) + "\n"
+		ret.WriteString("#EXT-X-DISCONTINUITY-SEQUENCE:" + strconv.FormatInt(int64(*m.DiscontinuitySequence), 10) + "\n")
 	}
 
 	if m.PlaylistType != nil {
-		ret += "#EXT-X-PLAYLIST-TYPE:" + string(*m.PlaylistType) + "\n"
+		ret.WriteString("#EXT-X-PLAYLIST-TYPE:" + string(*m.PlaylistType) + "\n")
 	}
 
 	if m.Map != nil {
-		ret += m.Map.marshal()
+		ret.WriteString(m.Map.marshal())
 	}
 
 	if m.Start != nil {
-		ret += m.Start.marshal()
+		ret.WriteString(m.Start.marshal())
 	}
 
 	if m.Skip != nil {
-		ret += m.Skip.marshal()
+		ret.WriteString(m.Skip.marshal())
 	}
 
 	var prevKey *MediaKey
 	for _, seg := range m.Segments {
 		if seg.Key != nil && (prevKey == nil || !seg.Key.Equal(prevKey)) {
-			ret += seg.Key.marshal()
+			ret.WriteString(seg.Key.marshal())
 			prevKey = seg.Key
 		}
 
-		ret += seg.marshal()
+		ret.WriteString(seg.marshal())
 	}
 
 	for _, part := range m.Parts {
-		ret += part.marshal()
+		ret.WriteString(part.marshal())
 	}
 
 	if m.PreloadHint != nil {
-		ret += m.PreloadHint.marshal()
+		ret.WriteString(m.PreloadHint.marshal())
 	}
 
 	for _, report := range m.RenditionReport {
-		ret += report.marshal()
+		ret.WriteString(report.marshal())
 	}
 
 	if m.Endlist {
-		ret += "#EXT-X-ENDLIST\n"
+		ret.WriteString("#EXT-X-ENDLIST\n")
 	}
 
-	return []byte(ret), nil
+	return []byte(ret.String()), nil
 }

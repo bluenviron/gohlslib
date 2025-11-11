@@ -19,12 +19,12 @@ func leadingZeros(v int, size int) string {
 		return out
 	}
 
-	out2 := ""
+	var out2 strings.Builder
 	for i := 0; i < (size - len(out)); i++ {
-		out2 += "0"
+		out2.WriteString("0")
 	}
 
-	return out2 + out
+	return out2.String() + out
 }
 
 func av1EncodeTier(v bool) string {
