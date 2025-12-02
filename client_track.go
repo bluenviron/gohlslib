@@ -10,7 +10,7 @@ type clientTrack struct {
 	track            *Track
 	onData           func(pts int64, dts int64, data [][]byte)
 	lastAbsoluteTime *time.Time
-	startRTC         time.Time
+	startSystem      time.Time
 }
 
 func (t *clientTrack) absoluteTime() (time.Time, bool) {
@@ -33,12 +33,12 @@ func (t *clientTrack) handleData(
 	}
 
 	// synchronize time
-	elapsed := time.Since(t.startRTC)
+	elapsed := time.Since(t.startSystem)
 	dtsDuration := timestampToDuration(dts, t.track.ClockRate)
 	if dtsDuration > elapsed {
 		diff := dtsDuration - elapsed
-		if diff > clientMaxDTSRTCDiff {
-			return fmt.Errorf("difference between DTS and RTC is too big")
+		if diff > clientMaxDTSSystemDiff {
+			return fmt.Errorf("difference between DTS and system time is too big")
 		}
 
 		select {

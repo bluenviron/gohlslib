@@ -18,7 +18,7 @@ import (
 const (
 	clientMaxTracksPerStream    = 10
 	clientMPEGTSSampleQueueSize = 100
-	clientMaxDTSRTCDiff         = 10 * time.Second
+	clientMaxDTSSystemDiff      = 10 * time.Second
 )
 
 // ErrClientEOS is returned by Wait() when the stream has ended.
@@ -307,10 +307,10 @@ func (c *Client) setTracks(tracks []*Track) (map[*Track]*clientTrack, error) {
 func (c *Client) setLeadingTimeConv(ts clientTimeConv) {
 	c.leadingTimeConv = ts
 
-	startRTC := time.Now()
+	startSystem := time.Now()
 
 	for _, track := range c.tracks {
-		track.startRTC = startRTC
+		track.startSystem = startSystem
 	}
 
 	close(c.leadingTimeConvReady)
