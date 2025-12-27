@@ -8,6 +8,7 @@ import (
 	"io"
 
 	"github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts"
+	tscodecs "github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts/codecs"
 
 	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
 )
@@ -15,7 +16,7 @@ import (
 func mpegtsPickLeadingTrack(mpegtsTracks []*mpegts.Track) int {
 	// pick first video track
 	for i, track := range mpegtsTracks {
-		if _, ok := track.Codec.(*mpegts.CodecH264); ok {
+		if _, ok := track.Codec.(*tscodecs.H264); ok {
 			return i
 		}
 	}
@@ -158,7 +159,7 @@ func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, firs
 
 	for _, track := range p.reader.Tracks() {
 		switch track.Codec.(type) {
-		case *mpegts.CodecH264, *mpegts.CodecMPEG4Audio:
+		case *tscodecs.H264, *tscodecs.MPEG4Audio:
 			supportedTracks = append(supportedTracks, track)
 		}
 	}

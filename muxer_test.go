@@ -14,7 +14,7 @@ import (
 
 	"github.com/bluenviron/mediacommon/v2/pkg/codecs/mpeg4audio"
 	"github.com/bluenviron/mediacommon/v2/pkg/formats/fmp4"
-	"github.com/bluenviron/mediacommon/v2/pkg/formats/mp4"
+	mp4codecs "github.com/bluenviron/mediacommon/v2/pkg/formats/mp4/codecs"
 	"github.com/stretchr/testify/require"
 
 	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
@@ -1100,7 +1100,7 @@ func TestMuxerDynamicParams(t *testing.T) {
 		var init fmp4.Init
 		err = init.Unmarshal(bytes.NewReader(bu))
 		require.NoError(t, err)
-		require.Equal(t, testSPS, init.Tracks[0].Codec.(*mp4.CodecH264).SPS)
+		require.Equal(t, testSPS, init.Tracks[0].Codec.(*mp4codecs.H264).SPS)
 	}()
 
 	// SPS (720p)
@@ -1157,7 +1157,7 @@ func TestMuxerDynamicParams(t *testing.T) {
 	var init fmp4.Init
 	err = init.Unmarshal(bytes.NewReader(bu))
 	require.NoError(t, err)
-	require.Equal(t, testSPS2, init.Tracks[0].Codec.(*mp4.CodecH264).SPS)
+	require.Equal(t, testSPS2, init.Tracks[0].Codec.(*mp4codecs.H264).SPS)
 }
 
 func TestMuxerFMP4ZeroDuration(t *testing.T) {
