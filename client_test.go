@@ -20,8 +20,9 @@ import (
 
 	"github.com/bluenviron/mediacommon/v2/pkg/formats/fmp4"
 	"github.com/bluenviron/mediacommon/v2/pkg/formats/fmp4/seekablebuffer"
-	"github.com/bluenviron/mediacommon/v2/pkg/formats/mp4"
+	mp4codecs "github.com/bluenviron/mediacommon/v2/pkg/formats/mp4/codecs"
 	"github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts"
+	tscodecs "github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts/codecs"
 )
 
 var serverCert = []byte(`-----BEGIN CERTIFICATE-----
@@ -151,10 +152,10 @@ func TestClient(t *testing.T) {
 					w.Header().Set("Content-Type", `video/MP2T`)
 
 					h264Track := &mpegts.Track{
-						Codec: &mpegts.CodecH264{},
+						Codec: &tscodecs.H264{},
 					}
 					mpeg4audioTrack := &mpegts.Track{
-						Codec: &mpegts.CodecMPEG4Audio{
+						Codec: &tscodecs.MPEG4Audio{
 							Config: mpeg4audio.AudioSpecificConfig{
 								Type:         2,
 								SampleRate:   44100,
@@ -209,10 +210,10 @@ func TestClient(t *testing.T) {
 					w.Header().Set("Content-Type", `video/MP2T`)
 
 					h264Track := &mpegts.Track{
-						Codec: &mpegts.CodecH264{},
+						Codec: &tscodecs.H264{},
 					}
 					mpeg4audioTrack := &mpegts.Track{
-						Codec: &mpegts.CodecMPEG4Audio{
+						Codec: &tscodecs.MPEG4Audio{
 							Config: mpeg4audio.AudioSpecificConfig{
 								Type:         2,
 								SampleRate:   44100,
@@ -263,7 +264,7 @@ func TestClient(t *testing.T) {
 							{
 								ID:        99,
 								TimeScale: 90000,
-								Codec: &mp4.CodecH264{
+								Codec: &mp4codecs.H264{
 									SPS: testSPS,
 									PPS: testPPS,
 								},
@@ -271,7 +272,7 @@ func TestClient(t *testing.T) {
 							{
 								ID:        98,
 								TimeScale: 44100,
-								Codec: &mp4.CodecMPEG4Audio{
+								Codec: &mp4codecs.MPEG4Audio{
 									Config: testConfig,
 								},
 							},
@@ -398,7 +399,7 @@ func TestClient(t *testing.T) {
 							{
 								ID:        1,
 								TimeScale: 90000,
-								Codec: &mp4.CodecH264{
+								Codec: &mp4codecs.H264{
 									SPS: testSPS,
 									PPS: testPPS,
 								},
@@ -414,7 +415,7 @@ func TestClient(t *testing.T) {
 							{
 								ID:        1,
 								TimeScale: 44100,
-								Codec: &mp4.CodecMPEG4Audio{
+								Codec: &mp4codecs.MPEG4Audio{
 									Config: testConfig,
 								},
 							},
@@ -543,7 +544,7 @@ func TestClient(t *testing.T) {
 							{
 								ID:        1,
 								TimeScale: 90000,
-								Codec: &mp4.CodecH264{
+								Codec: &mp4codecs.H264{
 									SPS: testSPS,
 									PPS: testPPS,
 								},
@@ -559,7 +560,7 @@ func TestClient(t *testing.T) {
 							{
 								ID:        1,
 								TimeScale: 44100,
-								Codec: &mp4.CodecMPEG4Audio{
+								Codec: &mp4codecs.MPEG4Audio{
 									Config: testConfig,
 								},
 							},
@@ -712,7 +713,7 @@ func TestClient(t *testing.T) {
 							{
 								ID:        1,
 								TimeScale: 90000,
-								Codec: &mp4.CodecH264{
+								Codec: &mp4codecs.H264{
 									SPS: testSPS,
 									PPS: testPPS,
 								},
@@ -720,7 +721,7 @@ func TestClient(t *testing.T) {
 							{
 								ID:        2,
 								TimeScale: 44100,
-								Codec: &mp4.CodecMPEG4Audio{
+								Codec: &mp4codecs.MPEG4Audio{
 									Config: testConfig,
 								},
 							},
@@ -1078,7 +1079,7 @@ func TestClientSleepInCallbackMPEGTS(t *testing.T) {
 				w.Header().Set("Content-Type", `video/MP2T`)
 
 				h264Track := &mpegts.Track{
-					Codec: &mpegts.CodecH264{},
+					Codec: &tscodecs.H264{},
 				}
 				mw := &mpegts.Writer{W: w, Tracks: []*mpegts.Track{h264Track}}
 				err := mw.Initialize()
@@ -1307,7 +1308,7 @@ func TestClientErrors(t *testing.T) {
 							w.Header().Set("Content-Type", `video/MP2T`)
 
 							h264Track := &mpegts.Track{
-								Codec: &mpegts.CodecH264{},
+								Codec: &tscodecs.H264{},
 							}
 							mw := &mpegts.Writer{W: w, Tracks: []*mpegts.Track{h264Track}}
 							err := mw.Initialize()
@@ -1371,7 +1372,7 @@ func TestClientErrors(t *testing.T) {
 									{
 										ID:        1,
 										TimeScale: 90000,
-										Codec: &mp4.CodecH264{
+										Codec: &mp4codecs.H264{
 											SPS: testSPS,
 											PPS: testPPS,
 										},
@@ -1387,14 +1388,14 @@ func TestClientErrors(t *testing.T) {
 									{
 										ID:        1,
 										TimeScale: 44100,
-										Codec: &mp4.CodecMPEG4Audio{
+										Codec: &mp4codecs.MPEG4Audio{
 											Config: testConfig,
 										},
 									},
 									{
 										ID:        2,
 										TimeScale: 44100,
-										Codec: &mp4.CodecMPEG4Audio{
+										Codec: &mp4codecs.MPEG4Audio{
 											Config: testConfig,
 										},
 									},

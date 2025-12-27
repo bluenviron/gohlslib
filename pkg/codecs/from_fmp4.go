@@ -1,16 +1,16 @@
 package codecs
 
-import "github.com/bluenviron/mediacommon/v2/pkg/formats/mp4"
+import "github.com/bluenviron/mediacommon/v2/pkg/formats/mp4/codecs"
 
 // FromFMP4 imports a codec from fMP4.
-func FromFMP4(in mp4.Codec) Codec {
+func FromFMP4(in codecs.Codec) Codec {
 	switch in := in.(type) {
-	case *mp4.CodecAV1:
+	case *codecs.AV1:
 		return &AV1{
 			SequenceHeader: in.SequenceHeader,
 		}
 
-	case *mp4.CodecVP9:
+	case *codecs.VP9:
 		return &VP9{
 			Width:             in.Width,
 			Height:            in.Height,
@@ -20,25 +20,25 @@ func FromFMP4(in mp4.Codec) Codec {
 			ColorRange:        in.ColorRange,
 		}
 
-	case *mp4.CodecH265:
+	case *codecs.H265:
 		return &H265{
 			VPS: in.VPS,
 			SPS: in.SPS,
 			PPS: in.PPS,
 		}
 
-	case *mp4.CodecH264:
+	case *codecs.H264:
 		return &H264{
 			SPS: in.SPS,
 			PPS: in.PPS,
 		}
 
-	case *mp4.CodecOpus:
+	case *codecs.Opus:
 		return &Opus{
 			ChannelCount: in.ChannelCount,
 		}
 
-	case *mp4.CodecMPEG4Audio:
+	case *codecs.MPEG4Audio:
 		return &MPEG4Audio{
 			Config: in.Config,
 		}

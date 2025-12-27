@@ -1,16 +1,16 @@
 package codecs
 
 import (
-	"github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts"
+	"github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts/codecs"
 )
 
 // FromMPEGTS imports a codec from MPEG-TS.
-func FromMPEGTS(in mpegts.Codec) Codec {
+func FromMPEGTS(in codecs.Codec) Codec {
 	switch in := in.(type) {
-	case *mpegts.CodecH264:
+	case *codecs.H264:
 		return &H264{}
 
-	case *mpegts.CodecMPEG4Audio:
+	case *codecs.MPEG4Audio:
 		return &MPEG4Audio{
 			Config: in.Config,
 		}
