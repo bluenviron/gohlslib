@@ -314,8 +314,8 @@ func (d *clientStreamDownloader) fillSegmentQueue(
 	var segPos int
 
 	if d.curSegmentID == nil {
-		if d.firstPlaylist.PlaylistType != nil &&
-			*d.firstPlaylist.PlaylistType == playlist.MediaPlaylistTypeVOD {
+		if (d.firstPlaylist.PlaylistType != nil &&
+			*d.firstPlaylist.PlaylistType == playlist.MediaPlaylistTypeVOD) || d.firstPlaylist.Endlist {
 			// VOD stream: start from the beginning
 			if len(pl.Segments) == 0 {
 				return fmt.Errorf("no segments found")
