@@ -1,35 +1,33 @@
+//go:build cgo
+
 // Package main contains an example.
 package main
 
 import (
 	_ "embed"
-	"fmt"
 	"log"
-	"net"
 	"net/http"
 	"time"
-
-	"github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts"
-	tscodecs "github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts/codecs"
 
 	"github.com/bluenviron/gohlslib/v2"
 	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
 )
 
 // This example shows how to:
-// 1. generate a MPEG-TS/H264 stream with GStreamer
-// 2. re-encode the stream into HLS and serve it with an HTTP server
+// 1. generate dummy RGBA images.
+// 2. encode images with H264.
+// 3. convert the H264 stream into HLS and serve it with an HTTP server.
+
+// This example requires the FFmpeg libraries, that can be installed with this command:
+// apt install -y libavcodec-dev libswscale-dev gcc pkg-config
 
 //go:embed index.html
 var index []byte
 
-func findH264Track(r *mpegts.Reader) *mpegts.Track {
-	for _, track := range r.Tracks() {
-		if _, ok := track.Codec.(*tscodecs.H264); ok {
-			return track
-		}
-	}
-	return nil
+func multiplyAndDivide(v, m, d int64) int64 {
+	secs := v / d
+	dec := v % d
+	return (secs*m + dec*m/d)
 }
 
 // handleIndex wraps an HTTP handler and serves the home page
@@ -69,49 +67,46 @@ func main() {
 	log.Println("HTTP server created on :8080")
 	go s.ListenAndServe() //nolint:errcheck
 
-	// create a socket to receive MPEG-TS packets
-	pc, err := net.ListenPacket("udp", "localhost:9000")
+	// setup RGBA -> H264 encoder
+	h264enc := &h264Encoder{
+		Width:  640,
+		Height: 480,
+		FPS:    5,
+	}
+	err = h264enc.initialize()
 	if err != nil {
 		panic(err)
 	}
-	defer pc.Close()
+	defer h264enc.close()
 
-	log.Println("Waiting for a MPEG-TS/H264 stream on UDP port 9000 - you can send one with GStreamer:\n" +
-		"gst-launch-1.0 videotestsrc ! video/x-raw,width=1920,height=1080" +
-		" ! x264enc speed-preset=ultrafast bitrate=3000 key-int-max=60" +
-		" ! video/x-h264,profile=high" +
-		" ! mpegtsmux alignment=6 ! udpsink host=127.0.0.1 port=9000")
+	start := time.Now()
 
-	// create a MPEG-TS reader
-	r := &mpegts.Reader{R: newPacketConnReader(pc)}
-	err = r.Initialize()
-	if err != nil {
-		panic(err)
-	}
+	// setup a ticker to sleep between frames
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
 
-	// find the H264 track
-	track := findH264Track(r)
-	if track == nil {
-		panic(fmt.Errorf("H264 track not found"))
-	}
+	for range ticker.C {
+		// get current timestamp
+		pts := multiplyAndDivide(int64(time.Since(start)), 90000, int64(time.Second))
 
-	timeDec := &mpegts.TimeDecoder{}
-	timeDec.Initialize()
+		// create a dummy image
+		img := createDummyImage()
 
-	// setup a callback that is called when a H264 access unit is received
-	r.OnDataH264(track, func(pts int64, _ int64, au [][]byte) error {
-		// decode timestamp
-		pts = timeDec.Decode(pts)
+		// encode the image with H264
+		au, pts, err := h264enc.encode(img, pts)
+		if err != nil {
+			panic(err)
+		}
+
+		// wait for a H264 access unit
+		if au == nil {
+			continue
+		}
 
 		log.Printf("visit http://localhost:8080 - encoding access unit with PTS = %v", pts)
 
 		// pass the access unit to the HLS muxer
-		return mux.WriteH264(videoTrack, time.Now(), pts, au)
-	})
-
-	// read from the MPEG-TS stream
-	for {
-		err = r.Read()
+		err = mux.WriteH264(videoTrack, time.Now(), pts, au)
 		if err != nil {
 			panic(err)
 		}
