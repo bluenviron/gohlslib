@@ -13,11 +13,7 @@ type ByteRange struct {
 
 // Unmarshal decodes a byte range.
 func (b *ByteRange) Unmarshal(v string) error {
-	i := strings.IndexByte(v, '@')
-
-	if i >= 0 {
-		str1, str2 := v[:i], v[i+1:]
-
+	if str1, str2, found := strings.Cut(v, "@"); found {
 		var err error
 		b.Length, err = strconv.ParseUint(str1, 10, 64)
 		if err != nil {
