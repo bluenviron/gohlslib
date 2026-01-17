@@ -39,7 +39,7 @@ func (r *switchableReader) Read(p []byte) (int, error) {
 
 type clientStreamProcessorStreamDownloader interface {
 	setTracks(ctx context.Context, tracks []*Track) ([]*clientTrack, bool)
-	setEnded()
+	onProcessorError(ctx context.Context, err error)
 }
 
 type clientStreamProcessorMPEGTS struct {
@@ -72,6 +72,12 @@ func (p *clientStreamProcessorMPEGTS) run(ctx context.Context) error {
 			return fmt.Errorf("terminated")
 		}
 
+		if seg.err != nil {
+			p.streamDownloader.onProcessorError(ctx, seg.err)
+			<-ctx.Done()
+			return fmt.Errorf("terminated")
+		}
+
 		err := p.processSegment(ctx, seg)
 		if err != nil {
 			return err
@@ -80,12 +86,6 @@ func (p *clientStreamProcessorMPEGTS) run(ctx context.Context) error {
 }
 
 func (p *clientStreamProcessorMPEGTS) processSegment(ctx context.Context, seg *segmentData) error {
-	if seg == nil {
-		p.streamDownloader.setEnded()
-		<-ctx.Done()
-		return fmt.Errorf("terminated")
-	}
-
 	if p.switchableReader == nil {
 		err := p.initializeReader(ctx, seg.payload)
 		if err != nil {

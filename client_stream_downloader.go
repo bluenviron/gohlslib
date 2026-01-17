@@ -75,8 +75,8 @@ type clientStreamDownloader struct {
 	curSegmentID *int
 
 	// out
-	chTracks chan []*Track
-	chEnded  chan struct{}
+	chTracks         chan []*Track
+	chProcessorError chan error
 
 	// in
 	chStartStreaming chan map[*Track]*clientTrack
@@ -84,7 +84,7 @@ type clientStreamDownloader struct {
 
 func (d *clientStreamDownloader) initialize() {
 	d.chTracks = make(chan []*Track)
-	d.chEnded = make(chan struct{})
+	d.chProcessorError = make(chan error)
 	d.chStartStreaming = make(chan map[*Track]*clientTrack)
 }
 
@@ -135,13 +135,22 @@ func (d *clientStreamDownloader) run(ctx context.Context) error {
 		d.rp.add(proc)
 	}
 
+	var err error
+
 	if d.firstPlaylist.ServerControl != nil &&
 		d.firstPlaylist.ServerControl.CanBlockReload &&
 		d.firstPlaylist.PreloadHint != nil {
-		return d.runLowLatency(ctx)
+		err = d.runLowLatency(ctx)
+	} else {
+		err = d.runTraditional(ctx)
 	}
 
-	return d.runTraditional(ctx)
+	d.segmentQueue.push(&segmentData{
+		err: err,
+	})
+	<-ctx.Done()
+
+	return fmt.Errorf("terminated")
 }
 
 func (d *clientStreamDownloader) runLowLatency(ctx context.Context) error {
@@ -173,10 +182,15 @@ func (d *clientStreamDownloader) runTraditional(ctx context.Context) error {
 	pl := d.firstPlaylist
 
 	for {
-		err := d.fillSegmentQueue(ctx, pl)
+		seg, payload, err := d.downloadNextSegment(ctx, pl)
 		if err != nil {
 			return err
 		}
+
+		d.segmentQueue.push(&segmentData{
+			dateTime: seg.DateTime,
+			payload:  payload,
+		})
 
 		ok := d.segmentQueue.waitUntilSizeIsBelow(ctx, 1)
 		if !ok {
@@ -306,10 +320,10 @@ func (d *clientStreamDownloader) downloadSegment(
 	return byts, nil
 }
 
-func (d *clientStreamDownloader) fillSegmentQueue(
+func (d *clientStreamDownloader) downloadNextSegment(
 	ctx context.Context,
 	pl *playlist.Media,
-) error {
+) (*playlist.MediaSegment, []byte, error) {
 	var seg *playlist.MediaSegment
 	var segPos int
 
@@ -318,25 +332,28 @@ func (d *clientStreamDownloader) fillSegmentQueue(
 			*d.firstPlaylist.PlaylistType == playlist.MediaPlaylistTypeVOD) || d.firstPlaylist.Endlist {
 			// VOD stream: start from the beginning
 			if len(pl.Segments) == 0 {
-				return fmt.Errorf("no segments found")
+				return nil, nil, fmt.Errorf("no segments found")
 			}
 			seg = pl.Segments[0]
 		} else {
 			// live stream: start from clientLiveInitialDistance
 			seg, segPos = findSegmentWithInvPosition(pl.Segments, d.startDistance)
 			if seg == nil {
-				return fmt.Errorf("there aren't enough segments to fill the buffer")
+				return nil, nil, fmt.Errorf("there aren't enough segments to fill the buffer")
 			}
 		}
 	} else {
 		var invPos int
 		seg, segPos, invPos = findSegmentWithID(pl.MediaSequence, pl.Segments, *d.curSegmentID+1)
 		if seg == nil {
-			return fmt.Errorf("next segment not found or not ready yet")
+			if pl.Endlist {
+				return nil, nil, ErrClientEOS
+			}
+			return nil, nil, fmt.Errorf("next segment not found or not ready yet")
 		}
 
 		if !pl.Endlist && invPos > d.maxDistance {
-			return fmt.Errorf("playback is too late")
+			return nil, nil, fmt.Errorf("playback is too late")
 		}
 	}
 
@@ -344,21 +361,10 @@ func (d *clientStreamDownloader) fillSegmentQueue(
 
 	byts, err := d.downloadSegment(ctx, seg.URI, seg.ByteRangeStart, seg.ByteRangeLength)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
-	d.segmentQueue.push(&segmentData{
-		dateTime: seg.DateTime,
-		payload:  byts,
-	})
-
-	if pl.Endlist && pl.Segments[len(pl.Segments)-1] == seg {
-		d.segmentQueue.push(nil)
-		<-ctx.Done()
-		return fmt.Errorf("terminated")
-	}
-
-	return nil
+	return seg, byts, nil
 }
 
 func (d *clientStreamDownloader) setTracks(ctx context.Context, tracks []*Track) ([]*clientTrack, bool) {
@@ -384,6 +390,9 @@ func (d *clientStreamDownloader) setTracks(ctx context.Context, tracks []*Track)
 	return streamTracks, true
 }
 
-func (d *clientStreamDownloader) setEnded() {
-	close(d.chEnded)
+func (d *clientStreamDownloader) onProcessorError(ctx context.Context, err error) {
+	select {
+	case d.chProcessorError <- err:
+	case <-ctx.Done():
+	}
 }

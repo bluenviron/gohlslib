@@ -121,7 +121,7 @@ func mp4ToWriter(i marshaler, w io.Writer) error {
 }
 
 func TestClient(t *testing.T) {
-	createHTTPHandler := func(t *testing.T, variant string, content string) http.HandlerFunc {
+	createHTTPHandler := func(t *testing.T, variant string, content string, mode string) http.HandlerFunc {
 		count := 0
 
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -132,18 +132,34 @@ func TestClient(t *testing.T) {
 				switch {
 				case r.Method == http.MethodGet && r.URL.Path == "/index.m3u8":
 					w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
-					w.Write([]byte("#EXTM3U\n" +
-						"#EXT-X-VERSION:3\n" +
-						"#EXT-X-ALLOW-CACHE:NO\n" +
-						"#EXT-X-TARGETDURATION:2\n" +
-						"#EXT-X-MEDIA-SEQUENCE:0\n" +
-						"#EXT-X-PLAYLIST-TYPE:VOD\n" +
-						"#EXT-X-PROGRAM-DATE-TIME:2015-02-05T01:02:02Z\n" +
-						"#EXTINF:1,\n" +
-						"segment1.ts?key=val\n" +
-						"#EXTINF:1,\n" +
-						"segment2.ts\n" +
-						"#EXT-X-ENDLIST\n"))
+
+					if mode == "vod" {
+						w.Write([]byte("#EXTM3U\n" +
+							"#EXT-X-VERSION:3\n" +
+							"#EXT-X-ALLOW-CACHE:NO\n" +
+							"#EXT-X-TARGETDURATION:2\n" +
+							"#EXT-X-MEDIA-SEQUENCE:0\n" +
+							"#EXT-X-PLAYLIST-TYPE:VOD\n" +
+							"#EXT-X-PROGRAM-DATE-TIME:2015-02-05T01:02:02Z\n" +
+							"#EXTINF:1,\n" +
+							"segment1.ts?key=val\n" +
+							"#EXTINF:1,\n" +
+							"segment2.ts\n" +
+							"#EXT-X-ENDLIST\n"))
+					} else {
+						w.Write([]byte("#EXTM3U\n" +
+							"#EXT-X-VERSION:3\n" +
+							"#EXT-X-ALLOW-CACHE:NO\n" +
+							"#EXT-X-TARGETDURATION:2\n" +
+							"#EXT-X-MEDIA-SEQUENCE:0\n" +
+							"#EXT-X-PROGRAM-DATE-TIME:2015-02-05T01:02:02Z\n" +
+							"#EXTINF:1,\n" +
+							"segment1.ts?key=val\n" +
+							"#EXTINF:1,\n" +
+							"segment2.ts\n" +
+							"#EXTINF:1,\n" +
+							"null.ts\n"))
+					}
 
 				case r.Method == http.MethodGet && r.URL.Path == "/segment1.ts":
 					q, err := url.ParseQuery(r.URL.RawQuery)
@@ -240,19 +256,36 @@ func TestClient(t *testing.T) {
 				switch {
 				case r.Method == http.MethodGet && r.URL.Path == "/index.m3u8":
 					w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
-					w.Write([]byte("#EXTM3U\n" +
-						"#EXT-X-VERSION:7\n" +
-						"#EXT-X-MEDIA-SEQUENCE:20\n" +
-						"#EXT-X-PLAYLIST-TYPE:VOD\n" +
-						"#EXT-X-INDEPENDENT-SEGMENTS\n" +
-						"#EXT-X-TARGETDURATION:2\n" +
-						"#EXT-X-MAP:URI=\"init.mp4?key=val\"\n" +
-						"#EXT-X-PROGRAM-DATE-TIME:2015-02-05T01:02:02Z\n" +
-						"#EXTINF:2,\n" +
-						"segment1.mp4?key=val\n" +
-						"#EXTINF:2,\n" +
-						"segment2.mp4\n" +
-						"#EXT-X-ENDLIST\n"))
+
+					if mode == "vod" {
+						w.Write([]byte("#EXTM3U\n" +
+							"#EXT-X-VERSION:7\n" +
+							"#EXT-X-MEDIA-SEQUENCE:20\n" +
+							"#EXT-X-PLAYLIST-TYPE:VOD\n" +
+							"#EXT-X-INDEPENDENT-SEGMENTS\n" +
+							"#EXT-X-TARGETDURATION:2\n" +
+							"#EXT-X-MAP:URI=\"init.mp4?key=val\"\n" +
+							"#EXT-X-PROGRAM-DATE-TIME:2015-02-05T01:02:02Z\n" +
+							"#EXTINF:2,\n" +
+							"segment1.mp4?key=val\n" +
+							"#EXTINF:2,\n" +
+							"segment2.mp4\n" +
+							"#EXT-X-ENDLIST\n"))
+					} else {
+						w.Write([]byte("#EXTM3U\n" +
+							"#EXT-X-VERSION:7\n" +
+							"#EXT-X-MEDIA-SEQUENCE:20\n" +
+							"#EXT-X-INDEPENDENT-SEGMENTS\n" +
+							"#EXT-X-TARGETDURATION:2\n" +
+							"#EXT-X-MAP:URI=\"init.mp4?key=val\"\n" +
+							"#EXT-X-PROGRAM-DATE-TIME:2015-02-05T01:02:02Z\n" +
+							"#EXTINF:2,\n" +
+							"segment1.mp4?key=val\n" +
+							"#EXTINF:2,\n" +
+							"segment2.mp4\n" +
+							"#EXTINF:2,\n" +
+							"null.mp4\n"))
+					}
 
 				case r.Method == http.MethodGet && r.URL.Path == "/init.mp4":
 					q, err := url.ParseQuery(r.URL.RawQuery)
@@ -366,31 +399,65 @@ func TestClient(t *testing.T) {
 
 				case r.Method == http.MethodGet && r.URL.Path == "/video.m3u8":
 					w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
-					w.Write([]byte("#EXTM3U\n" +
-						"#EXT-X-VERSION:7\n" +
-						"#EXT-X-MEDIA-SEQUENCE:20\n" +
-						"#EXT-X-PLAYLIST-TYPE:VOD\n" +
-						"#EXT-X-INDEPENDENT-SEGMENTS\n" +
-						"#EXT-X-TARGETDURATION:2\n" +
-						"#EXT-X-MAP:URI=\"init_video.mp4\"\n" +
-						"#EXT-X-PROGRAM-DATE-TIME:2015-02-05T01:02:02Z\n" +
-						"#EXTINF:2,\n" +
-						"segment_video.mp4\n" +
-						"#EXT-X-ENDLIST\n"))
+
+					if mode == "vod" {
+						w.Write([]byte("#EXTM3U\n" +
+							"#EXT-X-VERSION:7\n" +
+							"#EXT-X-MEDIA-SEQUENCE:20\n" +
+							"#EXT-X-PLAYLIST-TYPE:VOD\n" +
+							"#EXT-X-INDEPENDENT-SEGMENTS\n" +
+							"#EXT-X-TARGETDURATION:2\n" +
+							"#EXT-X-MAP:URI=\"init_video.mp4\"\n" +
+							"#EXT-X-PROGRAM-DATE-TIME:2015-02-05T01:02:02Z\n" +
+							"#EXTINF:2,\n" +
+							"segment_video.mp4\n" +
+							"#EXT-X-ENDLIST\n"))
+					} else {
+						w.Write([]byte("#EXTM3U\n" +
+							"#EXT-X-VERSION:7\n" +
+							"#EXT-X-MEDIA-SEQUENCE:20\n" +
+							"#EXT-X-INDEPENDENT-SEGMENTS\n" +
+							"#EXT-X-TARGETDURATION:2\n" +
+							"#EXT-X-MAP:URI=\"init_video.mp4\"\n" +
+							"#EXT-X-PROGRAM-DATE-TIME:2015-02-05T01:02:02Z\n" +
+							"#EXTINF:2,\n" +
+							"segment_video.mp4\n" +
+							"#EXTINF:2,\n" +
+							"null.mp4\n" +
+							"#EXTINF:2,\n" +
+							"null.mp4\n"))
+					}
 
 				case r.Method == http.MethodGet && r.URL.Path == "/audio.m3u8":
 					w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
-					w.Write([]byte("#EXTM3U\n" +
-						"#EXT-X-VERSION:7\n" +
-						"#EXT-X-MEDIA-SEQUENCE:20\n" +
-						"#EXT-X-PLAYLIST-TYPE:VOD\n" +
-						"#EXT-X-INDEPENDENT-SEGMENTS\n" +
-						"#EXT-X-TARGETDURATION:2\n" +
-						"#EXT-X-MAP:URI=\"init_audio.mp4\"\n" +
-						"#EXT-X-PROGRAM-DATE-TIME:2014-02-05T01:02:02Z\n" +
-						"#EXTINF:2,\n" +
-						"segment_audio.mp4\n" +
-						"#EXT-X-ENDLIST"))
+
+					if mode == "vod" {
+						w.Write([]byte("#EXTM3U\n" +
+							"#EXT-X-VERSION:7\n" +
+							"#EXT-X-MEDIA-SEQUENCE:20\n" +
+							"#EXT-X-PLAYLIST-TYPE:VOD\n" +
+							"#EXT-X-INDEPENDENT-SEGMENTS\n" +
+							"#EXT-X-TARGETDURATION:2\n" +
+							"#EXT-X-MAP:URI=\"init_audio.mp4\"\n" +
+							"#EXT-X-PROGRAM-DATE-TIME:2014-02-05T01:02:02Z\n" +
+							"#EXTINF:2,\n" +
+							"segment_audio.mp4\n" +
+							"#EXT-X-ENDLIST"))
+					} else {
+						w.Write([]byte("#EXTM3U\n" +
+							"#EXT-X-VERSION:7\n" +
+							"#EXT-X-MEDIA-SEQUENCE:20\n" +
+							"#EXT-X-INDEPENDENT-SEGMENTS\n" +
+							"#EXT-X-TARGETDURATION:2\n" +
+							"#EXT-X-MAP:URI=\"init_audio.mp4\"\n" +
+							"#EXT-X-PROGRAM-DATE-TIME:2014-02-05T01:02:02Z\n" +
+							"#EXTINF:2,\n" +
+							"segment_audio.mp4\n" +
+							"#EXTINF:2,\n" +
+							"null.mp4\n" +
+							"#EXTINF:2,\n" +
+							"null.mp4\n"))
+					}
 
 				case r.Method == http.MethodGet && r.URL.Path == "/init_video.mp4":
 					w.Header().Set("Content-Type", `video/mp4`)
@@ -481,6 +548,9 @@ func TestClient(t *testing.T) {
 						},
 					}, w)
 					require.NoError(t, err)
+
+				default:
+					w.WriteHeader(http.StatusNotFound)
 				}
 
 			case variant == "fmp4_multiplaylist" && content == "video+multiaudio":
@@ -497,45 +567,96 @@ func TestClient(t *testing.T) {
 
 				case r.Method == http.MethodGet && r.URL.Path == "/video.m3u8":
 					w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
-					w.Write([]byte("#EXTM3U\n" +
-						"#EXT-X-VERSION:7\n" +
-						"#EXT-X-MEDIA-SEQUENCE:20\n" +
-						"#EXT-X-PLAYLIST-TYPE:VOD\n" +
-						"#EXT-X-INDEPENDENT-SEGMENTS\n" +
-						"#EXT-X-TARGETDURATION:2\n" +
-						"#EXT-X-MAP:URI=\"init_video.mp4\"\n" +
-						"#EXT-X-PROGRAM-DATE-TIME:2015-02-05T01:02:02Z\n" +
-						"#EXTINF:2,\n" +
-						"segment_video.mp4\n" +
-						"#EXT-X-ENDLIST\n"))
+
+					if mode == "vod" {
+						w.Write([]byte("#EXTM3U\n" +
+							"#EXT-X-VERSION:7\n" +
+							"#EXT-X-MEDIA-SEQUENCE:20\n" +
+							"#EXT-X-PLAYLIST-TYPE:VOD\n" +
+							"#EXT-X-INDEPENDENT-SEGMENTS\n" +
+							"#EXT-X-TARGETDURATION:2\n" +
+							"#EXT-X-MAP:URI=\"init_video.mp4\"\n" +
+							"#EXT-X-PROGRAM-DATE-TIME:2015-02-05T01:02:02Z\n" +
+							"#EXTINF:2,\n" +
+							"segment_video.mp4\n" +
+							"#EXT-X-ENDLIST\n"))
+					} else {
+						w.Write([]byte("#EXTM3U\n" +
+							"#EXT-X-VERSION:7\n" +
+							"#EXT-X-MEDIA-SEQUENCE:20\n" +
+							"#EXT-X-INDEPENDENT-SEGMENTS\n" +
+							"#EXT-X-TARGETDURATION:2\n" +
+							"#EXT-X-MAP:URI=\"init_video.mp4\"\n" +
+							"#EXT-X-PROGRAM-DATE-TIME:2015-02-05T01:02:02Z\n" +
+							"#EXTINF:2,\n" +
+							"segment_video.mp4\n" +
+							"#EXTINF:2,\n" +
+							"null.mp4\n" +
+							"#EXTINF:2,\n" +
+							"null.mp4\n"))
+					}
 
 				case r.Method == http.MethodGet && r.URL.Path == "/audio1.m3u8":
 					w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
-					w.Write([]byte("#EXTM3U\n" +
-						"#EXT-X-VERSION:7\n" +
-						"#EXT-X-MEDIA-SEQUENCE:20\n" +
-						"#EXT-X-PLAYLIST-TYPE:VOD\n" +
-						"#EXT-X-INDEPENDENT-SEGMENTS\n" +
-						"#EXT-X-TARGETDURATION:2\n" +
-						"#EXT-X-MAP:URI=\"init_audio1.mp4\"\n" +
-						"#EXT-X-PROGRAM-DATE-TIME:2014-02-05T01:02:02Z\n" +
-						"#EXTINF:2,\n" +
-						"segment_audio1.mp4\n" +
-						"#EXT-X-ENDLIST"))
+
+					if mode == "vod" {
+						w.Write([]byte("#EXTM3U\n" +
+							"#EXT-X-VERSION:7\n" +
+							"#EXT-X-MEDIA-SEQUENCE:20\n" +
+							"#EXT-X-PLAYLIST-TYPE:VOD\n" +
+							"#EXT-X-INDEPENDENT-SEGMENTS\n" +
+							"#EXT-X-TARGETDURATION:2\n" +
+							"#EXT-X-MAP:URI=\"init_audio1.mp4\"\n" +
+							"#EXT-X-PROGRAM-DATE-TIME:2014-02-05T01:02:02Z\n" +
+							"#EXTINF:2,\n" +
+							"segment_audio1.mp4\n" +
+							"#EXT-X-ENDLIST"))
+					} else {
+						w.Write([]byte("#EXTM3U\n" +
+							"#EXT-X-VERSION:7\n" +
+							"#EXT-X-MEDIA-SEQUENCE:20\n" +
+							"#EXT-X-INDEPENDENT-SEGMENTS\n" +
+							"#EXT-X-TARGETDURATION:2\n" +
+							"#EXT-X-MAP:URI=\"init_audio1.mp4\"\n" +
+							"#EXT-X-PROGRAM-DATE-TIME:2014-02-05T01:02:02Z\n" +
+							"#EXTINF:2,\n" +
+							"segment_audio1.mp4\n" +
+							"#EXTINF:2,\n" +
+							"null.mp4\n" +
+							"#EXTINF:2,\n" +
+							"null.mp4\n"))
+					}
 
 				case r.Method == http.MethodGet && r.URL.Path == "/audio2.m3u8":
 					w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
-					w.Write([]byte("#EXTM3U\n" +
-						"#EXT-X-VERSION:7\n" +
-						"#EXT-X-MEDIA-SEQUENCE:20\n" +
-						"#EXT-X-PLAYLIST-TYPE:VOD\n" +
-						"#EXT-X-INDEPENDENT-SEGMENTS\n" +
-						"#EXT-X-TARGETDURATION:2\n" +
-						"#EXT-X-MAP:URI=\"init_audio2.mp4\"\n" +
-						"#EXT-X-PROGRAM-DATE-TIME:2014-02-05T01:02:02Z\n" +
-						"#EXTINF:2,\n" +
-						"segment_audio2.mp4\n" +
-						"#EXT-X-ENDLIST"))
+
+					if mode == "vod" {
+						w.Write([]byte("#EXTM3U\n" +
+							"#EXT-X-VERSION:7\n" +
+							"#EXT-X-MEDIA-SEQUENCE:20\n" +
+							"#EXT-X-PLAYLIST-TYPE:VOD\n" +
+							"#EXT-X-INDEPENDENT-SEGMENTS\n" +
+							"#EXT-X-TARGETDURATION:2\n" +
+							"#EXT-X-MAP:URI=\"init_audio2.mp4\"\n" +
+							"#EXT-X-PROGRAM-DATE-TIME:2014-02-05T01:02:02Z\n" +
+							"#EXTINF:2,\n" +
+							"segment_audio2.mp4\n" +
+							"#EXT-X-ENDLIST"))
+					} else {
+						w.Write([]byte("#EXTM3U\n" +
+							"#EXT-X-VERSION:7\n" +
+							"#EXT-X-MEDIA-SEQUENCE:20\n" +
+							"#EXT-X-INDEPENDENT-SEGMENTS\n" +
+							"#EXT-X-TARGETDURATION:2\n" +
+							"#EXT-X-MAP:URI=\"init_audio2.mp4\"\n" +
+							"#EXT-X-PROGRAM-DATE-TIME:2014-02-05T01:02:02Z\n" +
+							"#EXTINF:2,\n" +
+							"segment_audio2.mp4\n" +
+							"#EXTINF:2,\n" +
+							"null.mp4\n" +
+							"#EXTINF:2,\n" +
+							"null.mp4\n"))
+					}
 
 				case r.Method == http.MethodGet && r.URL.Path == "/init_video.mp4":
 					w.Header().Set("Content-Type", `video/mp4`)
@@ -648,6 +769,9 @@ func TestClient(t *testing.T) {
 						},
 					}, w)
 					require.NoError(t, err)
+
+				default:
+					w.WriteHeader(http.StatusNotFound)
 				}
 
 			case variant == "lowlatency_singleplaylist":
@@ -796,9 +920,9 @@ func TestClient(t *testing.T) {
 		})
 	}
 
-	createHTTPServer := func(t *testing.T, encryption string, variant string, content string) *http.Server {
+	createHTTPServer := func(t *testing.T, encryption string, variant string, content string, mode string) *http.Server {
 		httpServ := &http.Server{
-			Handler: createHTTPHandler(t, variant, content),
+			Handler: createHTTPHandler(t, variant, content, mode),
 		}
 
 		ln, err := net.Listen("tcp", "localhost:5780")
@@ -838,220 +962,229 @@ func TestClient(t *testing.T) {
 				"video+audio",
 				"video+multiaudio",
 			} {
-				if content == "video+multiaudio" && variant != "fmp4_multiplaylist" {
-					continue
-				}
-				t.Run(encryption+"_"+variant+"_"+content, func(t *testing.T) {
-					httpServ := createHTTPServer(t, encryption, variant, content)
-					defer httpServ.Shutdown(context.Background())
-
-					videoRecv := make(chan struct{})
-					audioRecv := make(chan struct{})
-					audio2Recv := make(chan struct{})
-
-					videoCount := 0
-					audioCount := 0
-					audio2Count := 0
-
-					prefix := "http"
-					if encryption == "tls" {
-						prefix = "https"
+				for _, mode := range []string{"live", "vod"} {
+					if (content == "video+multiaudio" && variant != "fmp4_multiplaylist") ||
+						(variant == "lowlatency_singleplaylist" && mode == "vod") {
+						continue
 					}
 
-					tr := &http.Transport{
-						TLSClientConfig: &tls.Config{
-							InsecureSkipVerify: true,
-						},
-					}
-					defer tr.CloseIdleConnections()
+					t.Run(encryption+"_"+variant+"_"+content+"_"+mode, func(t *testing.T) {
+						httpServ := createHTTPServer(t, encryption, variant, content, mode)
+						defer httpServ.Shutdown(context.Background())
 
-					var c *Client
-					c = &Client{
-						URI:        prefix + "://localhost:5780/index.m3u8",
-						HTTPClient: &http.Client{Transport: tr},
-						OnRequest: func(r *http.Request) {
-							r.Header.Set(testHeaderKey, testHeaderValue)
-						},
-						OnTracks: func(tracks []*Track) error {
-							var sps []byte
-							var pps []byte
-							if variant != "mpegts" {
-								sps = testSPS
-								pps = testPPS
-							}
+						videoRecv := make(chan struct{})
+						audioRecv := make(chan struct{})
+						audio2Recv := make(chan struct{})
 
-							var audioClockRate int
-							if variant != "mpegts" {
-								audioClockRate = 44100
-							} else {
-								audioClockRate = 90000
-							}
+						videoCount := 0
+						audioCount := 0
+						audio2Count := 0
 
-							switch content {
-							case "video+audio":
-								require.Equal(t, []*Track{
-									{
-										Codec: &codecs.H264{
-											SPS: sps,
-											PPS: pps,
-										},
-										ClockRate: 90000,
-									},
-									{
-										Codec: &codecs.MPEG4Audio{
-											Config: mpeg4audio.AudioSpecificConfig{
-												Type:         2,
-												SampleRate:   44100,
-												ChannelCount: 2,
-											},
-										},
-										ClockRate: audioClockRate,
-										Name: func() string {
-											if variant == "fmp4_multiplaylist" {
-												return "English"
-											}
-											return ""
-										}(),
-										Language: func() string {
-											if variant == "fmp4_multiplaylist" {
-												return "en"
-											}
-											return ""
-										}(),
-										IsDefault: (variant == "fmp4_multiplaylist"),
-									},
-								}, tracks)
+						prefix := "http"
+						if encryption == "tls" {
+							prefix = "https"
+						}
 
-							case "video+multiaudio":
-								require.Equal(t, []*Track{
-									{
-										Codec: &codecs.H264{
-											SPS: sps,
-											PPS: pps,
-										},
-										ClockRate: 90000,
-									},
-									{
-										Codec: &codecs.MPEG4Audio{
-											Config: mpeg4audio.AudioSpecificConfig{
-												Type:         2,
-												SampleRate:   44100,
-												ChannelCount: 2,
-											},
-										},
-										ClockRate: audioClockRate,
-										Name:      "English",
-										Language:  "en",
-										IsDefault: false,
-									},
-									{
-										Codec: &codecs.MPEG4Audio{
-											Config: mpeg4audio.AudioSpecificConfig{
-												Type:         2,
-												SampleRate:   44100,
-												ChannelCount: 2,
-											},
-										},
-										ClockRate: audioClockRate,
-										Name:      "German",
-										Language:  "de",
-										IsDefault: true,
-									},
-								}, tracks)
-							}
+						tr := &http.Transport{
+							TLSClientConfig: &tls.Config{
+								InsecureSkipVerify: true,
+							},
+						}
+						defer tr.CloseIdleConnections()
 
-							c.OnDataH26x(tracks[0], func(pts int64, dts int64, au [][]byte) {
-								switch videoCount {
-								case 0:
-									require.Equal(t, int64(0), dts)
-									require.Equal(t, int64(2*90000), pts)
-									require.Equal(t, [][]byte{
-										{7, 1, 2, 3},
-										{8},
-										{5},
-									}, au)
-									ntp, ok := c.AbsoluteTime(tracks[0])
-									require.Equal(t, true, ok)
-									require.Equal(t, time.Date(2015, time.February, 5, 1, 2, 2, 0, time.UTC), ntp)
-
-								case 1:
-									require.Equal(t, int64(3000), dts)
-									require.Equal(t, int64(2*90000+3000), pts)
-									require.Equal(t, [][]byte{{1, 4, 5, 6}}, au)
-									ntp, ok := c.AbsoluteTime(tracks[0])
-									require.Equal(t, true, ok)
-									require.Equal(t, time.Date(2015, time.February, 5, 1, 2, 2, 33333333, time.UTC), ntp)
-
-								case 2:
-									require.Equal(t, int64(6000), dts)
-									require.Equal(t, int64(6000), pts)
-									require.Equal(t, [][]byte{{4}}, au)
-									ntp, ok := c.AbsoluteTime(tracks[0])
-									require.Equal(t, true, ok)
-									require.Equal(t, time.Date(2015, time.February, 5, 1, 2, 2, 66666666, time.UTC), ntp)
-									close(videoRecv)
+						var c *Client
+						c = &Client{
+							URI:        prefix + "://localhost:5780/index.m3u8",
+							HTTPClient: &http.Client{Transport: tr},
+							OnRequest: func(r *http.Request) {
+								r.Header.Set(testHeaderKey, testHeaderValue)
+							},
+							OnTracks: func(tracks []*Track) error {
+								var sps []byte
+								var pps []byte
+								if variant != "mpegts" {
+									sps = testSPS
+									pps = testPPS
 								}
-								videoCount++
-							})
 
-							c.OnDataMPEG4Audio(tracks[1], func(pts int64, aus [][]byte) { //nolint:dupl
-								switch audioCount {
-								case 0:
-									require.Equal(t, int64(0), pts)
-									require.Equal(t, [][]byte{{1, 2, 3, 4}}, aus)
-									ntp, ok := c.AbsoluteTime(tracks[1])
-									require.Equal(t, true, ok)
-									require.Equal(t, time.Date(2015, time.February, 5, 1, 2, 2, 0, time.UTC), ntp)
-
-								case 1:
-									require.Equal(t, int64(0.0333336*float64(tracks[1].ClockRate)), pts)
-									require.Equal(t, [][]byte{{5, 6, 7, 8}}, aus)
-									ntp, ok := c.AbsoluteTime(tracks[1])
-									require.Equal(t, true, ok)
-									require.Equal(t, time.Date(2015, time.February, 5, 1, 2, 2, 33333333, time.UTC), ntp)
-									close(audioRecv)
+								var audioClockRate int
+								if variant != "mpegts" {
+									audioClockRate = 44100
+								} else {
+									audioClockRate = 90000
 								}
-								audioCount++
-							})
 
-							if content == "video+multiaudio" {
-								c.OnDataMPEG4Audio(tracks[2], func(pts int64, aus [][]byte) { //nolint:dupl
-									switch audio2Count {
+								switch content {
+								case "video+audio":
+									require.Equal(t, []*Track{
+										{
+											Codec: &codecs.H264{
+												SPS: sps,
+												PPS: pps,
+											},
+											ClockRate: 90000,
+										},
+										{
+											Codec: &codecs.MPEG4Audio{
+												Config: mpeg4audio.AudioSpecificConfig{
+													Type:         2,
+													SampleRate:   44100,
+													ChannelCount: 2,
+												},
+											},
+											ClockRate: audioClockRate,
+											Name: func() string {
+												if variant == "fmp4_multiplaylist" {
+													return "English"
+												}
+												return ""
+											}(),
+											Language: func() string {
+												if variant == "fmp4_multiplaylist" {
+													return "en"
+												}
+												return ""
+											}(),
+											IsDefault: (variant == "fmp4_multiplaylist"),
+										},
+									}, tracks)
+
+								case "video+multiaudio":
+									require.Equal(t, []*Track{
+										{
+											Codec: &codecs.H264{
+												SPS: sps,
+												PPS: pps,
+											},
+											ClockRate: 90000,
+										},
+										{
+											Codec: &codecs.MPEG4Audio{
+												Config: mpeg4audio.AudioSpecificConfig{
+													Type:         2,
+													SampleRate:   44100,
+													ChannelCount: 2,
+												},
+											},
+											ClockRate: audioClockRate,
+											Name:      "English",
+											Language:  "en",
+											IsDefault: false,
+										},
+										{
+											Codec: &codecs.MPEG4Audio{
+												Config: mpeg4audio.AudioSpecificConfig{
+													Type:         2,
+													SampleRate:   44100,
+													ChannelCount: 2,
+												},
+											},
+											ClockRate: audioClockRate,
+											Name:      "German",
+											Language:  "de",
+											IsDefault: true,
+										},
+									}, tracks)
+								}
+
+								c.OnDataH26x(tracks[0], func(pts int64, dts int64, au [][]byte) {
+									switch videoCount {
+									case 0:
+										require.Equal(t, int64(0), dts)
+										require.Equal(t, int64(2*90000), pts)
+										require.Equal(t, [][]byte{
+											{7, 1, 2, 3},
+											{8},
+											{5},
+										}, au)
+										ntp, ok := c.AbsoluteTime(tracks[0])
+										require.Equal(t, true, ok)
+										require.Equal(t, time.Date(2015, time.February, 5, 1, 2, 2, 0, time.UTC), ntp)
+
+									case 1:
+										require.Equal(t, int64(3000), dts)
+										require.Equal(t, int64(2*90000+3000), pts)
+										require.Equal(t, [][]byte{{1, 4, 5, 6}}, au)
+										ntp, ok := c.AbsoluteTime(tracks[0])
+										require.Equal(t, true, ok)
+										require.Equal(t, time.Date(2015, time.February, 5, 1, 2, 2, 33333333, time.UTC), ntp)
+
+									case 2:
+										require.Equal(t, int64(6000), dts)
+										require.Equal(t, int64(6000), pts)
+										require.Equal(t, [][]byte{{4}}, au)
+										ntp, ok := c.AbsoluteTime(tracks[0])
+										require.Equal(t, true, ok)
+										require.Equal(t, time.Date(2015, time.February, 5, 1, 2, 2, 66666666, time.UTC), ntp)
+										close(videoRecv)
+									}
+									videoCount++
+								})
+
+								c.OnDataMPEG4Audio(tracks[1], func(pts int64, aus [][]byte) { //nolint:dupl
+									switch audioCount {
 									case 0:
 										require.Equal(t, int64(0), pts)
-										require.Equal(t, [][]byte{{4, 3, 2, 1}}, aus)
-										ntp, ok := c.AbsoluteTime(tracks[2])
+										require.Equal(t, [][]byte{{1, 2, 3, 4}}, aus)
+										ntp, ok := c.AbsoluteTime(tracks[1])
 										require.Equal(t, true, ok)
 										require.Equal(t, time.Date(2015, time.February, 5, 1, 2, 2, 0, time.UTC), ntp)
 
 									case 1:
 										require.Equal(t, int64(0.0333336*float64(tracks[1].ClockRate)), pts)
-										require.Equal(t, [][]byte{{8, 7, 5, 4}}, aus)
-										ntp, ok := c.AbsoluteTime(tracks[2])
+										require.Equal(t, [][]byte{{5, 6, 7, 8}}, aus)
+										ntp, ok := c.AbsoluteTime(tracks[1])
 										require.Equal(t, true, ok)
 										require.Equal(t, time.Date(2015, time.February, 5, 1, 2, 2, 33333333, time.UTC), ntp)
-										close(audio2Recv)
+										close(audioRecv)
 									}
-									audio2Count++
+									audioCount++
 								})
-							}
 
-							return nil
-						},
-					}
+								if content == "video+multiaudio" {
+									c.OnDataMPEG4Audio(tracks[2], func(pts int64, aus [][]byte) { //nolint:dupl
+										switch audio2Count {
+										case 0:
+											require.Equal(t, int64(0), pts)
+											require.Equal(t, [][]byte{{4, 3, 2, 1}}, aus)
+											ntp, ok := c.AbsoluteTime(tracks[2])
+											require.Equal(t, true, ok)
+											require.Equal(t, time.Date(2015, time.February, 5, 1, 2, 2, 0, time.UTC), ntp)
 
-					err := c.Start()
-					require.NoError(t, err)
+										case 1:
+											require.Equal(t, int64(0.0333336*float64(tracks[1].ClockRate)), pts)
+											require.Equal(t, [][]byte{{8, 7, 5, 4}}, aus)
+											ntp, ok := c.AbsoluteTime(tracks[2])
+											require.Equal(t, true, ok)
+											require.Equal(t, time.Date(2015, time.February, 5, 1, 2, 2, 33333333, time.UTC), ntp)
+											close(audio2Recv)
+										}
+										audio2Count++
+									})
+								}
 
-					<-videoRecv
-					<-audioRecv
+								return nil
+							},
+						}
 
-					if content == "video+multiaudio" {
-						<-audio2Recv
-					}
+						err := c.Start()
+						require.NoError(t, err)
 
-					c.Close()
-				})
+						<-videoRecv
+						<-audioRecv
+
+						if content == "video+multiaudio" {
+							<-audio2Recv
+						}
+
+						if mode == "vod" {
+							err = c.Wait2()
+							require.Equal(t, ErrClientEOS, err)
+						}
+
+						c.Close()
+					})
+				}
 			}
 		}
 	}
