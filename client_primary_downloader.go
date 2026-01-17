@@ -273,11 +273,11 @@ func (d *clientPrimaryDownloader) run(ctx context.Context) error {
 
 	for _, stream := range streams {
 		select {
-		case <-stream.chEnded:
+		case err = <-stream.chProcessorError:
 		case <-ctx.Done():
 			return fmt.Errorf("terminated")
 		}
 	}
 
-	return ErrClientEOS
+	return err
 }

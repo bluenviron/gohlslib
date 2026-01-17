@@ -9,6 +9,7 @@ import (
 type segmentData struct {
 	dateTime *time.Time
 	payload  []byte
+	err      error
 }
 
 type clientSegmentQueue struct {

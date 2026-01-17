@@ -126,6 +126,12 @@ func (p *clientStreamProcessorFMP4) run(ctx context.Context) error {
 			return fmt.Errorf("terminated")
 		}
 
+		if seg.err != nil {
+			p.streamDownloader.onProcessorError(ctx, seg.err)
+			<-ctx.Done()
+			return fmt.Errorf("terminated")
+		}
+
 		err = p.processSegment(ctx, seg)
 		if err != nil {
 			return err
@@ -134,12 +140,6 @@ func (p *clientStreamProcessorFMP4) run(ctx context.Context) error {
 }
 
 func (p *clientStreamProcessorFMP4) processSegment(ctx context.Context, seg *segmentData) error {
-	if seg == nil {
-		p.streamDownloader.setEnded()
-		<-ctx.Done()
-		return fmt.Errorf("terminated")
-	}
-
 	var parts fmp4.Parts
 	err := parts.Unmarshal(seg.payload)
 	if err != nil {
