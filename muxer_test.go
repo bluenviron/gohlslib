@@ -33,9 +33,10 @@ var testSPS = []byte{
 var testPPS = []byte{0x01, 0x02, 0x03, 0x04}
 
 var testConfig = mpeg4audio.AudioSpecificConfig{
-	Type:         2,
-	SampleRate:   44100,
-	ChannelCount: 2,
+	Type:          2,
+	SampleRate:    44100,
+	ChannelConfig: 2,
+	ChannelCount:  2,
 }
 
 var testVideoTrack = &Track{
@@ -49,9 +50,10 @@ var testVideoTrack = &Track{
 var testAudioTrack = &Track{
 	Codec: &codecs.MPEG4Audio{
 		Config: mpeg4audio.AudioSpecificConfig{
-			Type:         2,
-			SampleRate:   44100,
-			ChannelCount: 2,
+			Type:          2,
+			SampleRate:    44100,
+			ChannelConfig: 2,
+			ChannelCount:  2,
 		},
 	},
 	ClockRate: 44100,
@@ -60,9 +62,10 @@ var testAudioTrack = &Track{
 var testAudioTrack2 = &Track{
 	Codec: &codecs.MPEG4Audio{
 		Config: mpeg4audio.AudioSpecificConfig{
-			Type:         2,
-			SampleRate:   44100,
-			ChannelCount: 2,
+			Type:          2,
+			SampleRate:    44100,
+			ChannelConfig: 2,
+			ChannelCount:  2,
 		},
 	},
 	ClockRate: 44100,

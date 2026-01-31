@@ -173,9 +173,10 @@ func TestClient(t *testing.T) {
 					mpeg4audioTrack := &mpegts.Track{
 						Codec: &tscodecs.MPEG4Audio{
 							Config: mpeg4audio.AudioSpecificConfig{
-								Type:         2,
-								SampleRate:   44100,
-								ChannelCount: 2,
+								Type:          2,
+								SampleRate:    44100,
+								ChannelConfig: 2,
+								ChannelCount:  2,
 							},
 						},
 					}
@@ -231,9 +232,10 @@ func TestClient(t *testing.T) {
 					mpeg4audioTrack := &mpegts.Track{
 						Codec: &tscodecs.MPEG4Audio{
 							Config: mpeg4audio.AudioSpecificConfig{
-								Type:         2,
-								SampleRate:   44100,
-								ChannelCount: 2,
+								Type:          2,
+								SampleRate:    44100,
+								ChannelConfig: 2,
+								ChannelCount:  2,
 							},
 						},
 					}
@@ -1027,9 +1029,10 @@ func TestClient(t *testing.T) {
 										{
 											Codec: &codecs.MPEG4Audio{
 												Config: mpeg4audio.AudioSpecificConfig{
-													Type:         2,
-													SampleRate:   44100,
-													ChannelCount: 2,
+													Type:          2,
+													SampleRate:    44100,
+													ChannelConfig: 2,
+													ChannelCount:  2,
 												},
 											},
 											ClockRate: audioClockRate,
@@ -1061,9 +1064,10 @@ func TestClient(t *testing.T) {
 										{
 											Codec: &codecs.MPEG4Audio{
 												Config: mpeg4audio.AudioSpecificConfig{
-													Type:         2,
-													SampleRate:   44100,
-													ChannelCount: 2,
+													Type:          2,
+													SampleRate:    44100,
+													ChannelConfig: 2,
+													ChannelCount:  2,
 												},
 											},
 											ClockRate: audioClockRate,
@@ -1074,9 +1078,10 @@ func TestClient(t *testing.T) {
 										{
 											Codec: &codecs.MPEG4Audio{
 												Config: mpeg4audio.AudioSpecificConfig{
-													Type:         2,
-													SampleRate:   44100,
-													ChannelCount: 2,
+													Type:          2,
+													SampleRate:    44100,
+													ChannelConfig: 2,
+													ChannelCount:  2,
 												},
 											},
 											ClockRate: audioClockRate,
