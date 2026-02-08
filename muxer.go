@@ -246,6 +246,8 @@ func (m *Muxer) Start() error {
 						"the MPEG-TS variant of HLS supports H264 video only")
 				}
 				hasVideo = true
+			} else if _, ok := track.Codec.(*codecs.KLV); ok {
+				// KLV data track, allowed in MPEG-TS variant
 			} else {
 				if hasAudio {
 					return fmt.Errorf("the MPEG-TS variant of HLS supports a single audio track only")
@@ -257,6 +259,15 @@ func (m *Muxer) Start() error {
 				hasAudio = true
 			}
 		}
+
+		// Validate that KLV tracks are accompanied by at least one video or audio track
+		if !hasVideo && !hasAudio {
+			for _, track := range m.Tracks {
+				if _, ok := track.Codec.(*codecs.KLV); ok {
+					return fmt.Errorf("KLV tracks require at least one video or audio track to drive segment creation")
+				}
+			}
+		}
 	} else {
 		for _, track := range m.Tracks {
 			if track.Codec.IsVideo() {
@@ -264,6 +275,8 @@ func (m *Muxer) Start() error {
 					return fmt.Errorf("only one video track is currently supported")
 				}
 				hasVideo = true
+			} else if _, ok := track.Codec.(*codecs.KLV); ok {
+				return fmt.Errorf("KLV tracks are only supported with the MPEG-TS muxer variant")
 			} else {
 				hasAudio = true //nolint:ineffassign,wastedassign
 			}
@@ -309,11 +322,25 @@ func (m *Muxer) Start() error {
 
 	m.server.registerPath("index.m3u8", m.handleMultivariantPlaylist)
 
+	// Find the leading track index
+	// Video tracks are preferred; if no video, use the first non-KLV track
+	leadingTrackIndex := -1
+	for i, track := range m.Tracks {
+		if track.Codec.IsVideo() {
+			leadingTrackIndex = i
+			break
+		}
+		_, isKLV := track.Codec.(*codecs.KLV)
+		if leadingTrackIndex == -1 && !isKLV {
+			leadingTrackIndex = i
+		}
+	}
+
 	for i, track := range m.Tracks {
 		mtrack := &muxerTrack{
 			Track:     track,
 			variant:   m.Variant,
-			isLeading: track.Codec.IsVideo() || (!hasVideo && i == 0),
+			isLeading: i == leadingTrackIndex,
 		}
 		mtrack.initialize()
 		m.mtracks = append(m.mtracks, mtrack)
@@ -505,6 +532,25 @@ func (m *Muxer) WriteMPEG4Audio(
 	aus [][]byte,
 ) error {
 	return m.segmenter.writeMPEG4Audio(m.mtracksByTrack[track], ntp, pts, aus)
+}
+
+// WriteKLV writes KLV data.
+func (m *Muxer) WriteKLV(
+	track *Track,
+	ntp time.Time,
+	pts int64,
+	data []byte,
+) error {
+	// KLV writing is currently only supported for the MPEG-TS muxer variant.
+	if m.Variant != MuxerVariantMPEGTS {
+		return fmt.Errorf("WriteKLV is only supported with the MPEG-TS muxer variant")
+	}
+
+	// Ensure that the provided track carries KLV data.
+	if _, ok := track.Codec.(*codecs.KLV); !ok {
+		return fmt.Errorf("WriteKLV called with a non-KLV track")
+	}
+	return m.segmenter.writeKLV(m.mtracksByTrack[track], ntp, pts, data)
 }
 
 // Handle handles a HTTP request.

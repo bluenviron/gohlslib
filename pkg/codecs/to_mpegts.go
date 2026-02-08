@@ -14,6 +14,11 @@ func ToMPEGTS(in Codec) codecs.Codec {
 		return &codecs.MPEG4Audio{
 			Config: in.Config,
 		}
+
+	case *KLV:
+		return &codecs.KLV{
+			Synchronous: in.Synchronous,
+		}
 	}
 
 	return nil

@@ -139,3 +139,21 @@ func (s *muxerSegmentMPEGTS) writeMPEG4Audio(
 
 	return nil
 }
+
+func (s *muxerSegmentMPEGTS) writeKLV(
+	track *muxerTrack,
+	pts int64,
+	data []byte,
+) error {
+	size := uint64(len(data))
+	if (s.size + size) > s.segmentMaxSize {
+		return fmt.Errorf("reached maximum segment size")
+	}
+	s.size += size
+
+	return s.mpegtsWriter.WriteKLV(
+		track.mpegtsTrack,
+		multiplyAndDivide(pts, 90000, int64(track.ClockRate)),
+		data,
+	)
+}
