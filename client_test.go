@@ -1668,3 +1668,90 @@ func TestClientVODWithoutPlaylistType(t *testing.T) {
 
 	<-videoRecv
 }
+
+func TestClientCookie(t *testing.T) {
+	segmentOk := make(chan struct{})
+
+	httpServ := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/index.m3u8":
+				w.Header().Set("Set-Cookie", "testcookie=value; Path=/; Max-Age=3600")
+				w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
+				w.Write([]byte("#EXTM3U\n" +
+					"#EXT-X-VERSION:3\n" +
+					"#EXT-X-PLAYLIST-TYPE:VOD\n" +
+					"#EXT-X-ALLOW-CACHE:NO\n" +
+					"#EXT-X-TARGETDURATION:2\n" +
+					"#EXT-X-MEDIA-SEQUENCE:0\n" +
+					"#EXTINF:1,\n" +
+					"segment1.ts\n" +
+					"#EXTINF:1,\n" +
+					"segment2.ts\n" +
+					"#EXT-X-ENDLIST\n"))
+
+			case r.Method == http.MethodGet && r.URL.Path == "/segment1.ts":
+				w.Header().Set("Content-Type", `video/MP2T`)
+
+				h264Track := &mpegts.Track{
+					Codec: &tscodecs.H264{},
+				}
+				mw := &mpegts.Writer{W: w, Tracks: []*mpegts.Track{h264Track}}
+				err := mw.Initialize()
+				require.NoError(t, err)
+
+				err = mw.WriteH264(
+					h264Track,
+					90000,
+					90000,
+					[][]byte{
+						{7, 1, 2, 3}, // SPS
+						{8},          // PPS
+						{5},          // IDR
+					},
+				)
+				require.NoError(t, err)
+
+			case r.Method == http.MethodGet && r.URL.Path == "/segment2.ts":
+				require.Equal(t, "testcookie=value", r.Header.Get("Cookie"))
+
+				w.Header().Set("Content-Type", `video/MP2T`)
+
+				h264Track := &mpegts.Track{
+					Codec: &tscodecs.H264{},
+				}
+				mw := &mpegts.Writer{W: w, Tracks: []*mpegts.Track{h264Track}}
+				err := mw.Initialize()
+				require.NoError(t, err)
+
+				err = mw.WriteH264(
+					h264Track,
+					180000,
+					180000,
+					[][]byte{{1}},
+				)
+				require.NoError(t, err)
+
+				close(segmentOk)
+			}
+		}),
+	}
+
+	ln, err := net.Listen("tcp", "localhost:5780")
+	require.NoError(t, err)
+	defer ln.Close()
+
+	go httpServ.Serve(ln)
+	defer httpServ.Shutdown(context.Background())
+
+	c := &Client{
+		URI:        "http://localhost:5780/index.m3u8",
+		HTTPClient: nil,
+	}
+
+	err = c.Start()
+	require.NoError(t, err)
+	defer c.Close()
+
+	<-segmentOk
+}
