@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"time"
 )
@@ -84,7 +85,7 @@ type Client struct {
 	// It defaults to 5.
 	MaxDistance int
 	// HTTP client.
-	// It defaults to http.DefaultClient.
+	// It defaults to a new http.Client with cookies enabled.
 	HTTPClient *http.Client
 
 	//
@@ -131,7 +132,10 @@ func (c *Client) Start() error {
 		c.MaxDistance = 5
 	}
 	if c.HTTPClient == nil {
-		c.HTTPClient = http.DefaultClient
+		jar, _ := cookiejar.New(nil)
+		c.HTTPClient = &http.Client{
+			Jar: jar,
+		}
 	}
 	if c.OnRequest == nil {
 		c.OnRequest = func(_ *http.Request) {}
