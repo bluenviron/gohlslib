@@ -18,8 +18,9 @@ func main() {
 
 	// called when tracks are parsed
 	c.OnTracks = func(tracks []*gohlslib.Track) error {
-		for _, track := range tracks {
-			ttrack := track
+		for i, track := range tracks {
+			ci := i
+			ctrack := track
 
 			log.Printf("detected track with codec %T\n", track.Codec)
 
@@ -27,22 +28,22 @@ func main() {
 			switch track.Codec.(type) {
 			case *codecs.AV1:
 				c.OnDataAV1(track, func(pts int64, _ [][]byte) {
-					log.Printf("received data from track %T, pts = %v\n", ttrack.Codec, pts)
+					log.Printf("received data from track %d, codec = %T, pts = %v\n", ci, ctrack.Codec, pts)
 				})
 
 			case *codecs.H264, *codecs.H265:
 				c.OnDataH26x(track, func(pts int64, _ int64, _ [][]byte) {
-					log.Printf("received data from track %T, pts = %v\n", ttrack.Codec, pts)
+					log.Printf("received data from track %d, codec = %T, pts = %v\n", ci, ctrack.Codec, pts)
 				})
 
 			case *codecs.MPEG4Audio:
 				c.OnDataMPEG4Audio(track, func(pts int64, _ [][]byte) {
-					log.Printf("received data from track %T, pts = %v\n", ttrack.Codec, pts)
+					log.Printf("received data from track %d, codec = %T, pts = %v\n", ci, ctrack.Codec, pts)
 				})
 
 			case *codecs.Opus:
 				c.OnDataOpus(track, func(pts int64, _ [][]byte) {
-					log.Printf("received data from track %T, pts = %v\n", ttrack.Codec, pts)
+					log.Printf("received data from track %d, codec = %T, pts = %v\n", ci, ctrack.Codec, pts)
 				})
 			}
 		}
