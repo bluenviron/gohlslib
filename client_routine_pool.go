@@ -32,10 +32,7 @@ func (rp *clientRoutinePool) errorChan() chan error {
 }
 
 func (rp *clientRoutinePool) add(r clientRoutinePoolRunnable) {
-	rp.wg.Add(1)
-	go func() {
-		defer rp.wg.Done()
-
+	rp.wg.Go(func() {
 		err := r.run(rp.ctx)
 		if err != nil {
 			select {
@@ -43,5 +40,5 @@ func (rp *clientRoutinePool) add(r clientRoutinePoolRunnable) {
 			case <-rp.ctx.Done():
 			}
 		}
-	}()
+	})
 }

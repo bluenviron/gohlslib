@@ -8,7 +8,7 @@
 
 HLS client and muxer library for the Go programming language, written for [MediaMTX](https://github.com/bluenviron/mediamtx).
 
-Go &ge; 1.24 is required.
+Go &ge; 1.25 is required.
 
 Features:
 
