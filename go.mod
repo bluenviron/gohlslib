@@ -3,7 +3,7 @@ module github.com/bluenviron/gohlslib/v2
 go 1.25.0
 
 require (
-	github.com/asticode/go-astits v1.14.0
+	github.com/asticode/go-astits v1.15.0
 	github.com/bluenviron/mediacommon/v2 v2.8.0
 	github.com/stretchr/testify v1.11.1
 )
