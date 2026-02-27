@@ -32,7 +32,7 @@ func TestMuxerKLV(t *testing.T) {
 	require.NoError(t, err)
 	defer m.Close()
 
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		d := time.Duration(i) * time.Second
 		pts := int64(d) * 90000 / int64(time.Second)
 
@@ -92,8 +92,8 @@ func TestMuxerKLV(t *testing.T) {
 
 	// Iterate through all packets in the segment
 	for {
-		data, err := demuxer.NextData()
-		if err != nil {
+		data, nextErr := demuxer.NextData()
+		if nextErr != nil {
 			break
 		}
 
@@ -196,7 +196,7 @@ func TestMuxerKLVSynchronous(t *testing.T) {
 	require.NoError(t, err)
 	defer m.Close()
 
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		d := time.Duration(i) * time.Second
 		pts := int64(d) * 90000 / int64(time.Second)
 
@@ -226,8 +226,8 @@ func TestMuxerKLVSynchronous(t *testing.T) {
 
 	foundSyncKLV := false
 	for {
-		data, err := demuxer.NextData()
-		if err != nil {
+		data, nextErr := demuxer.NextData()
+		if nextErr != nil {
 			break
 		}
 		if data.PMT != nil {
@@ -265,7 +265,7 @@ func TestMuxerKLVMultipleTracks(t *testing.T) {
 	require.NoError(t, err)
 	defer m.Close()
 
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		d := time.Duration(i) * time.Second
 		pts := int64(d) * 90000 / int64(time.Second)
 
@@ -298,8 +298,8 @@ func TestMuxerKLVMultipleTracks(t *testing.T) {
 	asyncPIDs := 0
 	syncPIDs := 0
 	for {
-		data, err := demuxer.NextData()
-		if err != nil {
+		data, nextErr := demuxer.NextData()
+		if nextErr != nil {
 			break
 		}
 		if data.PMT != nil {
@@ -341,7 +341,7 @@ func TestMuxerKLVBeforeFirstSegment(t *testing.T) {
 	require.NoError(t, err, "WriteKLV before first segment should not return an error")
 
 	// Now drive segment creation with H264 frames.
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		d := time.Duration(i) * time.Second
 		pts := int64(d) * 90000 / int64(time.Second)
 		err = m.WriteH264(testVideoTrack, testTime.Add(d), pts, [][]byte{
@@ -434,7 +434,7 @@ func TestMuxerKLVEmptyData(t *testing.T) {
 	require.NoError(t, err)
 	defer m.Close()
 
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		d := time.Duration(i) * time.Second
 		pts := int64(d) * 90000 / int64(time.Second)
 
@@ -475,7 +475,7 @@ func TestMuxerKLVMultivariantCODECS(t *testing.T) {
 	require.NoError(t, err)
 	defer m.Close()
 
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		d := time.Duration(i) * time.Second
 		pts := int64(d) * 90000 / int64(time.Second)
 
@@ -510,7 +510,7 @@ func TestMuxerKLVMultivariantCODECS(t *testing.T) {
 	re := regexp.MustCompile(`CODECS="([^"]*)"`)
 	ma := re.FindStringSubmatch(playlist)
 	require.NotNil(t, ma, "CODECS attribute not found in multivariant playlist")
-	for _, part := range strings.Split(ma[1], ",") {
+	for part := range strings.SplitSeq(ma[1], ",") {
 		require.NotEmpty(t, strings.TrimSpace(part),
 			"CODECS attribute contains an empty entry: %q", ma[1])
 	}

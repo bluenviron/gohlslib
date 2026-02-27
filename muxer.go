@@ -246,9 +246,7 @@ func (m *Muxer) Start() error {
 						"the MPEG-TS variant of HLS supports H264 video only")
 				}
 				hasVideo = true
-			} else if _, ok := track.Codec.(*codecs.KLV); ok {
-				// KLV data track, allowed in MPEG-TS variant
-			} else {
+			} else if _, isKLV := track.Codec.(*codecs.KLV); !isKLV {
 				if hasAudio {
 					return fmt.Errorf("the MPEG-TS variant of HLS supports a single audio track only")
 				}
