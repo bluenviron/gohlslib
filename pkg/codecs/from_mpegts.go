@@ -14,6 +14,11 @@ func FromMPEGTS(in codecs.Codec) Codec {
 		return &MPEG4Audio{
 			Config: in.Config,
 		}
+
+	case *codecs.KLV:
+		return &KLV{
+			Synchronous: in.Synchronous,
+		}
 	}
 
 	return nil

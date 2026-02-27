@@ -498,6 +498,29 @@ func (s *muxerSegmenter) writeMPEG4Audio(
 	return nil
 }
 
+func (s *muxerSegmenter) writeKLV(
+	track *muxerTrack,
+	_ time.Time,
+	pts int64,
+	data []byte,
+) error {
+	if s.variant != MuxerVariantMPEGTS {
+		return fmt.Errorf("KLV tracks are only supported with MPEG-TS muxer variant")
+	}
+
+	// wait for the leading track to create the first segment
+	if track.stream.nextSegment == nil {
+		return nil
+	}
+
+	seg, ok := track.stream.nextSegment.(*muxerSegmentMPEGTS)
+	if !ok {
+		return fmt.Errorf("unexpected segment type %T for KLV track", track.stream.nextSegment)
+	}
+
+	return seg.writeKLV(track, pts, data)
+}
+
 // iPhone iOS fails if part durations are less than 85% of maximum part duration.
 // find a part duration that is compatible with all sample durations
 func (s *muxerSegmenter) fmp4AdjustPartDuration(sampleDuration time.Duration) {
