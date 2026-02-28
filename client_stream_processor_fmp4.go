@@ -7,7 +7,6 @@ import (
 
 	"github.com/bluenviron/mediacommon/v2/pkg/formats/fmp4"
 
-	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
 	"github.com/bluenviron/gohlslib/v2/pkg/playlist"
 )
 
@@ -86,7 +85,7 @@ func (p *clientStreamProcessorFMP4) run(ctx context.Context) error {
 
 	for i, track := range p.init.Tracks {
 		tracks[i] = &Track{
-			Codec:     codecs.FromFMP4(track.Codec),
+			Codec:     fromFMP4(track.Codec),
 			ClockRate: int(track.TimeScale),
 			Name: func() string {
 				if !p.isLeading {

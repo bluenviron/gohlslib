@@ -174,7 +174,7 @@ func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, firs
 
 	for i, mpegtsTrack := range supportedTracks {
 		tracks[i] = &Track{
-			Codec:     codecs.FromMPEGTS(mpegtsTrack.Codec),
+			Codec:     fromMPEGTS(mpegtsTrack.Codec),
 			ClockRate: 90000,
 		}
 	}
