@@ -50,9 +50,8 @@ func dateTimeOfPreloadHint(pl *playlist.Media) *time.Time {
 }
 
 type clientStreamDownloaderClient interface {
-	setLeadingTimeConv(ts clientTimeConv)
-	waitLeadingTimeConv(ctx context.Context) bool
-	getLeadingTimeConv() clientTimeConv
+	setTimeConv(ts clientTimeConv)
+	waitTimeConv(ctx context.Context) (clientTimeConv, bool)
 }
 
 type clientStreamDownloader struct {

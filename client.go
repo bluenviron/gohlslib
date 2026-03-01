@@ -114,13 +114,13 @@ type Client struct {
 	ctxCancel         func()
 	playlistURL       *url.URL
 	primaryDownloader *clientPrimaryDownloader
-	leadingTimeConv   clientTimeConv
+	timeConv          clientTimeConv
 	tracks            map[*Track]*clientTrack
 	closeError        error
 
 	// out
-	done                 chan struct{}
-	leadingTimeConvReady chan struct{}
+	done          chan struct{}
+	timeConvReady chan struct{}
 }
 
 // Start starts the client.
@@ -180,7 +180,7 @@ func (c *Client) Start() error {
 	c.ctx, c.ctxCancel = context.WithCancel(context.Background())
 
 	c.done = make(chan struct{})
-	c.leadingTimeConvReady = make(chan struct{})
+	c.timeConvReady = make(chan struct{})
 
 	go c.run()
 
@@ -308,8 +308,8 @@ func (c *Client) setTracks(tracks []*Track) (map[*Track]*clientTrack, error) {
 	return c.tracks, nil
 }
 
-func (c *Client) setLeadingTimeConv(ts clientTimeConv) {
-	c.leadingTimeConv = ts
+func (c *Client) setTimeConv(ts clientTimeConv) {
+	c.timeConv = ts
 
 	startSystem := time.Now()
 
@@ -317,18 +317,14 @@ func (c *Client) setLeadingTimeConv(ts clientTimeConv) {
 		track.startSystem = startSystem
 	}
 
-	close(c.leadingTimeConvReady)
+	close(c.timeConvReady)
 }
 
-func (c *Client) waitLeadingTimeConv(ctx context.Context) bool {
+func (c *Client) waitTimeConv(ctx context.Context) (clientTimeConv, bool) {
 	select {
-	case <-c.leadingTimeConvReady:
+	case <-c.timeConvReady:
+		return c.timeConv, true
 	case <-ctx.Done():
-		return false
+		return nil, false
 	}
-	return true
-}
-
-func (c *Client) getLeadingTimeConv() clientTimeConv {
-	return c.leadingTimeConv
 }
