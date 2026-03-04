@@ -111,9 +111,8 @@ func getRenditionsByGroup(
 
 type clientPrimaryDownloaderClient interface {
 	setTracks([]*Track) (map[*Track]*clientTrack, error)
-	setLeadingTimeConv(ts clientTimeConv)
-	waitLeadingTimeConv(ctx context.Context) bool
-	getLeadingTimeConv() clientTimeConv
+	setTimeConv(ts clientTimeConv)
+	waitTimeConv(ctx context.Context) (clientTimeConv, bool)
 }
 
 type clientPrimaryDownloader struct {

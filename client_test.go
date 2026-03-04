@@ -196,6 +196,13 @@ func TestClient(t *testing.T) {
 					)
 					require.NoError(t, err)
 
+					err = mw.WriteMPEG4Audio(
+						mpeg4audioTrack,
+						8589844592,
+						[][]byte{{1, 2, 3, 4}},
+					)
+					require.NoError(t, err)
+
 					err = mw.WriteH264(
 						h264Track,
 						90000+90000/30,
@@ -203,13 +210,6 @@ func TestClient(t *testing.T) {
 						[][]byte{
 							{1, 4, 5, 6},
 						},
-					)
-					require.NoError(t, err)
-
-					err = mw.WriteMPEG4Audio(
-						mpeg4audioTrack,
-						8589844592,
-						[][]byte{{1, 2, 3, 4}},
 					)
 					require.NoError(t, err)
 
