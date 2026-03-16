@@ -106,7 +106,7 @@ func (t *clientTrackProcessorFMP4) process(ctx context.Context, entry *procEntry
 		dts += int64(sample.Duration)
 	}
 
-	t.streamProcessor.onPartTrackProcessed(ctx)
+	go t.streamProcessor.onPartTrackProcessed(ctx)
 	return nil
 }
 
