@@ -16,7 +16,7 @@ type procEntryFMP4 struct {
 }
 
 type clientTrackProcessorFMP4StreamProcessor interface {
-	onPartTrackProcessed(ctx context.Context)
+	onPartTrackProcessed()
 }
 
 type clientTrackProcessorFMP4 struct {
@@ -83,6 +83,8 @@ func (t *clientTrackProcessorFMP4) run(ctx context.Context) error {
 }
 
 func (t *clientTrackProcessorFMP4) process(ctx context.Context, entry *procEntryFMP4) error {
+	defer t.streamProcessor.onPartTrackProcessed()
+
 	dts := entry.dts
 
 	for _, sample := range entry.partTrack.Samples {
@@ -106,7 +108,6 @@ func (t *clientTrackProcessorFMP4) process(ctx context.Context, entry *procEntry
 		dts += int64(sample.Duration)
 	}
 
-	t.streamProcessor.onPartTrackProcessed(ctx)
 	return nil
 }
 

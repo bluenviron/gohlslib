@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/bluenviron/mediacommon/v2/pkg/formats/fmp4"
 
@@ -57,13 +58,10 @@ type clientStreamProcessorFMP4 struct {
 	trackProcessors    map[int]*clientTrackProcessorFMP4
 	clientStreamTracks []*clientTrack
 	timeConv           *clientTimeConvFMP4
-
-	// in
-	chPartTrackProcessed chan struct{}
+	segmentWaitGroup   *sync.WaitGroup
 }
 
 func (p *clientStreamProcessorFMP4) initialize() {
-	p.chPartTrackProcessed = make(chan struct{}, clientMaxTracksPerStream)
 }
 
 func (p *clientStreamProcessorFMP4) run(ctx context.Context) error {
@@ -170,7 +168,7 @@ func (p *clientStreamProcessorFMP4) processSegment(ctx context.Context, seg *seg
 		p.timeConv.setLeadingNTPReceived()
 	}
 
-	partTrackCount := 0
+	p.segmentWaitGroup = &sync.WaitGroup{}
 
 	for _, part := range parts {
 		for _, partTrack := range part.Tracks {
@@ -182,39 +180,27 @@ func (p *clientStreamProcessorFMP4) processSegment(ctx context.Context, seg *seg
 			dts := p.timeConv.convert(int64(partTrack.BaseTime), trackProc.track.track.ClockRate)
 			ntp := p.timeConv.getNTP(ctx, dts, trackProc.track.track.ClockRate)
 
+			p.segmentWaitGroup.Add(1)
+
 			err = trackProc.push(ctx, &procEntryFMP4{
 				partTrack: partTrack,
 				dts:       dts,
 				ntp:       ntp,
 			})
 			if err != nil {
+				p.segmentWaitGroup.Done()
 				return err
 			}
-
-			partTrackCount++
 		}
 	}
 
-	return p.joinTrackProcessors(ctx, partTrackCount)
-}
-
-func (p *clientStreamProcessorFMP4) joinTrackProcessors(ctx context.Context, partTrackCount int) error {
-	for range partTrackCount {
-		select {
-		case <-p.chPartTrackProcessed:
-		case <-ctx.Done():
-			return nil
-		}
-	}
+	p.segmentWaitGroup.Wait()
 
 	return nil
 }
 
-func (p *clientStreamProcessorFMP4) onPartTrackProcessed(ctx context.Context) {
-	select {
-	case p.chPartTrackProcessed <- struct{}{}:
-	case <-ctx.Done():
-	}
+func (p *clientStreamProcessorFMP4) onPartTrackProcessed() {
+	p.segmentWaitGroup.Done()
 }
 
 func (p *clientStreamProcessorFMP4) initializeTrackProcessors() error {
