@@ -14,6 +14,11 @@ func fromMPEGTS(in tscodecs.Codec) codecs.Codec {
 		return &codecs.MPEG4Audio{
 			Config: in.Config,
 		}
+
+	case *tscodecs.KLV:
+		return &codecs.KLV{
+			Synchronous: in.Synchronous,
+		}
 	}
 
 	return nil
@@ -27,6 +32,11 @@ func toMPEGTS(in codecs.Codec) tscodecs.Codec {
 	case *codecs.MPEG4Audio:
 		return &tscodecs.MPEG4Audio{
 			Config: in.Config,
+		}
+
+	case *codecs.KLV:
+		return &tscodecs.KLV{
+			Synchronous: in.Synchronous,
 		}
 	}
 

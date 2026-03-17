@@ -170,7 +170,7 @@ func (s *muxerStream) populateMultivariantPlaylist(
 
 	for _, track := range s.tracks {
 		codec := codecparams.Marshal(track.Codec)
-		if !slices.Contains(mv.Codecs, codec) {
+		if codec != "" && !slices.Contains(mv.Codecs, codec) {
 			mv.Codecs = append(mv.Codecs, codec)
 		}
 
