@@ -23,7 +23,7 @@ Features:
 
   * Generate streams in MPEG-TS, fMP4 or Low-latency format
   * Write a single video track and/or multiple audio tracks
-  * Write tracks encoded with AV1, VP9, H265, H264, Opus, MPEG-4 audio (AAC)
+  * Write tracks encoded with AV1, VP9, H265, H264, Opus, MPEG-4 audio (AAC), KLV
   * Save generated segments on disk
 
 * General
