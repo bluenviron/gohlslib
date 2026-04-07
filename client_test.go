@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1754,4 +1755,129 @@ func TestClientCookie(t *testing.T) {
 	defer c.Close()
 
 	<-segmentOk
+}
+
+func TestClientRedirect(t *testing.T) {
+	writeRedirectSegment := func(t *testing.T, w http.ResponseWriter) {
+		w.Header().Set("Content-Type", `video/MP2T`)
+		h264Track := &mpegts.Track{Codec: &tscodecs.H264{}}
+		mw := &mpegts.Writer{W: w, Tracks: []*mpegts.Track{h264Track}}
+		err := mw.Initialize()
+		require.NoError(t, err)
+		err = mw.WriteH264(h264Track, 90000, 90000, [][]byte{{7, 1, 2, 3}, {8}, {5}})
+		require.NoError(t, err)
+	}
+
+	for _, ca := range []string{
+		"redirected media playlist",
+		"multivariant with redirected media playlist",
+	} {
+		t.Run(ca, func(t *testing.T) {
+			var originalCount atomic.Int32
+			var redirectedCount atomic.Int32
+
+			httpServ := &http.Server{
+				Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					switch ca {
+					case "redirected media playlist":
+						switch {
+						case r.Method == http.MethodGet && r.URL.Path == "/index.m3u8":
+							originalCount.Add(1)
+							http.Redirect(w, r, "/redirected/index.m3u8", http.StatusFound)
+
+						case r.Method == http.MethodGet && r.URL.Path == "/redirected/index.m3u8":
+							redirectedCount.Add(1)
+							w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
+							w.Write([]byte("#EXTM3U\n" +
+								"#EXT-X-VERSION:3\n" +
+								"#EXT-X-TARGETDURATION:2\n" +
+								"#EXT-X-MEDIA-SEQUENCE:0\n" +
+								"#EXT-X-PLAYLIST-TYPE:VOD\n" +
+								"#EXTINF:1,\n" +
+								"segment.ts\n" +
+								"#EXT-X-ENDLIST\n"))
+
+						case r.Method == http.MethodGet && r.URL.Path == "/redirected/segment.ts":
+							writeRedirectSegment(t, w)
+
+						default:
+							w.WriteHeader(http.StatusNotFound)
+						}
+
+					case "multivariant with redirected media playlist":
+						switch {
+						case r.Method == http.MethodGet && r.URL.Path == "/index.m3u8":
+							w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
+							w.Write([]byte("#EXTM3U\n" +
+								"#EXT-X-STREAM-INF:BANDWIDTH=1000000,CODECS=\"avc1.640015\"\n" +
+								"stream.m3u8\n"))
+
+						case r.Method == http.MethodGet && r.URL.Path == "/stream.m3u8":
+							originalCount.Add(1)
+							http.Redirect(w, r, "/redirected/stream.m3u8", http.StatusFound)
+
+						case r.Method == http.MethodGet && r.URL.Path == "/redirected/stream.m3u8":
+							redirectedCount.Add(1)
+							w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
+							w.Write([]byte("#EXTM3U\n" +
+								"#EXT-X-VERSION:3\n" +
+								"#EXT-X-TARGETDURATION:2\n" +
+								"#EXT-X-MEDIA-SEQUENCE:0\n" +
+								"#EXT-X-PLAYLIST-TYPE:VOD\n" +
+								"#EXTINF:1,\n" +
+								"segment.ts\n" +
+								"#EXT-X-ENDLIST\n"))
+
+						case r.Method == http.MethodGet && r.URL.Path == "/redirected/segment.ts":
+							writeRedirectSegment(t, w)
+
+						default:
+							w.WriteHeader(http.StatusNotFound)
+						}
+					}
+				}),
+			}
+
+			ln, err := net.Listen("tcp", "localhost:5780")
+			require.NoError(t, err)
+			defer ln.Close()
+
+			go httpServ.Serve(ln)
+			defer httpServ.Shutdown(context.Background())
+
+			tr := &http.Transport{}
+			defer tr.CloseIdleConnections()
+
+			videoRecv := make(chan struct{})
+
+			var c *Client
+			c = &Client{
+				URI:        "http://localhost:5780/index.m3u8",
+				HTTPClient: &http.Client{Transport: tr},
+				OnTracks: func(tracks []*Track) error {
+					c.OnDataH26x(tracks[0], func(_ int64, _ int64, _ [][]byte) {
+						select {
+						case <-videoRecv:
+						default:
+							close(videoRecv)
+						}
+					})
+					return nil
+				},
+			}
+
+			err = c.Start()
+			require.NoError(t, err)
+			defer c.Close()
+
+			<-videoRecv
+
+			require.Equal(t, ErrClientEOS, c.Wait2())
+
+			require.LessOrEqual(t, originalCount.Load(), int32(1),
+				"original URL must not be called more than once")
+			require.GreaterOrEqual(t, redirectedCount.Load(), int32(2),
+				"redirected URL must be called at least twice")
+		})
+	}
 }

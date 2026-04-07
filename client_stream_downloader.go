@@ -219,10 +219,18 @@ func (d *clientStreamDownloader) downloadPlaylist(
 
 	d.onDownloadStreamPlaylist(ur.String())
 
-	pl, err := downloadPlaylist(ctx, d.httpClient, d.onRequest, ur)
+	finalURL, pl, err := downloadPlaylist(ctx, d.httpClient, d.onRequest, ur)
 	if err != nil {
 		return nil, err
 	}
+
+	if skipUntil {
+		q := finalURL.Query()
+		q.Del("_HLS_skip")
+		finalURL.RawQuery = q.Encode()
+	}
+
+	d.playlistURL = finalURL
 
 	plt, ok := pl.(*playlist.Media)
 	if !ok {
