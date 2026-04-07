@@ -64,7 +64,6 @@ type ClientOnDataOpusFunc func(pts int64, packets [][]byte)
 // ClientOnDataKLVFunc is the prototype of the function passed to OnDataKLV().
 type ClientOnDataKLVFunc func(pts int64, uni []byte)
 
-
 func clientAbsoluteURL(base *url.URL, relative string) (*url.URL, error) {
 	u, err := url.Parse(relative)
 	if err != nil {

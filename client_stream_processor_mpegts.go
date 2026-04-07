@@ -218,6 +218,7 @@ func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, firs
 			p.reader.OnDataMPEG4Audio(mpegtsTrack, func(pts int64, aus [][]byte) error {
 				return p.processSample(ctx, isLeadingTrack, trackProc, pts, pts, aus)
 			})
+
 		case *codecs.KLV:
 			p.reader.OnDataKLV(mpegtsTrack, func(pts int64, data []byte) error {
 				return p.processSample(ctx, isLeadingTrack, trackProc, pts, pts, [][]byte{data})
