@@ -25,6 +25,13 @@ func mpegtsPickLeadingTrack(mpegtsTracks []*mpegts.Track) int {
 		}
 	}
 
+	// pick first non-KLV track
+	for i, track := range mpegtsTracks {
+		if _, ok := track.Codec.(*tscodecs.KLV); !ok {
+			return i
+		}
+	}
+
 	// otherwise, pick first track
 	return 0
 }
@@ -161,7 +168,7 @@ func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, firs
 
 	for _, track := range p.reader.Tracks() {
 		switch track.Codec.(type) {
-		case *tscodecs.H264, *tscodecs.MPEG4Audio:
+		case *tscodecs.H264, *tscodecs.MPEG4Audio, *tscodecs.KLV:
 			supportedTracks = append(supportedTracks, track)
 		}
 	}
@@ -210,6 +217,11 @@ func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, firs
 		case *codecs.MPEG4Audio:
 			p.reader.OnDataMPEG4Audio(mpegtsTrack, func(pts int64, aus [][]byte) error {
 				return p.processSample(ctx, isLeadingTrack, trackProc, pts, pts, aus)
+			})
+
+		case *codecs.KLV:
+			p.reader.OnDataKLV(mpegtsTrack, func(pts int64, data []byte) error {
+				return p.processSample(ctx, isLeadingTrack, trackProc, pts, pts, [][]byte{data})
 			})
 		}
 	}

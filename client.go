@@ -61,6 +61,9 @@ type ClientOnDataMPEG4AudioFunc func(pts int64, aus [][]byte)
 // ClientOnDataOpusFunc is the prototype of the function passed to OnDataOpus().
 type ClientOnDataOpusFunc func(pts int64, packets [][]byte)
 
+// ClientOnDataKLVFunc is the prototype of the function passed to OnDataKLV().
+type ClientOnDataKLVFunc func(pts int64, uni []byte)
+
 func clientAbsoluteURL(base *url.URL, relative string) (*url.URL, error) {
 	u, err := url.Parse(relative)
 	if err != nil {
@@ -244,6 +247,13 @@ func (c *Client) OnDataMPEG4Audio(track *Track, cb ClientOnDataMPEG4AudioFunc) {
 func (c *Client) OnDataOpus(track *Track, cb ClientOnDataOpusFunc) {
 	c.tracks[track].onData = func(pts int64, _ int64, data [][]byte) {
 		cb(pts, data)
+	}
+}
+
+// OnDataKLV sets a callback that is called when data from an KLV track is received.
+func (c *Client) OnDataKLV(track *Track, cb ClientOnDataKLVFunc) {
+	c.tracks[track].onData = func(pts int64, _ int64, data [][]byte) {
+		cb(pts, data[0])
 	}
 }
 
