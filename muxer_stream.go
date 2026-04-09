@@ -90,6 +90,7 @@ type muxerStream struct {
 	variant        MuxerVariant
 	segmentMaxSize uint64
 	segmentCount   int
+	maxAge         time.Duration
 	onEncodeError  MuxerOnEncodeErrorFunc
 	mutex          *sync.Mutex
 	cond           *sync.Cond
@@ -599,7 +600,7 @@ func (s *muxerStream) generateAndCacheInitFile() error {
 		func(w http.ResponseWriter, _ *http.Request) {
 			// allow caching but use a small period in order to
 			// allow a stream to change track parameters
-			w.Header().Set("Cache-Control", "max-age="+initMaxAge)
+			w.Header().Set("Cache-Control", "max-age="+strconv.FormatInt(int64(s.maxAge.Seconds()), 10))
 			w.Header().Set("Content-Type", contentType)
 			w.WriteHeader(http.StatusOK)
 			w.Write(initFile)
@@ -696,7 +697,7 @@ func (s *muxerStream) rotateParts(
 					contentType = "video/mp4"
 				}
 
-				w.Header().Set("Cache-Control", "max-age="+segmentMaxAge)
+				w.Header().Set("Cache-Control", "max-age="+strconv.FormatInt(int64(s.maxAge.Seconds()), 10))
 				w.Header().Set("Content-Type", contentType)
 				w.WriteHeader(http.StatusOK)
 				io.Copy(w, r)
@@ -822,7 +823,7 @@ func (s *muxerStream) rotateSegments(
 				contentType = "video/mp4"
 			}
 
-			w.Header().Set("Cache-Control", "max-age="+segmentMaxAge)
+			w.Header().Set("Cache-Control", "max-age="+strconv.FormatInt(int64(s.maxAge.Seconds()), 10))
 			w.Header().Set("Content-Type", contentType)
 			w.WriteHeader(http.StatusOK)
 			io.Copy(w, r)
