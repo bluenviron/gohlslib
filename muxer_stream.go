@@ -113,6 +113,7 @@ type muxerStream struct {
 	nextSegment            muxerSegment
 	nextPart               *muxerPart // low-latency only
 	initFilePresent        bool       // fmp4 only
+	initPrefix             string
 	segmentDeleteCount     int
 	closed                 bool
 	targetDuration         int
@@ -458,7 +459,7 @@ func (s *muxerStream) generateMediaPlaylistFMP4(
 	skipped := 0
 
 	if !isDeltaUpdate {
-		uri := initFilePath(s.prefix, s.id)
+		uri := initFilePath(s.initPrefix, s.id)
 		if rawQuery != "" {
 			uri += "?" + rawQuery
 		}
@@ -577,7 +578,13 @@ func (s *muxerStream) generateAndCacheInitFile() error {
 		return err
 	}
 
+	tmp, err := generatePrefix()
+	if err != nil {
+		return err
+	}
+
 	s.initFilePresent = true
+	s.initPrefix = tmp
 	initFile := w.Bytes()
 
 	var contentType string
@@ -588,7 +595,7 @@ func (s *muxerStream) generateAndCacheInitFile() error {
 	}
 
 	s.server.registerPath(
-		initFilePath(s.prefix, s.id),
+		initFilePath(s.initPrefix, s.id),
 		func(w http.ResponseWriter, _ *http.Request) {
 			// allow caching but use a small period in order to
 			// allow a stream to change track parameters
