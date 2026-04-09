@@ -382,7 +382,7 @@ func TestMuxer(t *testing.T) {
 		byts, h, err := doRequest(m, "/index.m3u8?key=value")
 		require.NoError(t, err)
 		require.Equal(t, "application/vnd.apple.mpegurl", h.Get("Content-Type"))
-		require.Equal(t, "max-age=30", h.Get("Cache-Control"))
+		require.Equal(t, "no-cache", h.Get("Cache-Control"))
 
 		switch {
 		case content == "video+audio" && variant == "mpegts":

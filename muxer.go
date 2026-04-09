@@ -180,6 +180,9 @@ type Muxer struct {
 	// This decreases performance, since saving segments on disk is less performant
 	// than saving them on RAM, but allows to preserve RAM.
 	Directory string
+	// Allow downstream proxies to cache segments for this amount of time.
+	// It defaults to 3600 seconds.
+	MaxAge time.Duration
 
 	//
 	// callbacks (all optional)
@@ -220,6 +223,9 @@ func (m *Muxer) Start() error {
 	}
 	if m.SegmentMaxSize == 0 {
 		m.SegmentMaxSize = 50 * 1024 * 1024
+	}
+	if m.MaxAge == 0 {
+		m.MaxAge = 3600 * time.Second
 	}
 	if m.OnEncodeError == nil {
 		m.OnEncodeError = func(e error) {
@@ -369,6 +375,7 @@ func (m *Muxer) Start() error {
 			variant:        m.Variant,
 			segmentMaxSize: m.SegmentMaxSize,
 			segmentCount:   m.SegmentCount,
+			maxAge:         m.MaxAge,
 			onEncodeError:  m.OnEncodeError,
 			mutex:          &m.mutex,
 			cond:           m.cond,
@@ -421,6 +428,7 @@ func (m *Muxer) Start() error {
 				variant:        m.Variant,
 				segmentMaxSize: m.SegmentMaxSize,
 				segmentCount:   m.SegmentCount,
+				maxAge:         m.MaxAge,
 				onEncodeError:  m.OnEncodeError,
 				mutex:          &m.mutex,
 				cond:           m.cond,
@@ -671,7 +679,7 @@ func (m *Muxer) handleMultivariantPlaylist(w http.ResponseWriter, r *http.Reques
 
 	// allow caching but use a small period in order to
 	// allow a stream to change tracks or bitrate
-	w.Header().Set("Cache-Control", "max-age="+multivariantPlaylistMaxAge)
+	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
 	w.WriteHeader(http.StatusOK)
 	w.Write(buf)
