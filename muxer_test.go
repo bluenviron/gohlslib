@@ -1096,7 +1096,9 @@ func TestMuxerDynamicParams(t *testing.T) {
 	require.Regexp(t, re, string(byts))
 	ma := re.FindStringSubmatch(string(byts))
 
-	bu, _, err = doRequest(m, ma[1])
+	firstInitURI := ma[1]
+
+	bu, _, err = doRequest(m, firstInitURI)
 	require.NoError(t, err)
 
 	func() {
@@ -1153,6 +1155,8 @@ func TestMuxerDynamicParams(t *testing.T) {
 		`(.*?_seg3\.mp4)\n$`)
 	require.Regexp(t, re, string(byts))
 	ma = re.FindStringSubmatch(string(byts))
+
+	require.NotEqual(t, firstInitURI, ma[1])
 
 	bu, _, err = doRequest(m, ma[1])
 	require.NoError(t, err)
@@ -1256,22 +1260,23 @@ func TestMuxerFMP4NegativeDTSDiff(t *testing.T) {
 
 	byts, _, err := doRequest(m, "audio1_stream.m3u8")
 	require.NoError(t, err)
-	require.Equal(t, `#EXTM3U`+"\n"+
-		`#EXT-X-VERSION:10`+"\n"+
-		`#EXT-X-TARGETDURATION:2`+"\n"+
-		`#EXT-X-MEDIA-SEQUENCE:1`+"\n"+
-		`#EXT-X-MAP:URI="`+m.prefix+`_audio1_init.mp4"`+"\n"+
-		`#EXTINF:2.00000,`+"\n"+
-		``+m.prefix+`_audio1_seg1.mp4`+"\n"+
-		`#EXT-X-PROGRAM-DATE-TIME:2010-01-01T01:01:01Z`+"\n"+
-		`#EXTINF:2.00000,`+"\n"+
-		``+m.prefix+`_audio1_seg2.mp4`+"\n"+
-		`#EXT-X-PROGRAM-DATE-TIME:2010-01-01T01:01:01Z`+"\n"+
-		`#EXTINF:2.00000,`+"\n"+
-		``+m.prefix+`_audio1_seg3.mp4`+"\n",
-		string(byts))
+	re := regexp.MustCompile(`^#EXTM3U\n` +
+		`#EXT-X-VERSION:10\n` +
+		`#EXT-X-TARGETDURATION:2\n` +
+		`#EXT-X-MEDIA-SEQUENCE:1\n` +
+		`#EXT-X-MAP:URI="(.*?_audio1_init\.mp4)"\n` +
+		`#EXTINF:2.00000,\n` +
+		`(.*?_audio1_seg1\.mp4)\n` +
+		`#EXT-X-PROGRAM-DATE-TIME:2010-01-01T01:01:01Z\n` +
+		`#EXTINF:2.00000,\n` +
+		`.*?_audio1_seg2\.mp4\n` +
+		`#EXT-X-PROGRAM-DATE-TIME:2010-01-01T01:01:01Z\n` +
+		`#EXTINF:2.00000,\n` +
+		`.*?_audio1_seg3\.mp4\n$`)
+	require.Regexp(t, re, string(byts))
+	ma := re.FindStringSubmatch(string(byts))
 
-	byts, _, err = doRequest(m, m.prefix+"_audio1_seg1.mp4")
+	byts, _, err = doRequest(m, ma[2])
 	require.NoError(t, err)
 
 	var parts fmp4.Parts
