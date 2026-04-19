@@ -13,10 +13,6 @@ import (
 	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
 )
 
-const (
-	clientMaxQueuedSamples = 1000
-)
-
 func mpegtsPickLeadingTrack(mpegtsTracks []*mpegts.Track) int {
 	// pick first video track
 	for i, track := range mpegtsTracks {
@@ -264,7 +260,7 @@ func (p *clientStreamProcessorMPEGTS) processSample(
 			return nil
 		}
 
-		if len(p.queuedSamples) >= clientMaxQueuedSamples {
+		if len(p.queuedSamples) >= clientMaxMPEGTSQueuedSamples {
 			return fmt.Errorf("too many queued samples")
 		}
 

@@ -22,7 +22,7 @@ func main() {
 	defer req.Body.Close()
 
 	// download the playlist
-	byts, err := io.ReadAll(req.Body)
+	byts, err := io.ReadAll(io.LimitReader(req.Body, 1*1024*1024))
 	if err != nil {
 		panic(err)
 	}
