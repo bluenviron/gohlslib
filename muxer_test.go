@@ -579,7 +579,7 @@ func TestMuxer(t *testing.T) {
 			_, h, err = doRequest(m, ma[1])
 			require.NoError(t, err)
 			require.Equal(t, "video/mp4", h.Get("Content-Type"))
-			require.Equal(t, "max-age=30", h.Get("Cache-Control"))
+			require.Equal(t, "max-age=3600", h.Get("Cache-Control"))
 
 			// segment 1
 			_, h, err = doRequest(m, ma[2])
@@ -606,7 +606,7 @@ func TestMuxer(t *testing.T) {
 			_, h, err = doRequest(m, ma[1])
 			require.NoError(t, err)
 			require.Equal(t, "audio/mp4", h.Get("Content-Type"))
-			require.Equal(t, "max-age=30", h.Get("Cache-Control"))
+			require.Equal(t, "max-age=3600", h.Get("Cache-Control"))
 
 			// segment 1
 			_, h, err = doRequest(m, ma[2])
@@ -1070,7 +1070,7 @@ func TestMuxerDynamicParams(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	bu, _, err := doRequest(m, "index.m3u8")
+	index1, _, err := doRequest(m, "index.m3u8")
 	require.NoError(t, err)
 	require.Equal(t, "#EXTM3U\n"+
 		"#EXT-X-VERSION:9\n"+
@@ -1078,7 +1078,7 @@ func TestMuxerDynamicParams(t *testing.T) {
 		"\n"+
 		"#EXT-X-STREAM-INF:BANDWIDTH=1144,AVERAGE-BANDWIDTH=1028,"+
 		"CODECS=\"avc1.42c028\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
-		"video1_stream.m3u8\n", string(bu))
+		"video1_stream.m3u8\n", string(index1))
 
 	byts, _, err := doRequest(m, "video1_stream.m3u8")
 	require.NoError(t, err)
@@ -1096,15 +1096,13 @@ func TestMuxerDynamicParams(t *testing.T) {
 	require.Regexp(t, re, string(byts))
 	ma := re.FindStringSubmatch(string(byts))
 
-	bu, _, err = doRequest(m, ma[1])
+	bu, _, err := doRequest(m, ma[1])
 	require.NoError(t, err)
 
-	func() {
-		var init fmp4.Init
-		err = init.Unmarshal(bytes.NewReader(bu))
-		require.NoError(t, err)
-		require.Equal(t, testSPS, init.Tracks[0].Codec.(*mp4codecs.H264).SPS)
-	}()
+	var init1 fmp4.Init
+	err = init1.Unmarshal(bytes.NewReader(bu))
+	require.NoError(t, err)
+	require.Equal(t, testSPS, init1.Tracks[0].Codec.(*mp4codecs.H264).SPS)
 
 	// SPS (720p)
 	testSPS2 := []byte{
@@ -1126,15 +1124,15 @@ func TestMuxerDynamicParams(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	bu, _, err = doRequest(m, "index.m3u8")
+	index2, _, err := doRequest(m, "index.m3u8")
 	require.NoError(t, err)
 	require.Equal(t, "#EXTM3U\n"+
 		"#EXT-X-VERSION:9\n"+
 		"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 		"\n"+
 		"#EXT-X-STREAM-INF:BANDWIDTH=912,AVERAGE-BANDWIDTH=752,"+
-		"CODECS=\"avc1.64001f\",RESOLUTION=1280x720,FRAME-RATE=30.000\n"+
-		"video1_stream.m3u8\n", string(bu))
+		"CODECS=\"avc1.42c028\",RESOLUTION=1920x1080,FRAME-RATE=30.000\n"+
+		"video1_stream.m3u8\n", string(index2))
 
 	byts, _, err = doRequest(m, "video1_stream.m3u8")
 	require.NoError(t, err)
@@ -1157,10 +1155,10 @@ func TestMuxerDynamicParams(t *testing.T) {
 	bu, _, err = doRequest(m, ma[1])
 	require.NoError(t, err)
 
-	var init fmp4.Init
-	err = init.Unmarshal(bytes.NewReader(bu))
+	var init2 fmp4.Init
+	err = init2.Unmarshal(bytes.NewReader(bu))
 	require.NoError(t, err)
-	require.Equal(t, testSPS2, init.Tracks[0].Codec.(*mp4codecs.H264).SPS)
+	require.Equal(t, init1, init2)
 }
 
 func TestMuxerFMP4ZeroDuration(t *testing.T) {

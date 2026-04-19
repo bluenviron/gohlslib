@@ -8,13 +8,12 @@ import (
 )
 
 type muxerSegmentFMP4 struct {
-	prefix             string
-	storageFactory     storage.Factory
-	streamID           string
-	id                 uint64
-	startNTP           time.Time
-	startDTS           time.Duration
-	fromForcedRotation bool
+	prefix         string
+	storageFactory storage.Factory
+	streamID       string
+	id             uint64
+	startNTP       time.Time
+	startDTS       time.Duration
 
 	path    string
 	storage storage.File
@@ -49,10 +48,6 @@ func (s *muxerSegmentFMP4) getDuration() time.Duration {
 
 func (s *muxerSegmentFMP4) getSize() uint64 {
 	return s.storage.Size()
-}
-
-func (s *muxerSegmentFMP4) isFromForcedRotation() bool {
-	return s.fromForcedRotation
 }
 
 func (s *muxerSegmentFMP4) reader() (io.ReadCloser, error) {

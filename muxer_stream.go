@@ -577,7 +577,6 @@ func (s *muxerStream) generateAndCacheInitFile() error {
 		return err
 	}
 
-	s.initFilePresent = true
 	initFile := w.Bytes()
 
 	var contentType string
@@ -590,9 +589,7 @@ func (s *muxerStream) generateAndCacheInitFile() error {
 	s.server.registerPath(
 		initFilePath(s.prefix, s.id),
 		func(w http.ResponseWriter, _ *http.Request) {
-			// allow caching but use a small period in order to
-			// allow a stream to change track parameters
-			w.Header().Set("Cache-Control", "max-age="+initMaxAge)
+			w.Header().Set("Cache-Control", "max-age="+segmentMaxAge)
 			w.Header().Set("Content-Type", contentType)
 			w.WriteHeader(http.StatusOK)
 			w.Write(initFile)
@@ -625,13 +622,12 @@ func (s *muxerStream) createFirstSegment(
 		s.mpegtsSwitchableWriter.w = seg.bw
 	} else {
 		seg := &muxerSegmentFMP4{
-			prefix:             s.prefix,
-			storageFactory:     s.storageFactory,
-			streamID:           s.id,
-			id:                 s.nextSegmentID,
-			startNTP:           nextNTP,
-			startDTS:           nextDTS,
-			fromForcedRotation: false,
+			prefix:         s.prefix,
+			storageFactory: s.storageFactory,
+			streamID:       s.id,
+			id:             s.nextSegmentID,
+			startNTP:       nextNTP,
+			startDTS:       nextDTS,
 		}
 		err := seg.initialize()
 		if err != nil {
@@ -762,7 +758,6 @@ func (s *muxerStream) rotateParts(
 func (s *muxerStream) rotateSegments(
 	nextDTS time.Duration,
 	nextNTP time.Time,
-	force bool,
 ) error {
 	if s.variant != MuxerVariantMPEGTS {
 		err := s.rotateParts(nextDTS, false)
@@ -840,12 +835,12 @@ func (s *muxerStream) rotateSegments(
 		s.segmentDeleteCount++
 	}
 
-	// regenerate init files only if missing or codec parameters have changed
-	if s.variant != MuxerVariantMPEGTS && (!s.initFilePresent || segment.isFromForcedRotation()) {
+	if s.variant != MuxerVariantMPEGTS && !s.initFilePresent {
 		err = s.generateAndCacheInitFile()
 		if err != nil {
 			return err
 		}
+		s.initFilePresent = true
 	}
 
 	if s.variant == MuxerVariantMPEGTS { //nolint:dupl
@@ -868,13 +863,12 @@ func (s *muxerStream) rotateSegments(
 		s.mpegtsSwitchableWriter.w = seg.bw
 	} else {
 		seg := &muxerSegmentFMP4{
-			prefix:             s.prefix,
-			storageFactory:     s.storageFactory,
-			streamID:           s.id,
-			id:                 s.nextSegmentID,
-			startNTP:           nextNTP,
-			startDTS:           nextDTS,
-			fromForcedRotation: force,
+			prefix:         s.prefix,
+			storageFactory: s.storageFactory,
+			streamID:       s.id,
+			id:             s.nextSegmentID,
+			startNTP:       nextNTP,
+			startDTS:       nextDTS,
 		}
 		err = seg.initialize()
 		if err != nil {

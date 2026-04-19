@@ -60,10 +60,6 @@ func (s *muxerSegmentMPEGTS) getSize() uint64 {
 	return s.storage.Size()
 }
 
-func (*muxerSegmentMPEGTS) isFromForcedRotation() bool {
-	return false
-}
-
 func (s *muxerSegmentMPEGTS) reader() (io.ReadCloser, error) {
 	return s.storage.Reader()
 }
