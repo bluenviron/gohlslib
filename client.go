@@ -17,9 +17,11 @@ import (
 )
 
 const (
-	clientMaxTracksPerStream    = 10
-	clientMPEGTSSampleQueueSize = 100
-	clientMaxDTSSystemDiff      = 10 * time.Second
+	clientMaxTracksPerStream     = 10
+	clientMPEGTSSampleQueueSize  = 100
+	clientMaxMPEGTSQueuedSamples = 1000
+	clientMaxDTSSystemDiff       = 10 * time.Second
+	clientMaxInboundPlaylistSize = 1 * 1024 * 1024
 )
 
 // ErrClientEOS is returned by Wait() when the stream has ended.
