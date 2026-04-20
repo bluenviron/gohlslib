@@ -551,6 +551,7 @@ func (m *Muxer) WriteKLV(
 }
 
 // Handle handles a HTTP request.
+// This can be safely called in parallel with Write*() and Close() methods.
 func (m *Muxer) Handle(w http.ResponseWriter, r *http.Request) {
 	m.server.handle(w, r)
 }
