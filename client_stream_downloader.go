@@ -273,7 +273,7 @@ func (d *clientStreamDownloader) downloadPreloadHint(
 		return nil, fmt.Errorf("bad status code: %d", res.StatusCode)
 	}
 
-	byts, err := io.ReadAll(io.LimitReader(res.Body, clientMaxInboundPlaylistSize))
+	byts, err := io.ReadAll(io.LimitReader(res.Body, clientMaxInboundPartSize))
 	if err != nil {
 		return nil, err
 	}
@@ -319,7 +319,7 @@ func (d *clientStreamDownloader) downloadSegment(
 		return nil, fmt.Errorf("bad status code: %d", res.StatusCode)
 	}
 
-	byts, err := io.ReadAll(io.LimitReader(res.Body, clientMaxInboundPlaylistSize))
+	byts, err := io.ReadAll(io.LimitReader(res.Body, clientMaxInboundSegmentSize))
 	if err != nil {
 		return nil, err
 	}
