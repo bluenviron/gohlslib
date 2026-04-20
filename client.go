@@ -22,6 +22,8 @@ const (
 	clientMaxMPEGTSQueuedSamples = 1000
 	clientMaxDTSSystemDiff       = 10 * time.Second
 	clientMaxInboundPlaylistSize = 1 * 1024 * 1024
+	clientMaxInboundSegmentSize  = 100 * 1024 * 1024
+	clientMaxInboundPartSize     = 10 * 1024 * 1024
 )
 
 // ErrClientEOS is returned by Wait() when the stream has ended.
