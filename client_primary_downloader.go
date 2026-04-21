@@ -63,7 +63,7 @@ func downloadPlaylist(
 		return nil, nil, fmt.Errorf("bad status code: %d", res.StatusCode)
 	}
 
-	byts, err := io.ReadAll(io.LimitReader(res.Body, clientMaxInboundPlaylistSize))
+	byts, err := io.ReadAll(&customLimitReader{res.Body, clientMaxInboundPlaylistSize})
 	if err != nil {
 		return nil, nil, err
 	}
