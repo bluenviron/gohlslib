@@ -979,14 +979,32 @@ func TestMuxerSaveToDisk(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			var u string
+			var mediaPlaylistName string
 			if ca == "mpegts" {
-				u = "main_stream.m3u8"
+				mediaPlaylistName = "main_stream.m3u8"
 			} else {
-				u = "video1_stream.m3u8"
+				mediaPlaylistName = "video1_stream.m3u8"
 			}
 
-			byts, _, err := doRequest(m, u)
+			diskMultivariantByts, err := os.ReadFile(filepath.Join(dir, "index.m3u8"))
+			require.NoError(t, err)
+
+			diskMediaPlaylistByts, err := os.ReadFile(filepath.Join(dir, mediaPlaylistName))
+			require.NoError(t, err)
+
+			if ca == "mp4" {
+				re := regexp.MustCompile(`#EXT-X-MAP:URI="(.*?_init.mp4)"`)
+				ma := re.FindStringSubmatch(string(diskMediaPlaylistByts))
+				require.Len(t, ma, 2)
+
+				_, err = os.ReadFile(filepath.Join(dir, ma[1]))
+				require.NoError(t, err)
+			}
+
+			multivariantByts, _, err := doRequest(m, "index.m3u8")
+			require.NoError(t, err)
+
+			byts, _, err := doRequest(m, mediaPlaylistName)
 			require.NoError(t, err)
 
 			var re *regexp.Regexp
@@ -1017,6 +1035,9 @@ func TestMuxerSaveToDisk(t *testing.T) {
 			}
 			require.Regexp(t, re, string(byts))
 			ma := re.FindStringSubmatch(string(byts))
+
+			require.Equal(t, multivariantByts, diskMultivariantByts)
+			require.Equal(t, byts, diskMediaPlaylistByts)
 
 			if ca == "mpegts" {
 				_, err = os.ReadFile(filepath.Join(dir, ma[2]))

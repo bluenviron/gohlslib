@@ -8,6 +8,8 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
@@ -176,9 +178,10 @@ type Muxer struct {
 	// This prevents RAM exhaustion.
 	// It defaults to 50MB.
 	SegmentMaxSize uint64
-	// Directory in which to save segments.
-	// This decreases performance, since saving segments on disk is less performant
-	// than saving them on RAM, but allows to preserve RAM.
+	// Directory to store segments and (non low-latency) playlists on disk.
+	// This can be used to:
+	// - offload segments from RAM to disk
+	// - produce self-contained folders to pass to a CDN (only in case of non low-latency)
 	Directory string
 
 	//
@@ -374,6 +377,7 @@ func (m *Muxer) Start() error {
 			cond:           m.cond,
 			prefix:         m.prefix,
 			storageFactory: m.storageFactory,
+			directory:      m.Directory,
 			server:         m.server,
 			tracks:         m.mtracks,
 			id:             "main",
@@ -426,6 +430,7 @@ func (m *Muxer) Start() error {
 				cond:           m.cond,
 				prefix:         m.prefix,
 				storageFactory: m.storageFactory,
+				directory:      m.Directory,
 				server:         m.server,
 				tracks:         []*muxerTrack{track},
 				id:             id,
@@ -637,7 +642,35 @@ func (m *Muxer) rotateSegmentsInner(
 		}
 	}
 
+	if m.Directory != "" && m.Variant != MuxerVariantLowLatency {
+		err = m.savePlaylists()
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+func (m *Muxer) savePlaylists() error {
+	for _, stream := range m.streams {
+		byts, err := stream.generateMediaPlaylist(false, "")
+		if err != nil {
+			return err
+		}
+
+		err = os.WriteFile(filepath.Join(m.Directory, mediaPlaylistPath(stream.id)), byts, 0o644)
+		if err != nil {
+			return err
+		}
+	}
+
+	byts, err := m.generateMultivariantPlaylist("")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(filepath.Join(m.Directory, "index.m3u8"), byts, 0o644)
 }
 
 func (m *Muxer) handleMultivariantPlaylist(w http.ResponseWriter, r *http.Request) {

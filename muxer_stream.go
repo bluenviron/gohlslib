@@ -6,6 +6,8 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -95,6 +97,7 @@ type muxerStream struct {
 	cond           *sync.Cond
 	prefix         string
 	storageFactory storage.Factory
+	directory      string
 	server         *muxerServer
 	tracks         []*muxerTrack
 	id             string
@@ -578,6 +581,13 @@ func (s *muxerStream) generateAndCacheInitFile() error {
 	}
 
 	initFile := w.Bytes()
+
+	if s.directory != "" && s.variant != MuxerVariantLowLatency {
+		err = os.WriteFile(filepath.Join(s.directory, initFilePath(s.prefix, s.id)), initFile, 0o644)
+		if err != nil {
+			return err
+		}
+	}
 
 	var contentType string
 	if areAllAudio(s.tracks) {
