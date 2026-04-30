@@ -292,6 +292,17 @@ func (s *muxerStream) hasPart(segmentID uint64, partID uint64) bool {
 	return false
 }
 
+func (s *muxerStream) mediaPlaylistMaxAge() string {
+	if s.variant == MuxerVariantLowLatency || len(s.segments) == 0 {
+		return "no-cache"
+	}
+
+	lastSeg := s.segments[len(s.segments)-1]
+	maxAge := int(math.Floor(lastSeg.getDuration().Seconds()))
+
+	return "public, max-age=" + strconv.FormatInt(int64(maxAge), 10)
+}
+
 func (s *muxerStream) handleMediaPlaylist(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	msn := queryVal(q, "_HLS_msn")
@@ -352,7 +363,7 @@ func (s *muxerStream) handleMediaPlaylist(w http.ResponseWriter, r *http.Request
 			}()
 
 			if byts != nil {
-				w.Header().Set("Cache-Control", "no-cache")
+				w.Header().Set("Cache-Control", s.mediaPlaylistMaxAge())
 				w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
 				w.WriteHeader(http.StatusOK)
 				w.Write(byts)
@@ -395,7 +406,7 @@ func (s *muxerStream) handleMediaPlaylist(w http.ResponseWriter, r *http.Request
 	}()
 
 	if byts != nil {
-		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Cache-Control", s.mediaPlaylistMaxAge())
 		w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
 		w.WriteHeader(http.StatusOK)
 		w.Write(byts)
