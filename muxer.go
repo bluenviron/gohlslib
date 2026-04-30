@@ -705,7 +705,7 @@ func (m *Muxer) handleMultivariantPlaylist(w http.ResponseWriter, r *http.Reques
 
 	// allow caching but use a small period in order to
 	// allow a stream to change tracks or bitrate
-	w.Header().Set("Cache-Control", "max-age="+multivariantPlaylistMaxAge)
+	w.Header().Set("Cache-Control", "public, max-age="+multivariantPlaylistMaxAge)
 	w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
 	w.WriteHeader(http.StatusOK)
 	w.Write(buf)

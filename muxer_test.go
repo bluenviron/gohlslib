@@ -382,7 +382,7 @@ func TestMuxer(t *testing.T) {
 		byts, h, err := doRequest(m, "/index.m3u8?key=value")
 		require.NoError(t, err)
 		require.Equal(t, "application/vnd.apple.mpegurl", h.Get("Content-Type"))
-		require.Equal(t, "max-age=30", h.Get("Cache-Control"))
+		require.Equal(t, "public, max-age=30", h.Get("Cache-Control"))
 
 		switch {
 		case content == "video+audio" && variant == "mpegts":
@@ -547,7 +547,7 @@ func TestMuxer(t *testing.T) {
 			_, h, err = doRequest(m, ma[1])
 			require.NoError(t, err)
 			require.Equal(t, "video/mp2t", h.Get("Content-Type"))
-			require.Equal(t, "max-age=3600", h.Get("Cache-Control"))
+			require.Equal(t, "public, max-age=3600", h.Get("Cache-Control"))
 
 		case variant == "mpegts" && content == "audio":
 			re := regexp.MustCompile(`^#EXTM3U\n` +
@@ -579,13 +579,13 @@ func TestMuxer(t *testing.T) {
 			_, h, err = doRequest(m, ma[1])
 			require.NoError(t, err)
 			require.Equal(t, "video/mp4", h.Get("Content-Type"))
-			require.Equal(t, "max-age=3600", h.Get("Cache-Control"))
+			require.Equal(t, "public, max-age=3600", h.Get("Cache-Control"))
 
 			// segment 1
 			_, h, err = doRequest(m, ma[2])
 			require.NoError(t, err)
 			require.Equal(t, "video/mp4", h.Get("Content-Type"))
-			require.Equal(t, "max-age=3600", h.Get("Cache-Control"))
+			require.Equal(t, "public, max-age=3600", h.Get("Cache-Control"))
 
 		case variant == "fmp4" && content == "audio":
 			re := regexp.MustCompile(`^#EXTM3U\n` +
@@ -606,13 +606,13 @@ func TestMuxer(t *testing.T) {
 			_, h, err = doRequest(m, ma[1])
 			require.NoError(t, err)
 			require.Equal(t, "audio/mp4", h.Get("Content-Type"))
-			require.Equal(t, "max-age=3600", h.Get("Cache-Control"))
+			require.Equal(t, "public, max-age=3600", h.Get("Cache-Control"))
 
 			// segment 1
 			_, h, err = doRequest(m, ma[2])
 			require.NoError(t, err)
 			require.Equal(t, "audio/mp4", h.Get("Content-Type"))
-			require.Equal(t, "max-age=3600", h.Get("Cache-Control"))
+			require.Equal(t, "public, max-age=3600", h.Get("Cache-Control"))
 
 		case variant == "lowLatency" && content == "video+audio":
 			re := regexp.MustCompile(`^#EXTM3U\n` +

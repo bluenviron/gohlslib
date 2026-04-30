@@ -599,7 +599,7 @@ func (s *muxerStream) generateAndCacheInitFile() error {
 	s.server.registerPath(
 		initFilePath(s.prefix, s.id),
 		func(w http.ResponseWriter, _ *http.Request) {
-			w.Header().Set("Cache-Control", "max-age="+segmentMaxAge)
+			w.Header().Set("Cache-Control", "public, max-age="+segmentMaxAge)
 			w.Header().Set("Content-Type", contentType)
 			w.WriteHeader(http.StatusOK)
 			w.Write(initFile)
@@ -695,7 +695,7 @@ func (s *muxerStream) rotateParts(
 					contentType = "video/mp4"
 				}
 
-				w.Header().Set("Cache-Control", "max-age="+segmentMaxAge)
+				w.Header().Set("Cache-Control", "public, max-age="+segmentMaxAge)
 				w.Header().Set("Content-Type", contentType)
 				w.WriteHeader(http.StatusOK)
 				io.Copy(w, r)
@@ -820,7 +820,7 @@ func (s *muxerStream) rotateSegments(
 				contentType = "video/mp4"
 			}
 
-			w.Header().Set("Cache-Control", "max-age="+segmentMaxAge)
+			w.Header().Set("Cache-Control", "public, max-age="+segmentMaxAge)
 			w.Header().Set("Content-Type", contentType)
 			w.WriteHeader(http.StatusOK)
 			io.Copy(w, r)
