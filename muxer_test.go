@@ -526,7 +526,21 @@ func TestMuxer(t *testing.T) {
 		byts, h, err := doRequest(m, u)
 		require.NoError(t, err)
 		require.Equal(t, "application/vnd.apple.mpegurl", h.Get("Content-Type"))
-		require.Equal(t, "no-cache", h.Get("Cache-Control"))
+
+		switch variant {
+		case "lowLatency":
+			require.Equal(t, "no-cache", h.Get("Cache-Control"))
+
+		case "mpegts":
+			if content == "audio" {
+				require.Equal(t, "public, max-age=2", h.Get("Cache-Control"))
+			} else {
+				require.Equal(t, "public, max-age=1", h.Get("Cache-Control"))
+			}
+
+		default:
+			require.Equal(t, "public, max-age=1", h.Get("Cache-Control"))
+		}
 
 		switch {
 		case variant == "mpegts" && (content == "video+audio" || content == "video"):
@@ -724,7 +738,14 @@ func TestMuxer(t *testing.T) {
 		byts, h, err := doRequest(m, "audio2_stream.m3u8?key=value")
 		require.NoError(t, err)
 		require.Equal(t, "application/vnd.apple.mpegurl", h.Get("Content-Type"))
-		require.Equal(t, "no-cache", h.Get("Cache-Control"))
+
+		switch variant {
+		case "lowLatency":
+			require.Equal(t, "no-cache", h.Get("Cache-Control"))
+
+		default:
+			require.Equal(t, "public, max-age=1", h.Get("Cache-Control"))
+		}
 
 		switch variant {
 		case "fmp4":
