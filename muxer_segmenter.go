@@ -1,6 +1,7 @@
 package gohlslib
 
 import (
+	"bytes"
 	"fmt"
 	"time"
 
@@ -105,6 +106,7 @@ func (s *muxerSegmenter) writeAV1(
 	pts int64,
 	tu [][]byte,
 ) error {
+	codec := track.Codec.(*codecs.AV1)
 	randomAccess := false
 
 	for _, obu := range tu {
@@ -112,6 +114,10 @@ func (s *muxerSegmenter) writeAV1(
 
 		if typ == av1.OBUTypeSequenceHeader {
 			randomAccess = true
+
+			if !track.stream.initFilePresent && !bytes.Equal(codec.SequenceHeader, obu) {
+				codec.SequenceHeader = obu
+			}
 		}
 	}
 
@@ -143,7 +149,33 @@ func (s *muxerSegmenter) writeVP9(
 		return err
 	}
 
-	randomAccess := (!h.NonKeyFrame)
+	codec := track.Codec.(*codecs.VP9)
+	randomAccess := false
+
+	if !h.NonKeyFrame {
+		randomAccess = true
+
+		if !track.stream.initFilePresent {
+			if v := h.Width(); v != codec.Width {
+				codec.Width = v
+			}
+			if v := h.Height(); v != codec.Height {
+				codec.Height = v
+			}
+			if h.Profile != codec.Profile {
+				codec.Profile = h.Profile
+			}
+			if h.ColorConfig.BitDepth != codec.BitDepth {
+				codec.BitDepth = h.ColorConfig.BitDepth
+			}
+			if v := h.ChromaSubsampling(); v != codec.ChromaSubsampling {
+				codec.ChromaSubsampling = v
+			}
+			if h.ColorConfig.ColorRange != codec.ColorRange {
+				codec.ColorRange = h.ColorConfig.ColorRange
+			}
+		}
+	}
 
 	// skip samples silently until we find a random access one
 	if !track.firstRandomAccessReceived {
@@ -172,6 +204,7 @@ func (s *muxerSegmenter) writeH265(
 	pts int64,
 	au [][]byte,
 ) error {
+	codec := track.Codec.(*codecs.H265)
 	randomAccess := false
 
 	for _, nalu := range au {
@@ -180,6 +213,21 @@ func (s *muxerSegmenter) writeH265(
 		switch typ {
 		case h265.NALUType_IDR_W_RADL, h265.NALUType_IDR_N_LP, h265.NALUType_CRA_NUT:
 			randomAccess = true
+
+		case h265.NALUType_VPS_NUT:
+			if !track.stream.initFilePresent && !bytes.Equal(codec.VPS, nalu) {
+				codec.VPS = nalu
+			}
+
+		case h265.NALUType_SPS_NUT:
+			if !track.stream.initFilePresent && !bytes.Equal(codec.SPS, nalu) {
+				codec.SPS = nalu
+			}
+
+		case h265.NALUType_PPS_NUT:
+			if !track.stream.initFilePresent && !bytes.Equal(codec.PPS, nalu) {
+				codec.PPS = nalu
+			}
 		}
 	}
 
@@ -223,6 +271,7 @@ func (s *muxerSegmenter) writeH264(
 	pts int64,
 	au [][]byte,
 ) error {
+	codec := track.Codec.(*codecs.H264)
 	randomAccess := false
 	nonIDRPresent := false
 
@@ -235,6 +284,16 @@ func (s *muxerSegmenter) writeH264(
 
 		case h264.NALUTypeNonIDR:
 			nonIDRPresent = true
+
+		case h264.NALUTypeSPS:
+			if !track.stream.initFilePresent && !bytes.Equal(codec.SPS, nalu) {
+				codec.SPS = nalu
+			}
+
+		case h264.NALUTypePPS:
+			if !track.stream.initFilePresent && !bytes.Equal(codec.PPS, nalu) {
+				codec.PPS = nalu
+			}
 		}
 	}
 

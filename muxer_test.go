@@ -1203,6 +1203,171 @@ func TestMuxerDynamicParams(t *testing.T) {
 	require.Equal(t, init1, init2)
 }
 
+func TestMuxerInStreamParams(t *testing.T) {
+	getInit := func(t *testing.T, m *Muxer) *fmp4.Init {
+		byts, _, err := doRequest(m, "video1_stream.m3u8")
+		require.NoError(t, err)
+		re := regexp.MustCompile(`#EXT-X-MAP:URI="(.*?)"`)
+		ma := re.FindStringSubmatch(string(byts))
+		require.Len(t, ma, 2)
+		bu, _, err := doRequest(m, ma[1])
+		require.NoError(t, err)
+		var init fmp4.Init
+		err = init.Unmarshal(bytes.NewReader(bu))
+		require.NoError(t, err)
+		return &init
+	}
+
+	for _, ca := range []string{
+		"h264",
+		"h265",
+		"av1",
+		"vp9",
+	} {
+		t.Run(ca, func(t *testing.T) {
+			var track *Track
+
+			switch ca {
+			case "h264":
+				track = &Track{
+					Codec: &codecs.H264{
+						SPS: []byte{0x67, 0x42, 0xc0, 0x0a}, // different initial SPS
+						PPS: []byte{0x00},                   // different initial PPS
+					},
+					ClockRate: 90000,
+				}
+
+			case "h265":
+				track = &Track{
+					Codec: &codecs.H265{
+						VPS: []byte{0x40, 0x01}, // wrong initial params
+						SPS: []byte{0x42, 0x01},
+						PPS: []byte{0x44, 0x01},
+					},
+					ClockRate: 90000,
+				}
+
+			case "av1":
+				track = &Track{
+					Codec:     &codecs.AV1{SequenceHeader: []byte{0x08}}, // different initial (empty payload)
+					ClockRate: 90000,
+				}
+
+			case "vp9":
+				track = &Track{
+					Codec:     &codecs.VP9{}, // different initial (zero values)
+					ClockRate: 90000,
+				}
+			}
+
+			m := &Muxer{
+				Variant:            MuxerVariantFMP4,
+				SegmentCount:       3,
+				SegmentMinDuration: 1 * time.Second,
+				Tracks:             []*Track{track},
+			}
+			err := m.Start()
+			require.NoError(t, err)
+			defer m.Close()
+
+			switch ca {
+			case "h264":
+				inStreamPPS := []byte{0x08, 0xDE, 0xAD}
+
+				err = m.WriteH264(track, testTime, 0, [][]byte{testSPS, inStreamPPS, {5}})
+				require.NoError(t, err)
+
+				err = m.WriteH264(track, testTime, 2*90000, [][]byte{{5}})
+				require.NoError(t, err)
+
+				err = m.WriteH264(track, testTime, 4*90000, [][]byte{{5}})
+				require.NoError(t, err)
+
+				h264Codec := getInit(t, m).Tracks[0].Codec.(*mp4codecs.H264)
+				require.Equal(t, testSPS, h264Codec.SPS)
+				require.Equal(t, inStreamPPS, h264Codec.PPS)
+
+			case "h265":
+				inStreamVPS := []byte{
+					0x40, 0x01, 0x0c, 0x01, 0xff, 0xff, 0x01, 0x60,
+					0x00, 0x00, 0x03, 0x00, 0x90, 0x00, 0x00, 0x03,
+					0x00, 0x00, 0x03, 0x00, 0x78, 0x99, 0x98, 0x09,
+				}
+				inStreamSPS := []byte{
+					0x42, 0x01, 0x01, 0x01, 0x60, 0x00, 0x00, 0x03,
+					0x00, 0x90, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03,
+					0x00, 0x78, 0xa0, 0x03, 0xc0, 0x80, 0x10, 0xe5,
+					0x96, 0x66, 0x69, 0x24, 0xca, 0xe0, 0x10, 0x00,
+					0x00, 0x03, 0x00, 0x10, 0x00, 0x00, 0x03, 0x01,
+					0xe0, 0x80,
+				}
+				inStreamPPS := []byte{0x44, 0x01, 0xc1, 0x72, 0xb4, 0x62, 0x40}
+				idrNALU := []byte{0x26, 0x01, 0xaf, 0x08, 0x42, 0x23, 0x48, 0x8a, 0x43, 0xe2}
+
+				err = m.WriteH265(track, testTime, 0, [][]byte{inStreamVPS, inStreamSPS, inStreamPPS, idrNALU})
+				require.NoError(t, err)
+
+				err = m.WriteH265(track, testTime, 2*90000, [][]byte{idrNALU})
+				require.NoError(t, err)
+
+				err = m.WriteH265(track, testTime, 4*90000, [][]byte{idrNALU})
+				require.NoError(t, err)
+
+				err = m.WriteH265(track, testTime, 6*90000, [][]byte{idrNALU})
+				require.NoError(t, err)
+
+				h265Codec := getInit(t, m).Tracks[0].Codec.(*mp4codecs.H265)
+				require.Equal(t, inStreamVPS, h265Codec.VPS)
+				require.Equal(t, inStreamSPS, h265Codec.SPS)
+				require.Equal(t, inStreamPPS, h265Codec.PPS)
+
+			case "av1":
+				inStreamSeqHeader := []byte{
+					0x08, 0x00, 0x00, 0x00, 0x42, 0xa7, 0xbf, 0xe4,
+					0x60, 0x0d, 0x00, 0x40,
+				}
+
+				err = m.WriteAV1(track, testTime, 0, [][]byte{inStreamSeqHeader})
+				require.NoError(t, err)
+
+				err = m.WriteAV1(track, testTime, 2*90000, [][]byte{inStreamSeqHeader})
+				require.NoError(t, err)
+
+				err = m.WriteAV1(track, testTime, 4*90000, [][]byte{inStreamSeqHeader})
+				require.NoError(t, err)
+
+				av1Codec := getInit(t, m).Tracks[0].Codec.(*mp4codecs.AV1)
+				require.Equal(t, inStreamSeqHeader, av1Codec.SequenceHeader)
+
+			case "vp9":
+				// valid VP9 key frame (chrome webrtc, 1920x804, profile 0)
+				keyFrame := []byte{
+					0x82, 0x49, 0x83, 0x42, 0x00, 0x77, 0xf0, 0x32,
+					0x34, 0x30, 0x38, 0x24, 0x1c, 0x19, 0x40, 0x18,
+					0x03, 0x40, 0x5f, 0xb4,
+				}
+
+				err = m.WriteVP9(track, testTime, 0, keyFrame)
+				require.NoError(t, err)
+
+				err = m.WriteVP9(track, testTime, 2*90000, keyFrame)
+				require.NoError(t, err)
+
+				err = m.WriteVP9(track, testTime, 4*90000, keyFrame)
+				require.NoError(t, err)
+
+				vp9Codec := getInit(t, m).Tracks[0].Codec.(*mp4codecs.VP9)
+				require.Equal(t, 1920, vp9Codec.Width)
+				require.Equal(t, 804, vp9Codec.Height)
+				require.Equal(t, uint8(0), vp9Codec.Profile)
+				require.Equal(t, uint8(8), vp9Codec.BitDepth)
+				require.Equal(t, uint8(1), vp9Codec.ChromaSubsampling)
+				require.Equal(t, false, vp9Codec.ColorRange)
+			}
+		})
+	}
+}
+
 func TestMuxerFMP4ZeroDuration(t *testing.T) {
 	m := &Muxer{
 		Variant:            MuxerVariantFMP4,
