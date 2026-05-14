@@ -43,13 +43,13 @@ func (d *h264Decoder) initialize() error {
 
 	res := C.avcodec_open2(d.codecCtx, codec, nil)
 	if res < 0 {
-		C.avcodec_close(d.codecCtx)
+		C.avcodec_free_context(&d.codecCtx)
 		return fmt.Errorf("avcodec_open2() failed")
 	}
 
 	d.srcFrame = C.av_frame_alloc()
 	if d.srcFrame == nil {
-		C.avcodec_close(d.codecCtx)
+		C.avcodec_free_context(&d.codecCtx)
 		return fmt.Errorf("av_frame_alloc() failed")
 	}
 
@@ -67,7 +67,7 @@ func (d *h264Decoder) close() {
 	}
 
 	C.av_frame_free(&d.srcFrame)
-	C.avcodec_close(d.codecCtx)
+	C.avcodec_free_context(&d.codecCtx)
 }
 
 func (d *h264Decoder) decode(nalu []byte) (image.Image, error) {
