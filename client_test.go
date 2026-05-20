@@ -15,6 +15,7 @@ import (
 
 	"github.com/asticode/go-astits"
 	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
+	"github.com/bluenviron/mediacommon/v2/pkg/codecs/flac"
 	"github.com/bluenviron/mediacommon/v2/pkg/codecs/h264"
 	"github.com/bluenviron/mediacommon/v2/pkg/codecs/mpeg4audio"
 	"github.com/stretchr/testify/require"
@@ -301,15 +302,15 @@ func TestClient(t *testing.T) {
 								ID:        99,
 								TimeScale: 90000,
 								Codec: &mp4codecs.H264{
-									SPS: testSPS,
-									PPS: testPPS,
+									SPS: testH264SPS,
+									PPS: testH264PPS,
 								},
 							},
 							{
 								ID:        98,
 								TimeScale: 44100,
 								Codec: &mp4codecs.MPEG4Audio{
-									Config: testConfig,
+									Config: testAACConfig,
 								},
 							},
 						},
@@ -470,8 +471,8 @@ func TestClient(t *testing.T) {
 								ID:        1,
 								TimeScale: 90000,
 								Codec: &mp4codecs.H264{
-									SPS: testSPS,
-									PPS: testPPS,
+									SPS: testH264SPS,
+									PPS: testH264PPS,
 								},
 							},
 						},
@@ -486,7 +487,7 @@ func TestClient(t *testing.T) {
 								ID:        1,
 								TimeScale: 44100,
 								Codec: &mp4codecs.MPEG4Audio{
-									Config: testConfig,
+									Config: testAACConfig,
 								},
 							},
 						},
@@ -669,8 +670,8 @@ func TestClient(t *testing.T) {
 								ID:        1,
 								TimeScale: 90000,
 								Codec: &mp4codecs.H264{
-									SPS: testSPS,
-									PPS: testPPS,
+									SPS: testH264SPS,
+									PPS: testH264PPS,
 								},
 							},
 						},
@@ -685,7 +686,7 @@ func TestClient(t *testing.T) {
 								ID:        1,
 								TimeScale: 44100,
 								Codec: &mp4codecs.MPEG4Audio{
-									Config: testConfig,
+									Config: testAACConfig,
 								},
 							},
 						},
@@ -841,15 +842,15 @@ func TestClient(t *testing.T) {
 								ID:        1,
 								TimeScale: 90000,
 								Codec: &mp4codecs.H264{
-									SPS: testSPS,
-									PPS: testPPS,
+									SPS: testH264SPS,
+									PPS: testH264PPS,
 								},
 							},
 							{
 								ID:        2,
 								TimeScale: 44100,
 								Codec: &mp4codecs.MPEG4Audio{
-									Config: testConfig,
+									Config: testAACConfig,
 								},
 							},
 						},
@@ -1006,8 +1007,8 @@ func TestClient(t *testing.T) {
 								var sps []byte
 								var pps []byte
 								if variant != "mpegts" {
-									sps = testSPS
-									pps = testPPS
+									sps = testH264SPS
+									pps = testH264PPS
 								}
 
 								var audioClockRate int
@@ -1196,6 +1197,536 @@ func TestClient(t *testing.T) {
 	}
 }
 
+func TestClientCodecs(t *testing.T) {
+	for _, ca := range []string{
+		"h264",
+		"h265",
+		"av1",
+		"vp9",
+		"mpeg4audio",
+		"opus",
+		"flac",
+	} {
+		t.Run(ca, func(t *testing.T) {
+			httpServ := &http.Server{
+				Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					switch {
+					case r.Method == http.MethodGet && r.URL.Path == "/index.m3u8":
+						w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
+						w.Write([]byte("#EXTM3U\n" +
+							"#EXT-X-VERSION:7\n" +
+							"#EXT-X-MEDIA-SEQUENCE:20\n" +
+							"#EXT-X-INDEPENDENT-SEGMENTS\n" +
+							"#EXT-X-TARGETDURATION:2\n" +
+							"#EXT-X-MAP:URI=\"init.mp4\"\n" +
+							"#EXTINF:2,\n" +
+							"segment1.mp4\n" +
+							"#EXTINF:2,\n" +
+							"segment2.mp4\n" +
+							"#EXTINF:2,\n" +
+							"null.mp4\n"))
+
+					case r.Method == http.MethodGet && r.URL.Path == "/init.mp4":
+						w.Header().Set("Content-Type", `video/mp4`)
+
+						switch ca {
+						case "h264":
+							err := mp4ToWriter(&fmp4.Init{
+								Tracks: []*fmp4.InitTrack{
+									{
+										ID:        1,
+										TimeScale: 90000,
+										Codec: &mp4codecs.H264{
+											SPS: testH264SPS,
+											PPS: testH264PPS,
+										},
+									},
+								},
+							}, w)
+							require.NoError(t, err)
+
+						case "h265":
+							err := mp4ToWriter(&fmp4.Init{
+								Tracks: []*fmp4.InitTrack{
+									{
+										ID:        1,
+										TimeScale: 90000,
+										Codec: &mp4codecs.H265{
+											VPS: testH265VPS,
+											SPS: testH265SPS,
+											PPS: testH265PPS,
+										},
+									},
+								},
+							}, w)
+							require.NoError(t, err)
+
+						case "av1":
+							err := mp4ToWriter(&fmp4.Init{
+								Tracks: []*fmp4.InitTrack{
+									{
+										ID:        1,
+										TimeScale: 90000,
+										Codec: &mp4codecs.AV1{
+											SequenceHeader: testAV1SequenceHeader,
+										},
+									},
+								},
+							}, w)
+							require.NoError(t, err)
+
+						case "vp9":
+							err := mp4ToWriter(&fmp4.Init{
+								Tracks: []*fmp4.InitTrack{
+									{
+										ID:        1,
+										TimeScale: 90000,
+										Codec: &mp4codecs.VP9{
+											Width:             1920,
+											Height:            804,
+											Profile:           0,
+											BitDepth:          8,
+											ChromaSubsampling: 1,
+											ColorRange:        false,
+										},
+									},
+								},
+							}, w)
+							require.NoError(t, err)
+
+						case "mpeg4audio":
+							err := mp4ToWriter(&fmp4.Init{
+								Tracks: []*fmp4.InitTrack{
+									{
+										ID:        1,
+										TimeScale: 44100,
+										Codec: &mp4codecs.MPEG4Audio{
+											Config: testAACConfig,
+										},
+									},
+								},
+							}, w)
+							require.NoError(t, err)
+
+						case "opus":
+							err := mp4ToWriter(&fmp4.Init{
+								Tracks: []*fmp4.InitTrack{
+									{
+										ID:        1,
+										TimeScale: 48000,
+										Codec: &mp4codecs.Opus{
+											ChannelCount: 2,
+										},
+									},
+								},
+							}, w)
+							require.NoError(t, err)
+
+						case "flac":
+							err := mp4ToWriter(&fmp4.Init{
+								Tracks: []*fmp4.InitTrack{
+									{
+										ID:        1,
+										TimeScale: 44100,
+										Codec: &mp4codecs.FLAC{
+											StreamInfo: &flac.StreamInfo{
+												MinBlockSize: 4096,
+												MaxBlockSize: 4096,
+												SampleRate:   44100,
+												ChannelCount: 2,
+												BitDepth:     16,
+											},
+										},
+									},
+								},
+							}, w)
+							require.NoError(t, err)
+						}
+
+					case r.Method == http.MethodGet && r.URL.Path == "/segment1.mp4":
+						w.Header().Set("Content-Type", `video/mp4`)
+
+						switch ca {
+						case "h264":
+							err := mp4ToWriter(&fmp4.Part{
+								Tracks: []*fmp4.PartTrack{
+									{
+										ID: 1,
+										Samples: []*fmp4.Sample{
+											{Payload: mustMarshalAVCC([][]byte{{5, 1}})},
+										},
+									},
+								},
+							}, w)
+							require.NoError(t, err)
+
+						case "h265":
+							err := mp4ToWriter(&fmp4.Part{
+								Tracks: []*fmp4.PartTrack{
+									{
+										ID: 1,
+										Samples: []*fmp4.Sample{
+											{Payload: mustMarshalAVCC([][]byte{{0x26, 0x01, 0xaf, 0x08, 0x42, 0x23, 0x48, 0x8a, 0x43, 0xe2}})},
+										},
+									},
+								},
+							}, w)
+							require.NoError(t, err)
+
+						case "av1":
+							s := &fmp4.Sample{}
+							err := s.FillAV1([][]byte{{
+								0x08, 0x00, 0x00, 0x00, 0x42, 0xa7, 0xbf, 0xe4, 0x60, 0x0d, 0x00, 0x40,
+							}})
+							require.NoError(t, err)
+							err = mp4ToWriter(&fmp4.Part{
+								Tracks: []*fmp4.PartTrack{
+									{
+										ID:      1,
+										Samples: []*fmp4.Sample{s},
+									},
+								},
+							}, w)
+							require.NoError(t, err)
+
+						case "vp9":
+							err := mp4ToWriter(&fmp4.Part{
+								Tracks: []*fmp4.PartTrack{
+									{
+										ID: 1,
+										Samples: []*fmp4.Sample{
+											{Payload: testVP9KeyFrame},
+										},
+									},
+								},
+							}, w)
+							require.NoError(t, err)
+
+						case "mpeg4audio":
+							err := mp4ToWriter(&fmp4.Part{
+								Tracks: []*fmp4.PartTrack{
+									{
+										ID: 1,
+										Samples: []*fmp4.Sample{
+											{Payload: []byte{0x21, 0x10}},
+										},
+									},
+								},
+							}, w)
+							require.NoError(t, err)
+
+						case "opus":
+							err := mp4ToWriter(&fmp4.Part{
+								Tracks: []*fmp4.PartTrack{
+									{
+										ID: 1,
+										Samples: []*fmp4.Sample{
+											{Payload: []byte{0xf8}},
+										},
+									},
+								},
+							}, w)
+							require.NoError(t, err)
+
+						case "flac":
+							err := mp4ToWriter(&fmp4.Part{
+								Tracks: []*fmp4.PartTrack{
+									{
+										ID: 1,
+										Samples: []*fmp4.Sample{
+											{Payload: []byte{0x00, 0x01, 0x02, 0x03}},
+										},
+									},
+								},
+							}, w)
+							require.NoError(t, err)
+						}
+					}
+				}),
+			}
+
+			ln, err := net.Listen("tcp", "localhost:5780")
+			require.NoError(t, err)
+			defer ln.Close()
+
+			go httpServ.Serve(ln)
+			defer httpServ.Shutdown(context.Background())
+
+			tr := &http.Transport{}
+			defer tr.CloseIdleConnections()
+
+			recv := make(chan struct{})
+			var c *Client
+
+			c = &Client{
+				URI: "http://localhost:5780/index.m3u8",
+				OnTracks: func(tracks []*Track) error {
+					switch ca {
+					case "h264":
+						require.Equal(t, []*Track{{
+							Codec:     &codecs.H264{SPS: testH264SPS, PPS: testH264PPS},
+							ClockRate: 90000,
+						}}, tracks)
+						c.OnDataH26x(tracks[0], func(_ int64, _ int64, _ [][]byte) {
+							close(recv)
+						})
+
+					case "h265":
+						require.Equal(t, []*Track{{
+							Codec:     &codecs.H265{VPS: testH265VPS, SPS: testH265SPS, PPS: testH265PPS},
+							ClockRate: 90000,
+						}}, tracks)
+						c.OnDataH26x(tracks[0], func(_ int64, _ int64, _ [][]byte) {
+							close(recv)
+						})
+
+					case "av1":
+						require.Equal(t, []*Track{{
+							Codec:     &codecs.AV1{SequenceHeader: testAV1SequenceHeader},
+							ClockRate: 90000,
+						}}, tracks)
+						c.OnDataAV1(tracks[0], func(_ int64, _ [][]byte) {
+							close(recv)
+						})
+
+					case "vp9":
+						require.Equal(t, []*Track{{
+							Codec: &codecs.VP9{
+								Width:             1920,
+								Height:            804,
+								Profile:           0,
+								BitDepth:          8,
+								ChromaSubsampling: 1,
+								ColorRange:        false,
+							},
+							ClockRate: 90000,
+						}}, tracks)
+						c.OnDataVP9(tracks[0], func(_ int64, _ []byte) {
+							close(recv)
+						})
+
+					case "mpeg4audio":
+						require.Equal(t, []*Track{{
+							Codec:     &codecs.MPEG4Audio{Config: testAACConfig},
+							ClockRate: 44100,
+						}}, tracks)
+						c.OnDataMPEG4Audio(tracks[0], func(_ int64, _ [][]byte) {
+							close(recv)
+						})
+
+					case "opus":
+						require.Equal(t, []*Track{{
+							Codec:     &codecs.Opus{ChannelCount: 2},
+							ClockRate: 48000,
+						}}, tracks)
+						c.OnDataOpus(tracks[0], func(_ int64, _ [][]byte) {
+							close(recv)
+						})
+
+					case "flac":
+						require.Equal(t, []*Track{{
+							Codec: &codecs.FLAC{StreamInfo: &flac.StreamInfo{
+								MinBlockSize: 4096,
+								MaxBlockSize: 4096,
+								SampleRate:   44100,
+								ChannelCount: 2,
+								BitDepth:     16,
+							}},
+							ClockRate: 44100,
+						}}, tracks)
+						c.OnDataFLAC(tracks[0], func(_ int64, _ []byte) {
+							close(recv)
+						})
+					}
+
+					return nil
+				},
+			}
+
+			err = c.Start()
+			require.NoError(t, err)
+			defer c.Close()
+
+			<-recv
+		})
+	}
+}
+
+func TestClientKLVMPEGTS(t *testing.T) {
+	httpServ := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/stream.m3u8":
+				w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
+				w.Write([]byte("#EXTM3U\n" +
+					"#EXT-X-VERSION:3\n" +
+					"#EXT-X-ALLOW-CACHE:NO\n" +
+					"#EXT-X-TARGETDURATION:2\n" +
+					"#EXT-X-MEDIA-SEQUENCE:0\n" +
+					"#EXTINF:2,\n" +
+					"segment1.ts\n" +
+					"#EXTINF:2,\n" +
+					"segment1.ts\n" +
+					"#EXTINF:2,\n" +
+					"segment1.ts\n"))
+
+			case r.Method == http.MethodGet && r.URL.Path == "/segment1.ts":
+				w.Header().Set("Content-Type", `video/MP2T`)
+
+				h264Track := &mpegts.Track{
+					Codec: &tscodecs.H264{},
+				}
+				klvTrack := &mpegts.Track{
+					Codec: &tscodecs.KLV{},
+				}
+				mw := &mpegts.Writer{W: w, Tracks: []*mpegts.Track{h264Track, klvTrack}}
+				err := mw.Initialize()
+				require.NoError(t, err)
+
+				err = mw.WriteH264(
+					h264Track,
+					90000,
+					90000,
+					[][]byte{
+						{7, 1, 2, 3}, // SPS
+						{8},          // PPS
+						{5},          // IDR
+					},
+				)
+				require.NoError(t, err)
+
+				err = mw.WriteKLV(
+					klvTrack,
+					90000,
+					[]byte{0x06, 0x0e, 0x2b, 0x34},
+				)
+				require.NoError(t, err)
+			}
+		}),
+	}
+
+	ln, err := net.Listen("tcp", "localhost:5780")
+	require.NoError(t, err)
+
+	go httpServ.Serve(ln)
+	defer httpServ.Shutdown(context.Background())
+
+	recv := make(chan struct{})
+
+	var c *Client
+	c = &Client{
+		URI: "http://localhost:5780/stream.m3u8",
+		OnTracks: func(tracks []*Track) error {
+			require.Equal(t, 2, len(tracks))
+			require.Equal(t, &codecs.H264{}, tracks[0].Codec)
+			require.Equal(t, &codecs.KLV{Synchronous: false}, tracks[1].Codec)
+
+			c.OnDataKLV(tracks[1], func(_ int64, data []byte) {
+				require.Equal(t, []byte{0x06, 0x0e, 0x2b, 0x34}, data)
+				select {
+				case <-recv:
+				default:
+					close(recv)
+				}
+			})
+			return nil
+		},
+	}
+
+	err = c.Start()
+	require.NoError(t, err)
+	defer c.Close()
+
+	<-recv
+}
+
+func TestClientKLVSynchronousMPEGTS(t *testing.T) {
+	httpServ := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/stream.m3u8":
+				w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
+				w.Write([]byte("#EXTM3U\n" +
+					"#EXT-X-VERSION:3\n" +
+					"#EXT-X-ALLOW-CACHE:NO\n" +
+					"#EXT-X-TARGETDURATION:2\n" +
+					"#EXT-X-MEDIA-SEQUENCE:0\n" +
+					"#EXTINF:2,\n" +
+					"segment1.ts\n" +
+					"#EXTINF:2,\n" +
+					"segment1.ts\n" +
+					"#EXTINF:2,\n" +
+					"segment1.ts\n"))
+
+			case r.Method == http.MethodGet && r.URL.Path == "/segment1.ts":
+				w.Header().Set("Content-Type", `video/MP2T`)
+
+				h264Track := &mpegts.Track{
+					Codec: &tscodecs.H264{},
+				}
+				klvTrack := &mpegts.Track{
+					Codec: &tscodecs.KLV{Synchronous: true},
+				}
+				mw := &mpegts.Writer{W: w, Tracks: []*mpegts.Track{h264Track, klvTrack}}
+				err := mw.Initialize()
+				require.NoError(t, err)
+
+				err = mw.WriteH264(
+					h264Track,
+					90000,
+					90000,
+					[][]byte{
+						{7, 1, 2, 3}, // SPS
+						{8},          // PPS
+						{5},          // IDR
+					},
+				)
+				require.NoError(t, err)
+
+				err = mw.WriteKLV(
+					klvTrack,
+					90000,
+					[]byte{0x06, 0x0e, 0x2b, 0x34},
+				)
+				require.NoError(t, err)
+			}
+		}),
+	}
+
+	ln, err := net.Listen("tcp", "localhost:5780")
+	require.NoError(t, err)
+
+	go httpServ.Serve(ln)
+	defer httpServ.Shutdown(context.Background())
+
+	recv := make(chan struct{})
+
+	var c *Client
+	c = &Client{
+		URI: "http://localhost:5780/stream.m3u8",
+		OnTracks: func(tracks []*Track) error {
+			require.Equal(t, 2, len(tracks))
+			require.Equal(t, &codecs.KLV{Synchronous: true}, tracks[1].Codec)
+
+			c.OnDataKLV(tracks[1], func(_ int64, data []byte) {
+				require.Equal(t, []byte{0x06, 0x0e, 0x2b, 0x34}, data)
+				select {
+				case <-recv:
+				default:
+					close(recv)
+				}
+			})
+			return nil
+		},
+	}
+
+	err = c.Start()
+	require.NoError(t, err)
+	defer c.Close()
+
+	<-recv
+}
+
 func TestClientSleepInCallbackMPEGTS(t *testing.T) {
 	httpServ := &http.Server{
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1271,7 +1802,7 @@ func TestClientSleepInCallbackMPEGTS(t *testing.T) {
 	<-recv
 }
 
-func TestClientUnsupportedTracks(t *testing.T) {
+func TestClientSkipUnsupportedTracks(t *testing.T) {
 	httpServ := &http.Server{
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method == http.MethodGet && r.URL.Path == "/stream.m3u8" {
@@ -1512,8 +2043,8 @@ func TestClientErrors(t *testing.T) {
 										ID:        1,
 										TimeScale: 90000,
 										Codec: &mp4codecs.H264{
-											SPS: testSPS,
-											PPS: testPPS,
+											SPS: testH264SPS,
+											PPS: testH264PPS,
 										},
 									},
 								},
@@ -1528,14 +2059,14 @@ func TestClientErrors(t *testing.T) {
 										ID:        1,
 										TimeScale: 44100,
 										Codec: &mp4codecs.MPEG4Audio{
-											Config: testConfig,
+											Config: testAACConfig,
 										},
 									},
 									{
 										ID:        2,
 										TimeScale: 44100,
 										Codec: &mp4codecs.MPEG4Audio{
-											Config: testConfig,
+											Config: testAACConfig,
 										},
 									},
 								},

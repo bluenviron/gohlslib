@@ -44,6 +44,11 @@ func fromFMP4(in mp4codecs.Codec) codecs.Codec { //nolint:dupl
 		return &codecs.MPEG4Audio{
 			Config: in.Config,
 		}
+
+	case *mp4codecs.FLAC:
+		return &codecs.FLAC{
+			StreamInfo: in.StreamInfo,
+		}
 	}
 
 	return nil
@@ -87,6 +92,11 @@ func toFMP4(in codecs.Codec) mp4codecs.Codec { //nolint:dupl
 	case *codecs.MPEG4Audio:
 		return &mp4codecs.MPEG4Audio{
 			Config: in.Config,
+		}
+
+	case *codecs.FLAC:
+		return &mp4codecs.FLAC{
+			StreamInfo: in.StreamInfo,
 		}
 	}
 

@@ -71,6 +71,11 @@ func TestMarshal(t *testing.T) {
 			"opus",
 		},
 		{
+			"flac",
+			&codecs.FLAC{},
+			"flac",
+		},
+		{
 			"mpeg-4 audio",
 			&codecs.MPEG4Audio{
 				Config: mpeg4audio.AudioSpecificConfig{

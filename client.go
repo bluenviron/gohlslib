@@ -65,6 +65,9 @@ type ClientOnDataMPEG4AudioFunc func(pts int64, aus [][]byte)
 // ClientOnDataOpusFunc is the prototype of the function passed to OnDataOpus().
 type ClientOnDataOpusFunc func(pts int64, packets [][]byte)
 
+// ClientOnDataFLACFunc is the prototype of the function passed to OnDataFLAC().
+type ClientOnDataFLACFunc func(pts int64, frame []byte)
+
 // ClientOnDataKLVFunc is the prototype of the function passed to OnDataKLV().
 type ClientOnDataKLVFunc func(pts int64, uni []byte)
 
@@ -251,6 +254,13 @@ func (c *Client) OnDataMPEG4Audio(track *Track, cb ClientOnDataMPEG4AudioFunc) {
 func (c *Client) OnDataOpus(track *Track, cb ClientOnDataOpusFunc) {
 	c.tracks[track].onData = func(pts int64, _ int64, data [][]byte) {
 		cb(pts, data)
+	}
+}
+
+// OnDataFLAC sets a callback that is called when data from a FLAC track is received.
+func (c *Client) OnDataFLAC(track *Track, cb ClientOnDataFLACFunc) {
+	c.tracks[track].onData = func(pts int64, _ int64, data [][]byte) {
+		cb(pts, data[0])
 	}
 }
 

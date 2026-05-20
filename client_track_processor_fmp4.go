@@ -60,6 +60,11 @@ func (t *clientTrackProcessorFMP4) initialize() error {
 		t.decodePayload = func(sample *fmp4.Sample) ([][]byte, error) {
 			return [][]byte{sample.Payload}, nil
 		}
+
+	case *codecs.FLAC:
+		t.decodePayload = func(sample *fmp4.Sample) ([][]byte, error) {
+			return [][]byte{sample.Payload}, nil
+		}
 	}
 
 	t.queue = make(chan *procEntryFMP4)
