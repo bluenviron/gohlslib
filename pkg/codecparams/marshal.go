@@ -179,6 +179,9 @@ func Marshal(codec codecs.Codec) string {
 	case *codecs.Opus:
 		return "opus"
 
+	case *codecs.FLAC:
+		return "flac"
+
 	case *codecs.MPEG4Audio:
 		// https://developer.mozilla.org/en-US/docs/Web/Media/Formats/codecs_parameter
 		return "mp4a.40." + strconv.FormatInt(int64(codec.Config.Type), 10)

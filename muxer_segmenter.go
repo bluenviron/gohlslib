@@ -393,6 +393,25 @@ func (s *muxerSegmenter) writeOpus(
 	return nil
 }
 
+func (s *muxerSegmenter) writeFLAC(
+	track *muxerTrack,
+	ntp time.Time,
+	pts int64,
+	frame []byte,
+) error {
+	return s.fmp4WriteSample(
+		track,
+		true,
+		&fmp4AugmentedSample{
+			Sample: fmp4.Sample{
+				Payload: frame,
+			},
+			dts: pts,
+			ntp: ntp,
+		},
+	)
+}
+
 func (s *muxerSegmenter) writeMPEG4Audio(
 	track *muxerTrack,
 	ntp time.Time,

@@ -2,6 +2,7 @@ package gohlslib
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -9,9 +10,12 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/asticode/go-astits"
+	"github.com/bluenviron/mediacommon/v2/pkg/codecs/flac"
 	"github.com/bluenviron/mediacommon/v2/pkg/codecs/mpeg4audio"
 	"github.com/bluenviron/mediacommon/v2/pkg/formats/fmp4"
 	mp4codecs "github.com/bluenviron/mediacommon/v2/pkg/formats/mp4/codecs"
@@ -23,16 +27,41 @@ import (
 var testTime = time.Date(2010, 0o1, 0o1, 0o1, 0o1, 0o1, 0, time.UTC)
 
 // baseline profile without POC
-var testSPS = []byte{
+var testH264SPS = []byte{
 	0x67, 0x42, 0xc0, 0x28, 0xd9, 0x00, 0x78, 0x02,
 	0x27, 0xe5, 0x84, 0x00, 0x00, 0x03, 0x00, 0x04,
 	0x00, 0x00, 0x03, 0x00, 0xf0, 0x3c, 0x60, 0xc9,
 	0x20,
 }
 
-var testPPS = []byte{0x01, 0x02, 0x03, 0x04}
+var testH264PPS = []byte{0x01, 0x02, 0x03, 0x04}
 
-var testConfig = mpeg4audio.AudioSpecificConfig{
+var testH265VPS = []byte{
+	0x40, 0x01, 0x0c, 0x01, 0xff, 0xff, 0x01, 0x60,
+	0x00, 0x00, 0x03, 0x00, 0x90, 0x00, 0x00, 0x03,
+	0x00, 0x00, 0x03, 0x00, 0x78, 0x99, 0x98, 0x09,
+}
+
+var testH265SPS = []byte{
+	0x42, 0x01, 0x01, 0x01, 0x60, 0x00, 0x00, 0x03,
+	0x00, 0x90, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03,
+	0x00, 0x78, 0xa0, 0x03, 0xc0, 0x80, 0x10, 0xe5,
+	0x96, 0x66, 0x69, 0x24, 0xca, 0xe0, 0x10, 0x00,
+	0x00, 0x03, 0x00, 0x10, 0x00, 0x00, 0x03, 0x01,
+	0xe0, 0x80,
+}
+
+var testH265PPS = []byte{0x44, 0x01, 0xc1, 0x72, 0xb4, 0x62, 0x40}
+
+var testAV1SequenceHeader = []byte{8, 0, 0, 0, 66, 167, 191, 230, 46, 223, 200, 66}
+
+var testVP9KeyFrame = []byte{
+	0x82, 0x49, 0x83, 0x42, 0x00, 0x77, 0xf0, 0x32,
+	0x34, 0x30, 0x38, 0x24, 0x1c, 0x19, 0x40, 0x18,
+	0x03, 0x40, 0x5f, 0xb4,
+}
+
+var testAACConfig = mpeg4audio.AudioSpecificConfig{
 	Type:          2,
 	SampleRate:    44100,
 	ChannelConfig: 2,
@@ -41,7 +70,7 @@ var testConfig = mpeg4audio.AudioSpecificConfig{
 
 var testVideoTrack = &Track{
 	Codec: &codecs.H264{
-		SPS: testSPS,
+		SPS: testH264SPS,
 		PPS: []byte{0x08},
 	},
 	ClockRate: 90000,
@@ -173,9 +202,9 @@ func TestMuxer(t *testing.T) {
 			err = m.WriteH264(testVideoTrack, testTime.Add(d-1*time.Second),
 				int64(d)*int64(testVideoTrack.ClockRate)/int64(time.Second),
 				[][]byte{
-					testSPS, // SPS
-					{8},     // PPS
-					{5},     // IDR
+					testH264SPS, // SPS
+					{8},         // PPS
+					{5},         // IDR
 				})
 			require.NoError(t, err)
 
@@ -232,9 +261,9 @@ func TestMuxer(t *testing.T) {
 			err = m.WriteH264(testVideoTrack, testTime.Add(d-2*time.Second),
 				int64(d)*int64(testVideoTrack.ClockRate)/int64(time.Second),
 				[][]byte{
-					testSPS, // SPS
-					{8},     // PPS
-					{5},     // IDR
+					testH264SPS, // SPS
+					{8},         // PPS
+					{5},         // IDR
 				})
 			require.NoError(t, err)
 
@@ -286,9 +315,9 @@ func TestMuxer(t *testing.T) {
 			err = m.WriteH264(testVideoTrack, testTime.Add(d-1*time.Second),
 				int64(d)*int64(testVideoTrack.ClockRate)/int64(time.Second),
 				[][]byte{
-					testSPS, // SPS
-					{8},     // PPS
-					{5},     // IDR
+					testH264SPS, // SPS
+					{8},         // PPS
+					{5},         // IDR
 				})
 			require.NoError(t, err)
 
@@ -830,6 +859,750 @@ func TestMuxer(t *testing.T) {
 	}
 }
 
+func TestMuxerCodecs(t *testing.T) {
+	for _, ca := range []string{
+		"h264",
+		"h265",
+		"av1",
+		"vp9",
+		"opus",
+		"mpeg4_audio",
+		"flac",
+	} {
+		t.Run(ca, func(t *testing.T) {
+			var track *Track
+			switch ca {
+			case "h264":
+				track = &Track{
+					Codec:     &codecs.H264{SPS: testH264SPS, PPS: []byte{0x08}},
+					ClockRate: 90000,
+				}
+			case "h265":
+				track = &Track{
+					Codec:     &codecs.H265{VPS: testH265VPS, SPS: testH265SPS, PPS: testH265PPS},
+					ClockRate: 90000,
+				}
+			case "av1":
+				track = &Track{
+					Codec:     &codecs.AV1{SequenceHeader: testAV1SequenceHeader},
+					ClockRate: 90000,
+				}
+			case "vp9":
+				track = &Track{
+					Codec:     &codecs.VP9{},
+					ClockRate: 90000,
+				}
+			case "opus":
+				track = &Track{
+					Codec:     &codecs.Opus{ChannelCount: 2},
+					ClockRate: 48000,
+				}
+			case "mpeg4_audio":
+				track = &Track{
+					Codec:     &codecs.MPEG4Audio{Config: testAACConfig},
+					ClockRate: 44100,
+				}
+			case "flac":
+				track = &Track{
+					Codec: &codecs.FLAC{
+						StreamInfo: &flac.StreamInfo{
+							MinBlockSize: 4096,
+							MaxBlockSize: 4096,
+							SampleRate:   44100,
+							ChannelCount: 2,
+							BitDepth:     16,
+						},
+					},
+					ClockRate: 44100,
+				}
+			}
+
+			m := &Muxer{
+				Variant:            MuxerVariantFMP4,
+				SegmentCount:       3,
+				SegmentMinDuration: 1 * time.Second,
+				Tracks:             []*Track{track},
+			}
+			err := m.Start()
+			require.NoError(t, err)
+			defer m.Close()
+
+			switch ca {
+			case "h264":
+				require.NoError(t, m.WriteH264(track, testTime, 0, [][]byte{testH264SPS, {0x08}, {5}}))
+				require.NoError(t, m.WriteH264(track, testTime.Add(time.Second), 90000, [][]byte{{5}}))
+				require.NoError(t, m.WriteH264(track, testTime.Add(2*time.Second), 180000, [][]byte{{5}}))
+			case "h265":
+				require.NoError(t, m.WriteH265(track,
+					testTime, 0, [][]byte{
+						testH265VPS, testH265SPS, testH265PPS,
+						{0x26, 0x01, 0xaf, 0x08, 0x42, 0x23, 0x48, 0x8a, 0x43, 0xe2},
+					}))
+				require.NoError(t, m.WriteH265(track,
+					testTime.Add(3*time.Second), 3*90000,
+					[][]byte{{0x26, 0x01, 0xaf, 0x08, 0x42, 0x23, 0x48, 0x8a, 0x43, 0xe2}}))
+				require.NoError(t, m.WriteH265(track,
+					testTime.Add(6*time.Second), 6*90000,
+					[][]byte{{0x26, 0x01, 0xaf, 0x08, 0x42, 0x23, 0x48, 0x8a, 0x43, 0xe2}}))
+				require.NoError(t, m.WriteH265(track,
+					testTime.Add(9*time.Second), 9*90000,
+					[][]byte{{0x26, 0x01, 0xaf, 0x08, 0x42, 0x23, 0x48, 0x8a, 0x43, 0xe2}}))
+			case "av1":
+				require.NoError(t, m.WriteAV1(track,
+					testTime, 0, [][]byte{testAV1SequenceHeader}))
+				require.NoError(t, m.WriteAV1(track,
+					testTime.Add(time.Second), 90000, [][]byte{testAV1SequenceHeader}))
+				require.NoError(t, m.WriteAV1(track,
+					testTime.Add(2*time.Second), 180000, [][]byte{testAV1SequenceHeader}))
+			case "vp9":
+				require.NoError(t, m.WriteVP9(track, testTime, 0, testVP9KeyFrame))
+				require.NoError(t, m.WriteVP9(track, testTime.Add(time.Second), 90000, testVP9KeyFrame))
+				require.NoError(t, m.WriteVP9(track, testTime.Add(2*time.Second), 180000, testVP9KeyFrame))
+			case "opus":
+				require.NoError(t, m.WriteOpus(track, testTime, 0, [][]byte{{0xf8}}))
+				require.NoError(t, m.WriteOpus(track, testTime.Add(time.Second), 48000, [][]byte{{0xf8}}))
+				require.NoError(t, m.WriteOpus(track, testTime.Add(2*time.Second), 96000, [][]byte{{0xf8}}))
+			case "mpeg4_audio":
+				require.NoError(t, m.WriteMPEG4Audio(track, testTime, 0, [][]byte{{0x21, 0x10}}))
+				require.NoError(t, m.WriteMPEG4Audio(track, testTime.Add(time.Second), 44100, [][]byte{{0x21, 0x10}}))
+				require.NoError(t, m.WriteMPEG4Audio(track, testTime.Add(2*time.Second), 88200, [][]byte{{0x21, 0x10}}))
+			case "flac":
+				require.NoError(t, m.WriteFLAC(track,
+					testTime, 0, []byte{0x00, 0x01, 0x02, 0x03}))
+				require.NoError(t, m.WriteFLAC(track,
+					testTime.Add(time.Second), 44100, []byte{0x00, 0x01, 0x02, 0x03}))
+				require.NoError(t, m.WriteFLAC(track,
+					testTime.Add(2*time.Second), 88200, []byte{0x00, 0x01, 0x02, 0x03}))
+			}
+
+			var codecStr string
+			switch ca {
+			case "h264":
+				codecStr = "avc1.42c028"
+			case "h265":
+				codecStr = "hvc1.1.6.L120.90"
+			case "av1":
+				codecStr = "av01.0.08M.08.0.110.01.01.01.0"
+			case "vp9":
+				codecStr = "vp09.00.10.08"
+			case "opus":
+				codecStr = "opus"
+			case "mpeg4_audio":
+				codecStr = "mp4a.40.2"
+			case "flac":
+				codecStr = "flac"
+			}
+
+			byts, _, err := doRequest(m, "index.m3u8")
+			require.NoError(t, err)
+			require.Contains(t, string(byts), codecStr)
+
+			re := regexp.MustCompile(`(\w+_stream\.m3u8)`)
+			ma := re.FindStringSubmatch(string(byts))
+			require.NotNil(t, ma)
+
+			mediaPlaylist, _, err := doRequest(m, ma[1])
+			require.NoError(t, err)
+
+			re = regexp.MustCompile(`#EXT-X-MAP:URI="(.*?)"`)
+			ma = re.FindStringSubmatch(string(mediaPlaylist))
+			require.NotNil(t, ma)
+
+			byts, _, err = doRequest(m, ma[1])
+			require.NoError(t, err)
+
+			var init fmp4.Init
+			err = init.Unmarshal(bytes.NewReader(byts))
+			require.NoError(t, err)
+			require.Len(t, init.Tracks, 1)
+
+			switch ca {
+			case "h264":
+				require.Equal(t, &mp4codecs.H264{
+					SPS: testH264SPS,
+					PPS: []byte{0x08},
+				}, init.Tracks[0].Codec)
+			case "h265":
+				require.Equal(t, &mp4codecs.H265{
+					VPS: testH265VPS,
+					SPS: testH265SPS,
+					PPS: testH265PPS,
+				}, init.Tracks[0].Codec)
+			case "av1":
+				require.Equal(t, &mp4codecs.AV1{
+					SequenceHeader: testAV1SequenceHeader,
+				}, init.Tracks[0].Codec)
+			case "vp9":
+				require.Equal(t, &mp4codecs.VP9{
+					Width:             1920,
+					Height:            804,
+					BitDepth:          8,
+					ChromaSubsampling: 1,
+				}, init.Tracks[0].Codec)
+			case "opus":
+				require.Equal(t, &mp4codecs.Opus{
+					ChannelCount: 2,
+				}, init.Tracks[0].Codec)
+			case "mpeg4_audio":
+				require.Equal(t, &mp4codecs.MPEG4Audio{
+					Config: testAACConfig,
+				}, init.Tracks[0].Codec)
+			case "flac":
+				require.Equal(t, &mp4codecs.FLAC{
+					StreamInfo: &flac.StreamInfo{
+						MinBlockSize: 4096,
+						MaxBlockSize: 4096,
+						SampleRate:   44100,
+						ChannelCount: 2,
+						BitDepth:     16,
+					},
+				}, init.Tracks[0].Codec)
+			}
+
+			re = regexp.MustCompile(`(.*?_seg0\.mp4)`)
+			ma = re.FindStringSubmatch(string(mediaPlaylist))
+			require.NotNil(t, ma)
+
+			byts, _, err = doRequest(m, ma[1])
+			require.NoError(t, err)
+			require.NotEmpty(t, byts)
+		})
+	}
+}
+
+func TestMuxerKLV(t *testing.T) {
+	klvTrack := &Track{
+		Codec:     &codecs.KLV{},
+		ClockRate: 90000,
+	}
+
+	m := &Muxer{
+		Variant:            MuxerVariantMPEGTS,
+		SegmentCount:       3,
+		SegmentMinDuration: 1 * time.Second,
+		Tracks:             []*Track{testVideoTrack, klvTrack},
+	}
+
+	err := m.Start()
+	require.NoError(t, err)
+	defer m.Close()
+
+	for i := range 4 {
+		d := time.Duration(i) * time.Second
+		pts := int64(d) * 90000 / int64(time.Second)
+
+		err = m.WriteKLV(klvTrack, testTime.Add(d), pts, []byte{
+			0x00, 0x01, 0x02, 0x03,
+		})
+		require.NoError(t, err)
+
+		// Write H264 (IDR to force segment creation)
+		err = m.WriteH264(testVideoTrack, testTime.Add(d), pts, [][]byte{
+			testH264SPS,
+			{8}, // PPS
+			{5}, // IDR
+		})
+		require.NoError(t, err)
+	}
+
+	byts, _, err := doRequest(m, "index.m3u8")
+	require.NoError(t, err)
+
+	require.Contains(t, string(byts), "main_stream.m3u8")
+
+	byts, _, err = doRequest(m, "main_stream.m3u8")
+	require.NoError(t, err)
+
+	re := regexp.MustCompile(`#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-ALLOW-CACHE:NO
+#EXT-X-TARGETDURATION:1
+#EXT-X-MEDIA-SEQUENCE:0
+#EXT-X-PROGRAM-DATE-TIME:.*?
+#EXTINF:1.00000,
+(.*?_main_seg0\.ts)
+#EXT-X-PROGRAM-DATE-TIME:.*?
+#EXTINF:1.00000,
+(.*?_main_seg1\.ts)
+#EXT-X-PROGRAM-DATE-TIME:.*?
+#EXTINF:1.00000,
+(.*?_main_seg2\.ts)
+`)
+	require.Regexp(t, re, string(byts))
+	ma := re.FindStringSubmatch(string(byts))
+
+	// Fetch the first segment and parse it to verify KLV data
+	segmentData, _, err := doRequest(m, ma[1])
+	require.NoError(t, err)
+	require.NotEmpty(t, segmentData)
+
+	// Parse the MPEG-TS segment using astits
+	demuxer := astits.NewDemuxer(context.Background(), bytes.NewReader(segmentData))
+
+	// Track whether we found KLV data
+	foundKLVPID := false
+	foundKLVData := false
+	var klvPID uint16
+	var receivedKLVData []byte
+
+	// Iterate through all packets in the segment
+	for {
+		data, nextErr := demuxer.NextData()
+		if nextErr != nil {
+			break
+		}
+
+		// Check if this is a PMT (Program Map Table) and find KLV PID
+		if data.PMT != nil && !foundKLVPID {
+			for _, es := range data.PMT.ElementaryStreams {
+				// KLV data uses stream type 0x06 (private data)
+				if es.StreamType == astits.StreamTypePrivateData {
+					klvPID = es.ElementaryPID
+					foundKLVPID = true
+					break
+				}
+			}
+		}
+
+		// Check if this packet contains KLV data
+		if foundKLVPID && data.PES != nil && data.PID == klvPID && !foundKLVData {
+			foundKLVData = true
+			receivedKLVData = data.PES.Data
+			// Verify the KLV data matches what we wrote
+			require.Equal(t, []byte{0x00, 0x01, 0x02, 0x03}, receivedKLVData,
+				"KLV data content mismatch")
+			break
+		}
+	}
+
+	require.True(t, foundKLVPID, "KLV PID was not found in PMT")
+	require.True(t, foundKLVData, "KLV data was not found in the segment")
+}
+
+func TestMuxerKLVOnlyTrackRejected(t *testing.T) {
+	klvTrack := &Track{
+		Codec:     &codecs.KLV{},
+		ClockRate: 90000,
+	}
+
+	m := &Muxer{
+		Variant:            MuxerVariantMPEGTS,
+		SegmentCount:       3,
+		SegmentMinDuration: 1 * time.Second,
+		Tracks:             []*Track{klvTrack},
+	}
+
+	err := m.Start()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "KLV tracks require at least one video or audio track")
+}
+
+func TestMuxerKLVFirstTrackWithAudio(t *testing.T) {
+	klvTrack := &Track{
+		Codec:     &codecs.KLV{},
+		ClockRate: 90000,
+	}
+
+	audioTrack := &Track{
+		Codec: &codecs.MPEG4Audio{
+			Config: mpeg4audio.AudioSpecificConfig{
+				Type:          2,
+				SampleRate:    44100,
+				ChannelConfig: 2,
+				ChannelCount:  2,
+			},
+		},
+		ClockRate: 44100,
+	}
+
+	m := &Muxer{
+		Variant:            MuxerVariantMPEGTS,
+		SegmentCount:       3,
+		SegmentMinDuration: 1 * time.Second,
+		Tracks:             []*Track{klvTrack, audioTrack},
+	}
+
+	err := m.Start()
+	require.NoError(t, err)
+	defer m.Close()
+
+	// Verify that the audio track is the leading track, not KLV
+	require.False(t, m.mtracksByTrack[klvTrack].isLeading, "KLV track should not be leading")
+	require.True(t, m.mtracksByTrack[audioTrack].isLeading, "Audio track should be leading")
+}
+
+// TestMuxerKLVSynchronous verifies that a synchronous KLV track (Synchronous: true)
+// is registered in the PMT as StreamTypeMetadata (0x15) rather than StreamTypePrivateData
+// (0x06), and that PES packets for it carry a PTS.
+func TestMuxerKLVSynchronous(t *testing.T) {
+	klvTrack := &Track{
+		Codec:     &codecs.KLV{Synchronous: true},
+		ClockRate: 90000,
+	}
+
+	m := &Muxer{
+		Variant:            MuxerVariantMPEGTS,
+		SegmentCount:       3,
+		SegmentMinDuration: 1 * time.Second,
+		Tracks:             []*Track{testVideoTrack, klvTrack},
+	}
+
+	err := m.Start()
+	require.NoError(t, err)
+	defer m.Close()
+
+	for i := range 4 {
+		d := time.Duration(i) * time.Second
+		pts := int64(d) * 90000 / int64(time.Second)
+
+		err = m.WriteKLV(klvTrack, testTime.Add(d), pts, []byte{0xAA, 0xBB})
+		require.NoError(t, err)
+
+		err = m.WriteH264(testVideoTrack, testTime.Add(d), pts, [][]byte{
+			testH264SPS,
+			{8},
+			{5},
+		})
+		require.NoError(t, err)
+	}
+
+	byts, _, err := doRequest(m, "main_stream.m3u8")
+	require.NoError(t, err)
+
+	re := regexp.MustCompile(`(.*?_main_seg0\.ts)`)
+	ma := re.FindStringSubmatch(string(byts))
+	require.NotNil(t, ma, "no segment found in playlist")
+
+	segmentData, _, err := doRequest(m, ma[1])
+	require.NoError(t, err)
+	require.NotEmpty(t, segmentData)
+
+	demuxer := astits.NewDemuxer(context.Background(), bytes.NewReader(segmentData))
+
+	foundSyncKLV := false
+	for {
+		data, nextErr := demuxer.NextData()
+		if nextErr != nil {
+			break
+		}
+		if data.PMT != nil {
+			for _, es := range data.PMT.ElementaryStreams {
+				// Synchronous KLV is registered as StreamTypeMetadata (0x15)
+				if es.StreamType == astits.StreamTypeMetadata {
+					foundSyncKLV = true
+				}
+			}
+		}
+	}
+	require.True(t, foundSyncKLV, "synchronous KLV PID with StreamTypeMetadata not found in PMT")
+}
+
+// TestMuxerKLVMultipleTracks verifies that two KLV tracks (one async, one sync)
+// each receive their own distinct PID in the PMT.
+func TestMuxerKLVMultipleTracks(t *testing.T) {
+	klvAsync := &Track{
+		Codec:     &codecs.KLV{Synchronous: false},
+		ClockRate: 90000,
+	}
+	klvSync := &Track{
+		Codec:     &codecs.KLV{Synchronous: true},
+		ClockRate: 90000,
+	}
+
+	m := &Muxer{
+		Variant:            MuxerVariantMPEGTS,
+		SegmentCount:       3,
+		SegmentMinDuration: 1 * time.Second,
+		Tracks:             []*Track{testVideoTrack, klvAsync, klvSync},
+	}
+
+	err := m.Start()
+	require.NoError(t, err)
+	defer m.Close()
+
+	for i := range 4 {
+		d := time.Duration(i) * time.Second
+		pts := int64(d) * 90000 / int64(time.Second)
+
+		err = m.WriteKLV(klvAsync, testTime.Add(d), pts, []byte{0x01, 0x02})
+		require.NoError(t, err)
+
+		err = m.WriteKLV(klvSync, testTime.Add(d), pts, []byte{0x03, 0x04})
+		require.NoError(t, err)
+
+		err = m.WriteH264(testVideoTrack, testTime.Add(d), pts, [][]byte{
+			testH264SPS,
+			{8},
+			{5},
+		})
+		require.NoError(t, err)
+	}
+
+	byts, _, err := doRequest(m, "main_stream.m3u8")
+	require.NoError(t, err)
+
+	re := regexp.MustCompile(`(.*?_main_seg0\.ts)`)
+	ma := re.FindStringSubmatch(string(byts))
+	require.NotNil(t, ma)
+
+	segmentData, _, err := doRequest(m, ma[1])
+	require.NoError(t, err)
+
+	demuxer := astits.NewDemuxer(context.Background(), bytes.NewReader(segmentData))
+
+	asyncPIDs := 0
+	syncPIDs := 0
+	for {
+		data, nextErr := demuxer.NextData()
+		if nextErr != nil {
+			break
+		}
+		if data.PMT != nil {
+			for _, es := range data.PMT.ElementaryStreams {
+				switch es.StreamType {
+				case astits.StreamTypePrivateData:
+					asyncPIDs++
+				case astits.StreamTypeMetadata:
+					syncPIDs++
+				}
+			}
+		}
+	}
+	require.Equal(t, 1, asyncPIDs, "expected exactly one async KLV PID (StreamTypePrivateData)")
+	require.Equal(t, 1, syncPIDs, "expected exactly one sync KLV PID (StreamTypeMetadata)")
+}
+
+// TestMuxerKLVBeforeFirstSegment verifies that KLV data written before the leading
+// track has created the first segment is silently dropped without returning an error.
+func TestMuxerKLVBeforeFirstSegment(t *testing.T) {
+	klvTrack := &Track{
+		Codec:     &codecs.KLV{},
+		ClockRate: 90000,
+	}
+
+	m := &Muxer{
+		Variant:            MuxerVariantMPEGTS,
+		SegmentCount:       3,
+		SegmentMinDuration: 1 * time.Second,
+		Tracks:             []*Track{testVideoTrack, klvTrack},
+	}
+
+	err := m.Start()
+	require.NoError(t, err)
+	defer m.Close()
+
+	// Write KLV before any H264 — no segment exists yet, must be silently dropped.
+	err = m.WriteKLV(klvTrack, testTime, 0, []byte{0xDE, 0xAD, 0xBE, 0xEF})
+	require.NoError(t, err, "WriteKLV before first segment should not return an error")
+
+	// Now drive segment creation with H264 frames.
+	for i := range 4 {
+		d := time.Duration(i) * time.Second
+		pts := int64(d) * 90000 / int64(time.Second)
+		err = m.WriteH264(testVideoTrack, testTime.Add(d), pts, [][]byte{
+			testH264SPS,
+			{8},
+			{5},
+		})
+		require.NoError(t, err)
+	}
+
+	byts, _, err := doRequest(m, "main_stream.m3u8")
+	require.NoError(t, err)
+	require.Contains(t, string(byts), "seg0.ts")
+}
+
+// TestMuxerKLVWriteOnFMP4Variant verifies that calling WriteKLV on a muxer that
+// is using the FMP4 variant returns an appropriate error.
+func TestMuxerKLVWriteOnFMP4Variant(t *testing.T) {
+	m := &Muxer{
+		Variant:            MuxerVariantFMP4,
+		SegmentCount:       3,
+		SegmentMinDuration: 1 * time.Second,
+		Tracks:             []*Track{testVideoTrack},
+	}
+
+	err := m.Start()
+	require.NoError(t, err)
+	defer m.Close()
+
+	// Use a KLV track that is not registered in the muxer.
+	fakeKLVTrack := &Track{
+		Codec:     &codecs.KLV{},
+		ClockRate: 90000,
+	}
+
+	err = m.WriteKLV(fakeKLVTrack, testTime, 0, []byte{0x01})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "MPEG-TS")
+}
+
+// TestMuxerKLVFMP4TrackRejectedAtStart verifies that attempting to Start() a
+// non-MPEG-TS muxer with a KLV track returns an error immediately.
+func TestMuxerKLVFMP4TrackRejectedAtStart(t *testing.T) {
+	cases := []struct {
+		name     string
+		variant  MuxerVariant
+		segCount int
+	}{
+		{"fmp4", MuxerVariantFMP4, 3},
+		{"lowLatency", MuxerVariantLowLatency, 7},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			klvTrack := &Track{
+				Codec:     &codecs.KLV{},
+				ClockRate: 90000,
+			}
+
+			m := &Muxer{
+				Variant:            tc.variant,
+				SegmentCount:       tc.segCount,
+				SegmentMinDuration: 1 * time.Second,
+				Tracks:             []*Track{testVideoTrack, klvTrack},
+			}
+
+			err := m.Start()
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "MPEG-TS")
+		})
+	}
+}
+
+// TestMuxerKLVEmptyData verifies that writing a zero-length KLV payload does not
+// panic and is handled gracefully.
+func TestMuxerKLVEmptyData(t *testing.T) {
+	klvTrack := &Track{
+		Codec:     &codecs.KLV{},
+		ClockRate: 90000,
+	}
+
+	m := &Muxer{
+		Variant:            MuxerVariantMPEGTS,
+		SegmentCount:       3,
+		SegmentMinDuration: 1 * time.Second,
+		Tracks:             []*Track{testVideoTrack, klvTrack},
+	}
+
+	err := m.Start()
+	require.NoError(t, err)
+	defer m.Close()
+
+	for i := range 4 {
+		d := time.Duration(i) * time.Second
+		pts := int64(d) * 90000 / int64(time.Second)
+
+		// Write empty KLV payload — must not panic.
+		err = m.WriteKLV(klvTrack, testTime.Add(d), pts, []byte{})
+		require.NoError(t, err)
+
+		err = m.WriteH264(testVideoTrack, testTime.Add(d), pts, [][]byte{
+			testH264SPS,
+			{8},
+			{5},
+		})
+		require.NoError(t, err)
+	}
+
+	byts, _, err := doRequest(m, "main_stream.m3u8")
+	require.NoError(t, err)
+	require.Contains(t, string(byts), "seg0.ts")
+}
+
+// TestMuxerKLVMultivariantCODECS verifies that the CODECS attribute in the
+// multivariant playlist does not contain an empty string for KLV tracks, which
+// have no standard HLS codec identifier.
+func TestMuxerKLVMultivariantCODECS(t *testing.T) {
+	klvTrack := &Track{
+		Codec:     &codecs.KLV{},
+		ClockRate: 90000,
+	}
+
+	m := &Muxer{
+		Variant:            MuxerVariantMPEGTS,
+		SegmentCount:       3,
+		SegmentMinDuration: 1 * time.Second,
+		Tracks:             []*Track{testVideoTrack, klvTrack},
+	}
+
+	err := m.Start()
+	require.NoError(t, err)
+	defer m.Close()
+
+	for i := range 4 {
+		d := time.Duration(i) * time.Second
+		pts := int64(d) * 90000 / int64(time.Second)
+
+		err = m.WriteKLV(klvTrack, testTime.Add(d), pts, []byte{0x01, 0x02})
+		require.NoError(t, err)
+
+		err = m.WriteH264(testVideoTrack, testTime.Add(d), pts, [][]byte{
+			testH264SPS,
+			{8},
+			{5},
+		})
+		require.NoError(t, err)
+	}
+
+	// Fetch the multivariant playlist.
+	byts, _, err := doRequest(m, "index.m3u8")
+	require.NoError(t, err)
+
+	playlist := string(byts)
+
+	// The CODECS attribute must not contain an empty codec string (e.g. "avc1.64001f,").
+	require.NotContains(t, playlist, `CODECS="",`,
+		"CODECS attribute must not start with an empty string")
+	require.NotContains(t, playlist, `,""`,
+		"CODECS attribute must not contain a trailing empty string")
+
+	// Verify the H264 codec IS present.
+	require.True(t, strings.Contains(playlist, "avc1."),
+		"CODECS attribute must contain the H264 codec string")
+
+	// Verify no bare comma (which signals an empty element) appears inside the CODECS value.
+	re := regexp.MustCompile(`CODECS="([^"]*)"`)
+	ma := re.FindStringSubmatch(playlist)
+	require.NotNil(t, ma, "CODECS attribute not found in multivariant playlist")
+	for part := range strings.SplitSeq(ma[1], ",") {
+		require.NotEmpty(t, strings.TrimSpace(part),
+			"CODECS attribute contains an empty entry: %q", ma[1])
+	}
+}
+
+// TestMuxerKLVExceedsSegmentMaxSize verifies that writing KLV data that would push
+// the segment past SegmentMaxSize returns an error.
+func TestMuxerKLVExceedsSegmentMaxSize(t *testing.T) {
+	klvTrack := &Track{
+		Codec:     &codecs.KLV{},
+		ClockRate: 90000,
+	}
+
+	// testH264SPS(25B) + PPS(1B) + IDR(1B) = 27 bytes for the first H264 write.
+	// A SegmentMaxSize of 50 bytes accepts H264 but not an additional 30-byte KLV payload.
+	m := &Muxer{
+		Variant:            MuxerVariantMPEGTS,
+		SegmentCount:       3,
+		SegmentMinDuration: 1 * time.Second,
+		SegmentMaxSize:     50,
+		Tracks:             []*Track{testVideoTrack, klvTrack},
+	}
+
+	err := m.Start()
+	require.NoError(t, err)
+	defer m.Close()
+
+	// Write the first H264 IDR to create the segment (consumes 27 bytes of the 50-byte limit).
+	err = m.WriteH264(testVideoTrack, testTime, 0, [][]byte{testH264SPS, {8}, {5}})
+	require.NoError(t, err)
+
+	// Write 30 bytes of KLV into the same segment — 27 + 30 = 57 > 50, must fail.
+	err = m.WriteKLV(klvTrack, testTime, 0, make([]byte, 30))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "maximum segment size")
+}
+
 func TestMuxerCloseBeforeData(t *testing.T) {
 	m := &Muxer{
 		Variant:            MuxerVariantFMP4,
@@ -896,7 +1669,7 @@ func TestMuxerMaxSegmentSize(t *testing.T) {
 		testTime,
 		int64(2*time.Second)*int64(testVideoTrack.ClockRate)/int64(time.Second),
 		[][]byte{
-			testSPS,
+			testH264SPS,
 			{5}, // IDR
 		})
 	require.EqualError(t, err, "reached maximum segment size")
@@ -915,7 +1688,7 @@ func TestMuxerDoubleRead(t *testing.T) {
 	defer m.Close()
 
 	err = m.WriteH264(testVideoTrack, testTime, 0, [][]byte{
-		testSPS,
+		testH264SPS,
 		{5}, // IDR
 		{1},
 	})
@@ -982,7 +1755,7 @@ func TestMuxerSaveToDisk(t *testing.T) {
 			require.NoError(t, err)
 
 			err = m.WriteH264(testVideoTrack, testTime, 0, [][]byte{
-				testSPS,
+				testH264SPS,
 				{5}, // IDR
 				{1},
 			})
@@ -1094,7 +1867,7 @@ func TestMuxerDynamicParams(t *testing.T) {
 	defer m.Close()
 
 	err = m.WriteH264(testVideoTrack, testTime, 0, [][]byte{
-		testSPS,
+		testH264SPS,
 		{5}, // IDR
 		{1},
 	})
@@ -1144,10 +1917,10 @@ func TestMuxerDynamicParams(t *testing.T) {
 	var init1 fmp4.Init
 	err = init1.Unmarshal(bytes.NewReader(bu))
 	require.NoError(t, err)
-	require.Equal(t, testSPS, init1.Tracks[0].Codec.(*mp4codecs.H264).SPS)
+	require.Equal(t, testH264SPS, init1.Tracks[0].Codec.(*mp4codecs.H264).SPS)
 
 	// SPS (720p)
-	testSPS2 := []byte{
+	testH264SPS2 := []byte{
 		0x67, 0x64, 0x00, 0x1f, 0xac, 0xd9, 0x40, 0x50,
 		0x05, 0xbb, 0x01, 0x6c, 0x80, 0x00, 0x00, 0x03,
 		0x00, 0x80, 0x00, 0x00, 0x1e, 0x07, 0x8c, 0x18,
@@ -1155,7 +1928,7 @@ func TestMuxerDynamicParams(t *testing.T) {
 	}
 
 	err = m.WriteH264(testVideoTrack, testTime, 3*90000, [][]byte{
-		testSPS2,
+		testH264SPS2,
 		{0x65, 0x88, 0x84, 0x00, 0x33, 0xff}, // IDR
 		{2},
 	})
@@ -1274,7 +2047,7 @@ func TestMuxerInStreamParams(t *testing.T) {
 			case "h264":
 				inStreamPPS := []byte{0x08, 0xDE, 0xAD}
 
-				err = m.WriteH264(track, testTime, 0, [][]byte{testSPS, inStreamPPS, {5}})
+				err = m.WriteH264(track, testTime, 0, [][]byte{testH264SPS, inStreamPPS, {5}})
 				require.NoError(t, err)
 
 				err = m.WriteH264(track, testTime, 2*90000, [][]byte{{5}})
@@ -1284,7 +2057,7 @@ func TestMuxerInStreamParams(t *testing.T) {
 				require.NoError(t, err)
 
 				h264Codec := getInit(t, m).Tracks[0].Codec.(*mp4codecs.H264)
-				require.Equal(t, testSPS, h264Codec.SPS)
+				require.Equal(t, testH264SPS, h264Codec.SPS)
 				require.Equal(t, inStreamPPS, h264Codec.PPS)
 
 			case "h265":
@@ -1381,16 +2154,16 @@ func TestMuxerFMP4ZeroDuration(t *testing.T) {
 	defer m.Close()
 
 	err = m.WriteH264(testVideoTrack, time.Now(), 0, [][]byte{
-		testSPS, // SPS
-		{8},     // PPS
-		{5},     // IDR
+		testH264SPS, // SPS
+		{8},         // PPS
+		{5},         // IDR
 	})
 	require.NoError(t, err)
 
 	err = m.WriteH264(testVideoTrack, time.Now(), 1, [][]byte{
-		testSPS, // SPS
-		{8},     // PPS
-		{5},     // IDR
+		testH264SPS, // SPS
+		{8},         // PPS
+		{5},         // IDR
 	})
 	require.NoError(t, err)
 }
@@ -1418,7 +2191,7 @@ func TestMuxerFMP4NegativeInitialDTS(t *testing.T) {
 	err = m.WriteH264(testVideoTrack, testTime,
 		-11*90000,
 		[][]byte{
-			testSPS,
+			testH264SPS,
 			{5}, // IDR
 			{1},
 		})
@@ -1518,7 +2291,7 @@ func TestMuxerFMP4SequenceNumber(t *testing.T) {
 	defer m.Close()
 
 	err = m.WriteH264(testVideoTrack, testTime, 0, [][]byte{
-		testSPS,
+		testH264SPS,
 		{5}, // IDR
 		{1},
 	})
@@ -1628,9 +2401,9 @@ func TestMuxerInvalidFolder(t *testing.T) {
 				err = m.WriteH264(testVideoTrack, testTime,
 					int64(i)*90000,
 					[][]byte{
-						testSPS, // SPS
-						{8},     // PPS
-						{5},     // IDR
+						testH264SPS, // SPS
+						{8},         // PPS
+						{5},         // IDR
 					})
 
 				if ca == "mpegts" || i == 1 {
@@ -1659,9 +2432,9 @@ func TestMuxerExpiredSegment(t *testing.T) {
 		err = m.WriteH264(testVideoTrack, testTime,
 			int64(i)*90000,
 			[][]byte{
-				testSPS, // SPS
-				{8},     // PPS
-				{5},     // IDR
+				testH264SPS, // SPS
+				{8},         // PPS
+				{5},         // IDR
 			})
 		require.NoError(t, err)
 	}
@@ -1711,9 +2484,9 @@ func TestMuxerPreloadHint(t *testing.T) {
 		err2 := m.WriteH264(testVideoTrack, testTime,
 			int64(i)*90000,
 			[][]byte{
-				testSPS, // SPS
-				{8},     // PPS
-				{5},     // IDR
+				testH264SPS, // SPS
+				{8},         // PPS
+				{5},         // IDR
 			})
 		require.NoError(t, err2)
 	}

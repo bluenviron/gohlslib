@@ -106,14 +106,6 @@ func generatePrefix() (string, error) {
 	return hex.EncodeToString(buf[:]), nil
 }
 
-func mediaPlaylistPath(streamID string) string {
-	return streamID + "_stream.m3u8"
-}
-
-func initFilePath(prefix string, streamID string) string {
-	return prefix + "_" + streamID + "_init.mp4"
-}
-
 func segmentPath(prefix string, streamID string, segmentID uint64, mp4 bool) string {
 	if mp4 {
 		return prefix + "_" + streamID + "_seg" + strconv.FormatUint(segmentID, 10) + ".mp4"
@@ -132,6 +124,9 @@ func fmp4TimeScale(c codecs.Codec) uint32 {
 
 	case *codecs.Opus:
 		return 48000
+
+	case *codecs.FLAC:
+		return codec.StreamInfo.SampleRate
 	}
 
 	return 90000
@@ -534,6 +529,16 @@ func (m *Muxer) WriteMPEG4Audio(
 	aus [][]byte,
 ) error {
 	return m.segmenter.writeMPEG4Audio(m.mtracksByTrack[track], ntp, pts, aus)
+}
+
+// WriteFLAC writes a FLAC audio frame.
+func (m *Muxer) WriteFLAC(
+	track *Track,
+	ntp time.Time,
+	pts int64,
+	frame []byte,
+) error {
+	return m.segmenter.writeFLAC(m.mtracksByTrack[track], ntp, pts, frame)
 }
 
 // WriteKLV writes KLV data.

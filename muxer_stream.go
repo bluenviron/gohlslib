@@ -26,6 +26,14 @@ import (
 	"github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts"
 )
 
+func mediaPlaylistPath(streamID string) string {
+	return streamID + "_stream.m3u8"
+}
+
+func initFilePath(prefix string, streamID string) string {
+	return prefix + "_" + streamID + "_init.mp4"
+}
+
 func filterOutHLSParams(rawQuery string) string {
 	if rawQuery != "" {
 		if q, err := url.ParseQuery(rawQuery); err == nil {
