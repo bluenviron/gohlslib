@@ -330,14 +330,14 @@ func (s *muxerStream) handleMediaPlaylist(w http.ResponseWriter, r *http.Request
 
 		switch {
 		case msn != "":
-			byts := func() []byte {
+			content, maxAge := func() ([]byte, string) {
 				s.mutex.Lock()
 				defer s.mutex.Unlock()
 
 				for {
 					if s.closed {
 						w.WriteHeader(http.StatusInternalServerError)
-						return nil
+						return nil, ""
 					}
 
 					// If the _HLS_msn is greater than the Media Sequence Number of the last
@@ -347,7 +347,7 @@ func (s *muxerStream) handleMediaPlaylist(w http.ResponseWriter, r *http.Request
 					// Request, such as HTTP 400.
 					if msnint > (s.nextSegmentID+1) || msnint < (s.nextSegmentID-uint64(len(s.segments)-1)) {
 						w.WriteHeader(http.StatusBadRequest)
-						return nil
+						return nil, ""
 					}
 
 					if s.hasContent() && s.hasPart(msnint, partint) {
@@ -364,17 +364,17 @@ func (s *muxerStream) handleMediaPlaylist(w http.ResponseWriter, r *http.Request
 				)
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
-					return nil
+					return nil, ""
 				}
 
-				return byts
+				return byts, s.mediaPlaylistMaxAge()
 			}()
 
-			if byts != nil {
-				w.Header().Set("Cache-Control", s.mediaPlaylistMaxAge())
+			if content != nil {
+				w.Header().Set("Cache-Control", maxAge)
 				w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
 				w.WriteHeader(http.StatusOK)
-				w.Write(byts)
+				w.Write(content)
 			}
 			return
 
@@ -384,14 +384,14 @@ func (s *muxerStream) handleMediaPlaylist(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	byts := func() []byte {
+	content, maxAge := func() ([]byte, string) {
 		s.mutex.Lock()
 		defer s.mutex.Unlock()
 
 		for {
 			if s.closed {
 				w.WriteHeader(http.StatusInternalServerError)
-				return nil
+				return nil, ""
 			}
 
 			if s.hasContent() {
@@ -407,17 +407,17 @@ func (s *muxerStream) handleMediaPlaylist(w http.ResponseWriter, r *http.Request
 		)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			return nil
+			return nil, ""
 		}
 
-		return byts
+		return byts, s.mediaPlaylistMaxAge()
 	}()
 
-	if byts != nil {
-		w.Header().Set("Cache-Control", s.mediaPlaylistMaxAge())
+	if content != nil {
+		w.Header().Set("Cache-Control", maxAge)
 		w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
 		w.WriteHeader(http.StatusOK)
-		w.Write(byts)
+		w.Write(content)
 	}
 }
 
