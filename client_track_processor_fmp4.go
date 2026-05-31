@@ -102,7 +102,7 @@ func (t *clientTrackProcessorFMP4) process(ctx context.Context, entry *procEntry
 
 		var ntp *time.Time
 		if entry.ntp != nil {
-			ntp = ptrOf(entry.ntp.Add(timestampToDuration(dts-entry.dts, t.track.track.ClockRate)))
+			ntp = new(entry.ntp.Add(timestampToDuration(dts-entry.dts, t.track.track.ClockRate)))
 		}
 
 		err = t.track.handleData(ctx, pts, dts, ntp, data)

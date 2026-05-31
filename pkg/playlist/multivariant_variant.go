@@ -69,7 +69,7 @@ func (v *MultivariantVariant) unmarshal(va string) error {
 			if err != nil {
 				return err
 			}
-			v.AverageBandwidth = ptrOf(int(tmp))
+			v.AverageBandwidth = new(int(tmp))
 
 		case "CODECS":
 			v.Codecs = strings.Split(val, ",")
