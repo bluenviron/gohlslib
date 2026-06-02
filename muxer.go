@@ -725,7 +725,7 @@ func (m *Muxer) generateMultivariantPlaylist(rawQuery string) ([]byte, error) {
 			if m.Variant == MuxerVariantMPEGTS {
 				return 3
 			}
-			return 9
+			return 10
 		}(),
 		IndependentSegments: true,
 		Variants: []*playlist.MultivariantVariant{{
