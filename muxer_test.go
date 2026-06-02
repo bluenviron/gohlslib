@@ -425,7 +425,7 @@ func TestMuxer(t *testing.T) {
 
 		case content == "video+audio" && variant == "fmp4":
 			require.Equal(t, "#EXTM3U\n"+
-				"#EXT-X-VERSION:9\n"+
+				"#EXT-X-VERSION:10\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 				"\n"+
 				"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio\","+
@@ -437,7 +437,7 @@ func TestMuxer(t *testing.T) {
 
 		case content == "video+audio" && variant == "lowLatency":
 			require.Equal(t, "#EXTM3U\n"+
-				"#EXT-X-VERSION:9\n"+
+				"#EXT-X-VERSION:10\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 				"\n"+
 				"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio\","+
@@ -458,7 +458,7 @@ func TestMuxer(t *testing.T) {
 
 		case content == "video" && variant == "fmp4":
 			require.Equal(t, "#EXTM3U\n"+
-				"#EXT-X-VERSION:9\n"+
+				"#EXT-X-VERSION:10\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 				"\n"+
 				"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=403,CODECS=\"avc1.42c028\","+
@@ -467,7 +467,7 @@ func TestMuxer(t *testing.T) {
 
 		case content == "video" && variant == "lowLatency":
 			require.Equal(t, "#EXTM3U\n"+
-				"#EXT-X-VERSION:9\n"+
+				"#EXT-X-VERSION:10\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 				"\n"+
 				"#EXT-X-STREAM-INF:BANDWIDTH=872,AVERAGE-BANDWIDTH=403,CODECS=\"avc1.42c028\","+
@@ -484,7 +484,7 @@ func TestMuxer(t *testing.T) {
 
 		case content == "audio" && variant == "fmp4":
 			require.Equal(t, "#EXTM3U\n"+
-				"#EXT-X-VERSION:9\n"+
+				"#EXT-X-VERSION:10\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 				"\n"+
 				"#EXT-X-STREAM-INF:BANDWIDTH=5184,AVERAGE-BANDWIDTH=3744,CODECS=\"mp4a.40.2\"\n"+
@@ -492,7 +492,7 @@ func TestMuxer(t *testing.T) {
 
 		case content == "audio" && variant == "lowLatency":
 			require.Equal(t, "#EXTM3U\n"+
-				"#EXT-X-VERSION:9\n"+
+				"#EXT-X-VERSION:10\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 				"\n"+
 				"#EXT-X-STREAM-INF:BANDWIDTH=5568,AVERAGE-BANDWIDTH=4000,CODECS=\"mp4a.40.2\"\n"+
@@ -500,7 +500,7 @@ func TestMuxer(t *testing.T) {
 
 		case content == "video+multiaudio" && (variant == "fmp4" || variant == "lowLatency"):
 			require.Equal(t, "#EXTM3U\n"+
-				"#EXT-X-VERSION:9\n"+
+				"#EXT-X-VERSION:10\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 				"\n"+
 				"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio\","+
@@ -514,7 +514,7 @@ func TestMuxer(t *testing.T) {
 
 		case content == "multiaudio" && variant == "fmp4":
 			require.Equal(t, "#EXTM3U\n"+
-				"#EXT-X-VERSION:9\n"+
+				"#EXT-X-VERSION:10\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 				"\n"+
 				"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio\",NAME=\"audio1\",AUTOSELECT=YES,DEFAULT=YES\n"+
@@ -526,7 +526,7 @@ func TestMuxer(t *testing.T) {
 
 		case content == "multiaudio" && variant == "lowLatency":
 			require.Equal(t, "#EXTM3U\n"+
-				"#EXT-X-VERSION:9\n"+
+				"#EXT-X-VERSION:10\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 				"\n"+
 				"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio\",NAME=\"audio1\",AUTOSELECT=YES,DEFAULT=YES\n"+
@@ -1888,7 +1888,7 @@ func TestMuxerDynamicParams(t *testing.T) {
 	index1, _, err := doRequest(m, "index.m3u8")
 	require.NoError(t, err)
 	require.Equal(t, "#EXTM3U\n"+
-		"#EXT-X-VERSION:9\n"+
+		"#EXT-X-VERSION:10\n"+
 		"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 		"\n"+
 		"#EXT-X-STREAM-INF:BANDWIDTH=1144,AVERAGE-BANDWIDTH=1028,"+
@@ -1942,7 +1942,7 @@ func TestMuxerDynamicParams(t *testing.T) {
 	index2, _, err := doRequest(m, "index.m3u8")
 	require.NoError(t, err)
 	require.Equal(t, "#EXTM3U\n"+
-		"#EXT-X-VERSION:9\n"+
+		"#EXT-X-VERSION:10\n"+
 		"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 		"\n"+
 		"#EXT-X-STREAM-INF:BANDWIDTH=912,AVERAGE-BANDWIDTH=752,"+
@@ -2315,7 +2315,7 @@ func TestMuxerFMP4SequenceNumber(t *testing.T) {
 	byts, _, err := doRequest(m, "index.m3u8")
 	require.NoError(t, err)
 	require.Equal(t, "#EXTM3U\n"+
-		"#EXT-X-VERSION:9\n"+
+		"#EXT-X-VERSION:10\n"+
 		"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 		"\n"+
 		"#EXT-X-STREAM-INF:BANDWIDTH=964,AVERAGE-BANDWIDTH=964,"+
@@ -2442,7 +2442,7 @@ func TestMuxerExpiredSegment(t *testing.T) {
 	byts, _, err := doRequest(m, "index.m3u8")
 	require.NoError(t, err)
 	require.Equal(t, "#EXTM3U\n"+
-		"#EXT-X-VERSION:9\n"+
+		"#EXT-X-VERSION:10\n"+
 		"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 		"\n"+
 		"#EXT-X-STREAM-INF:BANDWIDTH=1144,AVERAGE-BANDWIDTH=1144,"+
@@ -2494,7 +2494,7 @@ func TestMuxerPreloadHint(t *testing.T) {
 	byts, _, err := doRequest(m, "index.m3u8")
 	require.NoError(t, err)
 	require.Equal(t, "#EXTM3U\n"+
-		"#EXT-X-VERSION:9\n"+
+		"#EXT-X-VERSION:10\n"+
 		"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 		"\n"+
 		"#EXT-X-STREAM-INF:BANDWIDTH=1144,AVERAGE-BANDWIDTH=1144,"+
