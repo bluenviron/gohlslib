@@ -301,7 +301,7 @@ func (d *clientStreamDownloader) downloadSegment(
 
 	if length != nil {
 		if start == nil {
-			start = ptrOf(uint64(0))
+			start = new(uint64(0))
 		}
 		req.Header.Add("Range", "bytes="+strconv.FormatUint(*start, 10)+
 			"-"+strconv.FormatUint(*start+*length-1, 10))
@@ -364,7 +364,7 @@ func (d *clientStreamDownloader) downloadNextSegment(
 		}
 	}
 
-	d.curSegmentID = ptrOf(pl.MediaSequence + segPos)
+	d.curSegmentID = new(pl.MediaSequence + segPos)
 
 	byts, err := d.downloadSegment(ctx, seg.URI, seg.ByteRangeStart, seg.ByteRangeLength)
 	if err != nil {
