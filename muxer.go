@@ -26,10 +26,6 @@ const (
 	segmentMaxAge              = "3600"
 )
 
-func ptrOf[T any](v T) *T {
-	return &v
-}
-
 func parseMSNPart(msn string, part string) (uint64, uint64, error) {
 	var msnint uint64
 	if msn != "" {
