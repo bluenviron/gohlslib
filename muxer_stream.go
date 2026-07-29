@@ -730,6 +730,7 @@ func (s *muxerStream) rotateParts(
 
 				for {
 					if s.closed {
+						s.mutex.Unlock()
 						w.WriteHeader(http.StatusInternalServerError)
 						return
 					}
