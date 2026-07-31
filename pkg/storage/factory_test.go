@@ -1,4 +1,4 @@
-package storage
+package storage_test
 
 import (
 	"io"
@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/bluenviron/gohlslib/v2/pkg/storage"
 )
 
 func TestStorage(t *testing.T) {
@@ -15,17 +17,17 @@ func TestStorage(t *testing.T) {
 		"disk",
 	} {
 		t.Run(ca, func(t *testing.T) {
-			var s Factory
+			var s storage.Factory
 			var dir string
 			if ca == "ram" {
-				s = NewFactoryRAM()
+				s = storage.NewFactoryRAM()
 			} else {
 				var err error
 				dir, err = os.MkdirTemp("", "gohlslib")
 				require.NoError(t, err)
 				defer os.RemoveAll(dir)
 
-				s = NewFactoryDisk(dir)
+				s = storage.NewFactoryDisk(dir)
 			}
 
 			seg, err := s.NewFile("myseg.mp4")

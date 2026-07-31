@@ -1,18 +1,20 @@
 //nolint:lll
-package playlist
+package playlist_test
 
 import (
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	playlist "github.com/bluenviron/gohlslib/v2/pkg/playlist"
 )
 
 var casesMultivariant = []struct {
 	name   string
 	input  string
 	output string
-	dec    Multivariant
+	dec    playlist.Multivariant
 }{
 	{
 		"full",
@@ -48,13 +50,13 @@ var casesMultivariant = []struct {
 			"#EXT-X-STREAM-INF:BANDWIDTH=55000,AVERAGE-BANDWIDTH=20000,CODECS=\"avc1.42c028,mp4a.40.2\"" +
 			",RESOLUTION=1280x720,FRAME-RATE=24.000\n" +
 			"stream2.m3u8\n",
-		Multivariant{
+		playlist.Multivariant{
 			Version:             9,
 			IndependentSegments: true,
-			Start: &MultivariantStart{
+			Start: &playlist.MultivariantStart{
 				TimeOffset: 15 * time.Second,
 			},
-			Variants: []*MultivariantVariant{
+			Variants: []*playlist.MultivariantVariant{
 				{
 					Bandwidth:        155000,
 					AverageBandwidth: ptrOf(120000),
@@ -80,9 +82,9 @@ var casesMultivariant = []struct {
 					URI:        "stream2.m3u8",
 				},
 			},
-			Renditions: []*MultivariantRendition{
+			Renditions: []*playlist.MultivariantRendition{
 				{
-					Type:       MultivariantRenditionTypeAudio,
+					Type:       playlist.MultivariantRenditionTypeAudio,
 					URI:        ptrOf("audio.m3u8"),
 					GroupID:    "aud1",
 					Language:   "en",
@@ -92,7 +94,7 @@ var casesMultivariant = []struct {
 					Channels:   ptrOf("2"),
 				},
 				{
-					Type:       MultivariantRenditionTypeSubtitles,
+					Type:       playlist.MultivariantRenditionTypeSubtitles,
 					URI:        ptrOf("sub.m3u8"),
 					GroupID:    "sub1",
 					Language:   "en",
@@ -235,10 +237,10 @@ v3/prog_index.m3u8
 #EXT-X-STREAM-INF:BANDWIDTH=571555,AVERAGE-BANDWIDTH=561224,CODECS="avc1.640015,ec-3",RESOLUTION=480x270,FRAME-RATE=30.000,AUDIO="aud3",SUBTITLES="sub1",CLOSED-CAPTIONS="cc1"
 v2/prog_index.m3u8
 `,
-		Multivariant{
+		playlist.Multivariant{
 			Version:             6,
 			IndependentSegments: true,
-			Variants: []*MultivariantVariant{
+			Variants: []*playlist.MultivariantVariant{
 				{
 					Bandwidth:        2177116,
 					AverageBandwidth: ptrOf(2168183),
@@ -576,9 +578,9 @@ v2/prog_index.m3u8
 					URI:            "v2/prog_index.m3u8",
 				},
 			},
-			Renditions: []*MultivariantRendition{
+			Renditions: []*playlist.MultivariantRendition{
 				{
-					Type:       MultivariantRenditionTypeAudio,
+					Type:       playlist.MultivariantRenditionTypeAudio,
 					URI:        ptrOf("a1/prog_index.m3u8"),
 					GroupID:    "aud1",
 					Language:   "en",
@@ -588,7 +590,7 @@ v2/prog_index.m3u8
 					Channels:   ptrOf("2"),
 				},
 				{
-					Type:       MultivariantRenditionTypeAudio,
+					Type:       playlist.MultivariantRenditionTypeAudio,
 					URI:        ptrOf("a2/prog_index.m3u8"),
 					GroupID:    "aud2",
 					Language:   "en",
@@ -598,7 +600,7 @@ v2/prog_index.m3u8
 					Channels:   ptrOf("6"),
 				},
 				{
-					Type:       MultivariantRenditionTypeAudio,
+					Type:       playlist.MultivariantRenditionTypeAudio,
 					URI:        ptrOf("a3/prog_index.m3u8"),
 					GroupID:    "aud3",
 					Language:   "en",
@@ -608,7 +610,7 @@ v2/prog_index.m3u8
 					Channels:   ptrOf("6"),
 				},
 				{
-					Type:       MultivariantRenditionTypeClosedCaptions,
+					Type:       playlist.MultivariantRenditionTypeClosedCaptions,
 					GroupID:    "cc1",
 					Language:   "en",
 					Name:       "English",
@@ -617,7 +619,7 @@ v2/prog_index.m3u8
 					InStreamID: ptrOf("CC1"),
 				},
 				{
-					Type:       MultivariantRenditionTypeSubtitles,
+					Type:       playlist.MultivariantRenditionTypeSubtitles,
 					URI:        ptrOf("s1/en/prog_index.m3u8"),
 					GroupID:    "sub1",
 					Language:   "en",
@@ -683,9 +685,9 @@ QualityLevels(4681440)/Manifest(video,format=m3u8-aapl)
 #EXT-X-STREAM-INF:BANDWIDTH=6254125,CODECS="avc1.640028,mp4a.40.2",RESOLUTION=1920x1080,AUDIO="audio"
 QualityLevels(5977913)/Manifest(video,format=m3u8-aapl)
 `,
-		Multivariant{
+		playlist.Multivariant{
 			Version: 4,
-			Variants: []*MultivariantVariant{
+			Variants: []*playlist.MultivariantVariant{
 				{
 					Bandwidth: 546902,
 					Codecs: []string{
@@ -767,15 +769,15 @@ QualityLevels(5977913)/Manifest(video,format=m3u8-aapl)
 					Audio:      "audio",
 				},
 			},
-			Renditions: []*MultivariantRendition{
+			Renditions: []*playlist.MultivariantRendition{
 				{
-					Type:    MultivariantRenditionTypeAudio,
+					Type:    playlist.MultivariantRenditionTypeAudio,
 					GroupID: "audio",
 					URI:     ptrOf("QualityLevels(125615)/Manifest(AAC_und_ch2_128kbps,format=m3u8-aapl)"),
 					Name:    "AAC_und_ch2_128kbps",
 				},
 				{
-					Type:    MultivariantRenditionTypeAudio,
+					Type:    playlist.MultivariantRenditionTypeAudio,
 					GroupID: "audio",
 					URI:     ptrOf("QualityLevels(53620)/Manifest(AAC_und_ch2_56kbps,format=m3u8-aapl)"),
 					Name:    "AAC_und_ch2_56kbps",
@@ -804,8 +806,8 @@ QualityLevels(5977913)/Manifest(video,format=m3u8-aapl)
 			"\n" +
 			"#EXT-X-STREAM-INF:BANDWIDTH=754857,CODECS=\"mp4a.40.2,avc1.4d401e\",VIDEO=\"500kbs\",AUDIO=\"aac\"\n" +
 			"Angle1/500kbs/prog_index.m3u8\n",
-		Multivariant{
-			Variants: []*MultivariantVariant{
+		playlist.Multivariant{
+			Variants: []*playlist.MultivariantVariant{
 				{
 					Bandwidth: 754857,
 					Codecs:    []string{"mp4a.40.2", "avc1.4d401e"},
@@ -814,30 +816,30 @@ QualityLevels(5977913)/Manifest(video,format=m3u8-aapl)
 					Audio:     "aac",
 				},
 			},
-			Renditions: []*MultivariantRendition{
+			Renditions: []*playlist.MultivariantRendition{
 				{
-					Type:       MultivariantRenditionTypeVideo,
+					Type:       playlist.MultivariantRenditionTypeVideo,
 					GroupID:    "500kbs",
 					Name:       "Angle1",
 					Autoselect: true,
 					Default:    true,
 				},
 				{
-					Type:       MultivariantRenditionTypeVideo,
+					Type:       playlist.MultivariantRenditionTypeVideo,
 					GroupID:    "500kbs",
 					Name:       "Angle2",
 					Autoselect: true,
 					URI:        ptrOf("Angle2/500kbs/prog_index.m3u8"),
 				},
 				{
-					Type:       MultivariantRenditionTypeVideo,
+					Type:       playlist.MultivariantRenditionTypeVideo,
 					GroupID:    "500kbs",
 					Name:       "Angle3",
 					Autoselect: true,
 					URI:        ptrOf("Angle3/500kbs/prog_index.m3u8"),
 				},
 				{
-					Type:       MultivariantRenditionTypeAudio,
+					Type:       playlist.MultivariantRenditionTypeAudio,
 					GroupID:    "aac",
 					Name:       "English",
 					Language:   "en",
@@ -853,7 +855,7 @@ QualityLevels(5977913)/Manifest(video,format=m3u8-aapl)
 func TestMultivariantUnmarshal(t *testing.T) {
 	for _, ca := range casesMultivariant {
 		t.Run(ca.name, func(t *testing.T) {
-			var m Multivariant
+			var m playlist.Multivariant
 			err := m.Unmarshal([]byte(ca.input))
 			require.NoError(t, err)
 			require.Equal(t, ca.dec, m)
@@ -872,8 +874,8 @@ gear3/prog_index.m3u8
 #EXT-X-STREAM-INF:PROGRAM-ID=1, BANDWIDTH=737777
 gear4/prog_index.m3u8
 `
-	dec := Multivariant{
-		Variants: []*MultivariantVariant{
+	dec := playlist.Multivariant{
+		Variants: []*playlist.MultivariantVariant{
 			{
 				Bandwidth: 200000,
 				URI:       "gear1/prog_index.m3u8",
@@ -893,7 +895,7 @@ gear4/prog_index.m3u8
 		},
 	}
 
-	var m Multivariant
+	var m playlist.Multivariant
 	err := m.Unmarshal([]byte(input))
 	require.NoError(t, err)
 	require.Equal(t, dec, m)

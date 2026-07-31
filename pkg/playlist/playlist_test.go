@@ -1,15 +1,17 @@
-package playlist
+package playlist_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	playlist "github.com/bluenviron/gohlslib/v2/pkg/playlist"
 )
 
 func TestUnmarshal(t *testing.T) {
 	for _, ca := range casesMultivariant {
 		t.Run("multivariant_"+ca.name, func(t *testing.T) {
-			dec, err := Unmarshal([]byte(ca.input))
+			dec, err := playlist.Unmarshal([]byte(ca.input))
 			require.NoError(t, err)
 			require.Equal(t, &ca.dec, dec)
 		})
@@ -17,7 +19,7 @@ func TestUnmarshal(t *testing.T) {
 
 	for _, ca := range casesMedia {
 		t.Run("media_"+ca.name, func(t *testing.T) {
-			dec, err := Unmarshal([]byte(ca.input))
+			dec, err := playlist.Unmarshal([]byte(ca.input))
 			require.NoError(t, err)
 			require.Equal(t, &ca.dec, dec)
 		})
@@ -34,7 +36,7 @@ func FuzzPlaylistUnmarshal(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, a string) {
-		pl, err := Unmarshal([]byte(a))
+		pl, err := playlist.Unmarshal([]byte(a))
 		if err != nil {
 			return
 		}
