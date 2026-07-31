@@ -2,7 +2,6 @@
 
 [![Test](https://github.com/bluenviron/gohlslib/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/bluenviron/gohlslib/actions/workflows/test.yml?query=branch%3Amain)
 [![Lint](https://github.com/bluenviron/gohlslib/actions/workflows/lint.yml/badge.svg?branch=main)](https://github.com/bluenviron/gohlslib/actions/workflows/lint.yml?query=branch%3Amain)
-[![Go Report Card](https://goreportcard.com/badge/github.com/bluenviron/gohlslib)](https://goreportcard.com/report/github.com/bluenviron/gohlslib)
 [![CodeCov](https://codecov.io/gh/bluenviron/gohlslib/branch/main/graph/badge.svg)](https://app.codecov.io/gh/bluenviron/gohlslib/tree/main)
 [![PkgGoDev](https://pkg.go.dev/badge/github.com/bluenviron/gohlslib/v2)](https://pkg.go.dev/github.com/bluenviron/gohlslib/v2#pkg-index)
 
