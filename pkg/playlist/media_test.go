@@ -1,17 +1,23 @@
-package playlist
+package playlist_test
 
 import (
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	playlist "github.com/bluenviron/gohlslib/v2/pkg/playlist"
 )
+
+func ptrOf[T any](v T) *T {
+	return &v
+}
 
 var casesMedia = []struct {
 	name   string
 	input  string
 	output string
-	dec    Media
+	dec    playlist.Media
 }{
 	{
 		"full",
@@ -75,30 +81,30 @@ var casesMedia = []struct {
 			"#EXT-X-PART:DURATION=1.50000,URI=\"part4.mp4\"\n" +
 			"#EXT-X-PRELOAD-HINT:TYPE=PART,URI=\"part5.mp4\",BYTERANGE-START=43523,BYTERANGE-LENGTH=123\n" +
 			"#EXT-X-RENDITION-REPORT:URI=\"media_2.m3u8\",LAST-MSN=2,LAST-PART=5\n",
-		Media{
+		playlist.Media{
 			Version:             9,
 			IndependentSegments: true,
 			AllowCache:          ptrOf(false),
 			TargetDuration:      8,
-			ServerControl: &MediaServerControl{
+			ServerControl: &playlist.MediaServerControl{
 				CanBlockReload: true,
 				PartHoldBack:   ptrOf(5 * time.Second),
 				CanSkipUntil:   ptrOf(7 * time.Second),
 			},
-			PartInf: &MediaPartInf{
+			PartInf: &playlist.MediaPartInf{
 				PartTarget: 2 * time.Second,
 			},
 			MediaSequence:         27,
 			DiscontinuitySequence: ptrOf(36),
-			PlaylistType:          ptrOf(MediaPlaylistTypeEvent),
-			Map: &MediaMap{
+			PlaylistType:          ptrOf(playlist.MediaPlaylistTypeEvent),
+			Map: &playlist.MediaMap{
 				URI: "init.mp4",
 			},
-			Start: &MediaStart{TimeOffset: 4560 * time.Millisecond},
-			Skip: &MediaSkip{
+			Start: &playlist.MediaStart{TimeOffset: 4560 * time.Millisecond},
+			Skip: &playlist.MediaSkip{
 				SkippedSegments: 15,
 			},
-			Segments: []*MediaSegment{
+			Segments: []*playlist.MediaSegment{
 				{
 					Gap:      true,
 					Duration: 2 * time.Second,
@@ -115,7 +121,7 @@ var casesMedia = []struct {
 					Duration:      3 * time.Second,
 					URI:           "seg2.mp4",
 					Discontinuity: true,
-					Parts: []*MediaPart{
+					Parts: []*playlist.MediaPart{
 						{
 							Duration:    1500 * time.Millisecond,
 							Independent: true,
@@ -130,7 +136,7 @@ var casesMedia = []struct {
 					},
 				},
 			},
-			Parts: []*MediaPart{
+			Parts: []*playlist.MediaPart{
 				{
 					Duration:    1500 * time.Millisecond,
 					Independent: true,
@@ -142,12 +148,12 @@ var casesMedia = []struct {
 					URI:      "part4.mp4",
 				},
 			},
-			PreloadHint: &MediaPreloadHint{
+			PreloadHint: &playlist.MediaPreloadHint{
 				URI:             "part5.mp4",
 				ByteRangeStart:  43523,
 				ByteRangeLength: ptrOf(uint64(123)),
 			},
-			RenditionReport: []*MediaRenditionReport{
+			RenditionReport: []*playlist.MediaRenditionReport{
 				{
 					URI:      "media_2.m3u8",
 					LastMSN:  2,
@@ -200,18 +206,18 @@ main.mp4
 main.mp4
 #EXT-X-ENDLIST
 `,
-		Media{
+		playlist.Media{
 			Version:             7,
 			IndependentSegments: true,
 			TargetDuration:      6,
 			MediaSequence:       1,
-			PlaylistType:        ptrOf(MediaPlaylistTypeVOD),
-			Map: &MediaMap{
+			PlaylistType:        ptrOf(playlist.MediaPlaylistTypeVOD),
+			Map: &playlist.MediaMap{
 				URI:             "main.mp4",
 				ByteRangeLength: ptrOf(uint64(721)),
 				ByteRangeStart:  ptrOf(uint64(0)),
 			},
-			Segments: []*MediaSegment{
+			Segments: []*playlist.MediaSegment{
 				{
 					Duration:        6 * time.Second,
 					ByteRangeLength: ptrOf(uint64(5874288)),
@@ -261,23 +267,23 @@ segment1.ts
 #EXTINF:6.00000,
 segment2.ts
 `,
-		Media{
+		playlist.Media{
 			Version:        3,
 			TargetDuration: 6,
-			Segments: []*MediaSegment{
+			Segments: []*playlist.MediaSegment{
 				{
 					Duration: 6 * time.Second,
 					URI:      "segment1.ts",
-					Key: &MediaKey{
-						Method: MediaKeyMethodAES128,
+					Key: &playlist.MediaKey{
+						Method: playlist.MediaKeyMethodAES128,
 						URI:    "key.bin",
 					},
 				},
 				{
 					Duration: 6 * time.Second,
 					URI:      "segment2.ts",
-					Key: &MediaKey{
-						Method: MediaKeyMethodAES128,
+					Key: &playlist.MediaKey{
+						Method: playlist.MediaKeyMethodAES128,
 						URI:    "key.bin",
 					},
 				},
@@ -302,15 +308,15 @@ segment1.ts
 #EXTINF:6.00000,
 segment1.ts
 `,
-		Media{
+		playlist.Media{
 			Version:        3,
 			TargetDuration: 6,
-			Segments: []*MediaSegment{
+			Segments: []*playlist.MediaSegment{
 				{
 					Duration: 6 * time.Second,
 					URI:      "segment1.ts",
-					Key: &MediaKey{
-						Method: MediaKeyMethodAES128,
+					Key: &playlist.MediaKey{
+						Method: playlist.MediaKeyMethodAES128,
 						URI:    "key.bin",
 						IV:     "0x1234567890abcdef1234567890abcdef",
 					},
@@ -336,15 +342,15 @@ segment1.ts
 #EXTINF:6.00000,
 segment1.ts
 `,
-		Media{
+		playlist.Media{
 			Version:        5,
 			TargetDuration: 6,
-			Segments: []*MediaSegment{
+			Segments: []*playlist.MediaSegment{
 				{
 					Duration: 6 * time.Second,
 					URI:      "segment1.ts",
-					Key: &MediaKey{
-						Method:            MediaKeyMethodSampleAES,
+					Key: &playlist.MediaKey{
+						Method:            playlist.MediaKeyMethodSampleAES,
 						URI:               "key.bin",
 						KeyFormat:         "com.apple.streamingkeydelivery",
 						KeyFormatVersions: "1",
@@ -370,15 +376,15 @@ segment1.ts`,
 #EXTINF:6.00000,
 segment1.ts
 `,
-		Media{
+		playlist.Media{
 			Version:        3,
 			TargetDuration: 6,
-			Segments: []*MediaSegment{
+			Segments: []*playlist.MediaSegment{
 				{
 					Duration: 6 * time.Second,
 					URI:      "segment1.ts",
-					Key: &MediaKey{
-						Method: MediaKeyMethodNone,
+					Key: &playlist.MediaKey{
+						Method: playlist.MediaKeyMethodNone,
 					},
 				},
 			},
@@ -401,15 +407,15 @@ segment1.ts`,
 #EXTINF:4.00000,
 segment1.ts
 `,
-		Media{
+		playlist.Media{
 			Version:        3,
 			TargetDuration: 4,
-			Segments: []*MediaSegment{
+			Segments: []*playlist.MediaSegment{
 				{
 					Duration: 4 * time.Second,
 					URI:      "segment1.ts",
-					Key: &MediaKey{
-						Method: MediaKeyMethodNone,
+					Key: &playlist.MediaKey{
+						Method: playlist.MediaKeyMethodNone,
 					},
 				},
 			},
@@ -420,7 +426,7 @@ segment1.ts
 func TestMediaUnmarshal(t *testing.T) {
 	for _, ca := range casesMedia {
 		t.Run(ca.name, func(t *testing.T) {
-			var m Media
+			var m playlist.Media
 			err := m.Unmarshal([]byte(ca.input))
 			require.NoError(t, err)
 			require.Equal(t, ca.dec, m)
@@ -435,7 +441,7 @@ func TestMediaUnmarshalDecimalTargetDuration(t *testing.T) {
 		"#EXTINF:2.00000,\n" +
 		"seg.mp4\n"
 
-	var m Media
+	var m playlist.Media
 	err := m.Unmarshal([]byte(enc))
 	require.NoError(t, err)
 	require.Equal(t, m.TargetDuration, 2)
@@ -449,7 +455,7 @@ func TestMediaUnmarshalMissingTrailingNewline(t *testing.T) {
 		"seg.mp4\n" +
 		"#EXT-X-ENDLIST"
 
-	var m Media
+	var m playlist.Media
 	err := m.Unmarshal([]byte(enc))
 	require.NoError(t, err)
 	require.Equal(t, true, m.Endlist)
@@ -483,7 +489,7 @@ func TestMediaUnmarshalDateTime(t *testing.T) {
 		},
 	} {
 		t.Run(ca.name, func(t *testing.T) {
-			var m Media
+			var m playlist.Media
 			err := m.Unmarshal([]byte(ca.enc))
 			require.NoError(t, err)
 			require.Equal(t, ca.dateTime, m.Segments[0].DateTime.UTC())

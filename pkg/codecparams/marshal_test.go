@@ -1,4 +1,4 @@
-package codecparams
+package codecparams_test
 
 import (
 	"testing"
@@ -6,6 +6,7 @@ import (
 	"github.com/bluenviron/mediacommon/v2/pkg/codecs/mpeg4audio"
 	"github.com/stretchr/testify/require"
 
+	"github.com/bluenviron/gohlslib/v2/pkg/codecparams"
 	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
 )
 
@@ -89,7 +90,7 @@ func TestMarshal(t *testing.T) {
 		},
 	} {
 		t.Run(ca.name, func(t *testing.T) {
-			enc := Marshal(ca.codec)
+			enc := codecparams.Marshal(ca.codec)
 			require.Equal(t, ca.enc, enc)
 		})
 	}
