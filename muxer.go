@@ -23,6 +23,7 @@ const (
 	fmp4StartDTS               = 10 * time.Second
 	multivariantPlaylistMaxAge = "30"
 	segmentMaxAge              = "3600"
+	mpegtsAACPTSDriftTolerance = 500 * time.Millisecond
 )
 
 func ptrOf[T any](v T) *T {

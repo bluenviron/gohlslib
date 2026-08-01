@@ -3,7 +3,9 @@ package gohlslib
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -19,6 +21,7 @@ import (
 	"github.com/bluenviron/mediacommon/v2/pkg/codecs/mpeg4audio"
 	"github.com/bluenviron/mediacommon/v2/pkg/formats/fmp4"
 	mp4codecs "github.com/bluenviron/mediacommon/v2/pkg/formats/mp4/codecs"
+	mcmpegts "github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts"
 	"github.com/stretchr/testify/require"
 
 	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
@@ -1132,6 +1135,133 @@ func TestMuxerRejectsInvalidClockRate(t *testing.T) {
 			require.EqualError(t, err, ca.errorRe)
 		})
 	}
+}
+
+func TestMuxerMPEGTSAACResync(t *testing.T) {
+	track := &Track{
+		Codec:     &codecs.MPEG4Audio{Config: testAACConfig},
+		ClockRate: 44100,
+	}
+
+	m := &Muxer{
+		Variant:            MuxerVariantMPEGTS,
+		SegmentCount:       3,
+		SegmentMinDuration: 10 * time.Second,
+		Tracks:             []*Track{track},
+	}
+
+	err := m.Start()
+	require.NoError(t, err)
+	defer m.Close()
+
+	// write enough AUs to keep everything in a single segment, then introduce a big drift
+	for i := range 3 {
+		err = m.WriteMPEG4Audio(track, testTime, int64(i)*mpeg4audio.SamplesPerAccessUnit, [][]byte{{0x21, 0x10}})
+		require.NoError(t, err)
+	}
+
+	jumpPTS := int64(2 * track.ClockRate)
+	err = m.WriteMPEG4Audio(track, testTime, jumpPTS, [][]byte{{0x21, 0x10}})
+	require.NoError(t, err)
+
+	// finalize the segment
+	err = m.WriteMPEG4Audio(track, testTime, int64(12*track.ClockRate), [][]byte{{0x21, 0x10}})
+	require.NoError(t, err)
+
+	byts, _, err := doRequest(m, "main_stream.m3u8")
+	require.NoError(t, err)
+
+	re := regexp.MustCompile(`(.*?_seg0\.ts)`)
+	ma := re.FindStringSubmatch(string(byts))
+	require.NotNil(t, ma)
+
+	segmentData, _, err := doRequest(m, ma[1])
+	require.NoError(t, err)
+
+	r := &mcmpegts.Reader{R: bytes.NewReader(segmentData)}
+	err = r.Initialize()
+	require.NoError(t, err)
+
+	var ptss []int64
+	r.OnDataMPEG4Audio(r.Tracks()[0], func(pts int64, _ [][]byte) error {
+		ptss = append(ptss, pts)
+		return nil
+	})
+
+	for {
+		err = r.Read()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		require.NoError(t, err)
+	}
+
+	require.GreaterOrEqual(t, len(ptss), 4)
+	require.Equal(t, int64(0), ptss[0])
+	require.Equal(t, int64(1024*90000/44100), ptss[1])
+	require.Equal(t, int64(2*1024*90000/44100), ptss[2])
+	require.Equal(t, int64(2*90000), ptss[3])
+}
+
+func TestMuxerMPEGTSAACResyncWithinTolerance(t *testing.T) {
+	track := &Track{
+		Codec:     &codecs.MPEG4Audio{Config: testAACConfig},
+		ClockRate: 44100,
+	}
+
+	m := &Muxer{
+		Variant:            MuxerVariantMPEGTS,
+		SegmentCount:       3,
+		SegmentMinDuration: 10 * time.Second,
+		Tracks:             []*Track{track},
+	}
+
+	err := m.Start()
+	require.NoError(t, err)
+	defer m.Close()
+
+	err = m.WriteMPEG4Audio(track, testTime, 0, [][]byte{{0x21, 0x10}})
+	require.NoError(t, err)
+
+	// drift less than tolerance: muxer should keep AU-counted continuity instead of snapping to source pts
+	err = m.WriteMPEG4Audio(track, testTime, int64(1024+track.ClockRate/4), [][]byte{{0x21, 0x10}})
+	require.NoError(t, err)
+
+	// finalize the segment
+	err = m.WriteMPEG4Audio(track, testTime, int64(12*track.ClockRate), [][]byte{{0x21, 0x10}})
+	require.NoError(t, err)
+
+	byts, _, err := doRequest(m, "main_stream.m3u8")
+	require.NoError(t, err)
+
+	re := regexp.MustCompile(`(.*?_seg0\.ts)`)
+	ma := re.FindStringSubmatch(string(byts))
+	require.NotNil(t, ma)
+
+	segmentData, _, err := doRequest(m, ma[1])
+	require.NoError(t, err)
+
+	r := &mcmpegts.Reader{R: bytes.NewReader(segmentData)}
+	err = r.Initialize()
+	require.NoError(t, err)
+
+	var ptss []int64
+	r.OnDataMPEG4Audio(r.Tracks()[0], func(pts int64, _ [][]byte) error {
+		ptss = append(ptss, pts)
+		return nil
+	})
+
+	for {
+		err = r.Read()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		require.NoError(t, err)
+	}
+
+	require.GreaterOrEqual(t, len(ptss), 2)
+	require.Equal(t, int64(0), ptss[0])
+	require.Equal(t, int64(1024*90000/44100), ptss[1])
 }
 
 func TestMuxerKLV(t *testing.T) {
