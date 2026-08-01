@@ -479,7 +479,7 @@ func TestMuxer(t *testing.T) {
 				"#EXT-X-VERSION:3\n"+
 				"#EXT-X-INDEPENDENT-SEGMENTS\n"+
 				"\n"+
-				"#EXT-X-STREAM-INF:BANDWIDTH=225600,AVERAGE-BANDWIDTH=225600,CODECS=\"mp4a.40.2\"\n"+
+				"#EXT-X-STREAM-INF:BANDWIDTH=225600,AVERAGE-BANDWIDTH=151904,CODECS=\"mp4a.40.2\"\n"+
 				"main_stream.m3u8?key=value\n", string(byts))
 
 		case content == "audio" && variant == "fmp4":
@@ -561,11 +561,7 @@ func TestMuxer(t *testing.T) {
 			require.Equal(t, "no-cache", h.Get("Cache-Control"))
 
 		case "mpegts":
-			if content == "audio" {
-				require.Equal(t, "public, max-age=2", h.Get("Cache-Control"))
-			} else {
-				require.Equal(t, "public, max-age=1", h.Get("Cache-Control"))
-			}
+			require.Equal(t, "public, max-age=1", h.Get("Cache-Control"))
 
 		default:
 			require.Equal(t, "public, max-age=1", h.Get("Cache-Control"))
@@ -600,7 +596,10 @@ func TestMuxer(t *testing.T) {
 				`#EXT-X-MEDIA-SEQUENCE:0\n` +
 				`#EXT-X-PROGRAM-DATE-TIME:.*?\n` +
 				`#EXTINF:2.00000,\n` +
-				`(.*?_seg0\.ts\?key=value)\n$`)
+				`(.*?_seg0\.ts\?key=value)\n` +
+				`#EXT-X-PROGRAM-DATE-TIME:.*?\n` +
+				`#EXTINF:1.00000,\n` +
+				`(.*?_seg1\.ts\?key=value)\n$`)
 			require.Regexp(t, re, string(byts))
 
 		case variant == "fmp4" && (content == "video+audio" || content == "video"):

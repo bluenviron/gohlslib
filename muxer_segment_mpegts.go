@@ -20,13 +20,12 @@ type muxerSegmentMPEGTS struct {
 	startNTP       time.Time
 	startDTS       time.Duration
 
-	storage      storage.File
-	storagePart  storage.Part
-	bw           *bufio.Writer
-	size         uint64
-	path         string
-	endDTS       time.Duration // available after finalize()
-	audioAUCount int
+	storage     storage.File
+	storagePart storage.Part
+	bw          *bufio.Writer
+	size        uint64
+	path        string
+	endDTS      time.Duration // available after finalize()
 }
 
 func (s *muxerSegmentMPEGTS) initialize() error {
@@ -127,10 +126,6 @@ func (s *muxerSegmentMPEGTS) writeMPEG4Audio(
 	)
 	if err != nil {
 		return err
-	}
-
-	if track.isLeading {
-		s.audioAUCount++
 	}
 
 	return nil

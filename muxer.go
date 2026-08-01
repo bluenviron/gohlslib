@@ -21,7 +21,6 @@ import (
 
 const (
 	fmp4StartDTS               = 10 * time.Second
-	mpegtsSegmentMinAUCount    = 100
 	multivariantPlaylistMaxAge = "30"
 	segmentMaxAge              = "3600"
 )
