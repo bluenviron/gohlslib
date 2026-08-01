@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	playlist "github.com/bluenviron/gohlslib/v2/pkg/playlist"
+	"github.com/bluenviron/gohlslib/v2/pkg/playlist"
 )
 
 var casesMultivariant = []struct {
