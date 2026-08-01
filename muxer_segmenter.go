@@ -425,9 +425,8 @@ func (s *muxerSegmenter) writeMPEG4Audio(
 				if err != nil {
 					return err
 				}
-			} else if track.stream.nextSegment.(*muxerSegmentMPEGTS).audioAUCount >= mpegtsSegmentMinAUCount && // switch segment
-				(timestampToDuration(pts, track.ClockRate)-
-					track.stream.nextSegment.(*muxerSegmentMPEGTS).startDTS) >= s.segmentMinDuration {
+			} else if (timestampToDuration(pts, track.ClockRate) -
+				track.stream.nextSegment.(*muxerSegmentMPEGTS).startDTS) >= s.segmentMinDuration { // switch segment
 				err := s.parent.rotateSegments(timestampToDuration(pts, track.ClockRate), ntp)
 				if err != nil {
 					return err
