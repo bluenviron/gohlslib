@@ -1069,6 +1069,71 @@ func TestMuxerCodecs(t *testing.T) {
 	}
 }
 
+func TestMuxerRejectsInvalidClockRate(t *testing.T) {
+	cases := []struct {
+		name    string
+		track   *Track
+		errorRe string
+	}{
+		{
+			name:    "h264",
+			track:   &Track{Codec: &codecs.H264{SPS: testH264SPS, PPS: []byte{0x08}}, ClockRate: 1},
+			errorRe: "track 0 requires clock rate 90000, but is 1",
+		},
+		{
+			name:    "h265",
+			track:   &Track{Codec: &codecs.H265{VPS: testH265VPS, SPS: testH265SPS, PPS: testH265PPS}, ClockRate: 1},
+			errorRe: "track 0 requires clock rate 90000, but is 1",
+		},
+		{
+			name:    "av1",
+			track:   &Track{Codec: &codecs.AV1{SequenceHeader: testAV1SequenceHeader}, ClockRate: 1},
+			errorRe: "track 0 requires clock rate 90000, but is 1",
+		},
+		{
+			name:    "vp9",
+			track:   &Track{Codec: &codecs.VP9{}, ClockRate: 1},
+			errorRe: "track 0 requires clock rate 90000, but is 1",
+		},
+		{
+			name:    "opus",
+			track:   &Track{Codec: &codecs.Opus{ChannelCount: 2}, ClockRate: 1},
+			errorRe: "track 0 requires clock rate 48000, but is 1",
+		},
+		{
+			name:    "mpeg4_audio",
+			track:   &Track{Codec: &codecs.MPEG4Audio{Config: testAACConfig}, ClockRate: 1},
+			errorRe: "track 0 requires clock rate 44100, but is 1",
+		},
+		{
+			name: "flac",
+			track: &Track{Codec: &codecs.FLAC{
+				StreamInfo: &flac.StreamInfo{SampleRate: 44100, ChannelCount: 2, BitDepth: 16},
+			}, ClockRate: 1},
+			errorRe: "track 0 requires clock rate 44100, but is 1",
+		},
+		{
+			name:    "klv",
+			track:   &Track{Codec: &codecs.KLV{}, ClockRate: 1},
+			errorRe: "track 0 requires clock rate 90000, but is 1",
+		},
+	}
+
+	for _, ca := range cases {
+		t.Run(ca.name, func(t *testing.T) {
+			m := &Muxer{
+				Variant:            MuxerVariantFMP4,
+				SegmentCount:       3,
+				SegmentMinDuration: 1 * time.Second,
+				Tracks:             []*Track{ca.track},
+			}
+
+			err := m.Start()
+			require.EqualError(t, err, ca.errorRe)
+		})
+	}
+}
+
 func TestMuxerKLV(t *testing.T) {
 	klvTrack := &Track{
 		Codec:     &codecs.KLV{},
