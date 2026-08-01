@@ -587,7 +587,7 @@ func (s *muxerStream) generateAndCacheInitFile() error {
 	for _, track := range s.tracks {
 		init.Tracks = append(init.Tracks, &fmp4.InitTrack{
 			ID:        trackID,
-			TimeScale: fmp4TimeScale(track.Codec),
+			TimeScale: uint32(track.ClockRate),
 			Codec:     toFMP4(track.Codec),
 		})
 		trackID++

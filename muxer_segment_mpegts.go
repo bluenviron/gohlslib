@@ -93,8 +93,8 @@ func (s *muxerSegmentMPEGTS) writeH264(
 
 	err := s.mpegtsWriter.WriteH264(
 		track.mpegtsTrack,
-		multiplyAndDivide(pts, 90000, int64(track.ClockRate)),
-		multiplyAndDivide(dts, 90000, int64(track.ClockRate)),
+		pts,
+		dts,
 		au,
 	)
 	if err != nil {
@@ -144,7 +144,7 @@ func (s *muxerSegmentMPEGTS) writeKLV(
 
 	return s.mpegtsWriter.WriteKLV(
 		track.mpegtsTrack,
-		multiplyAndDivide(pts, 90000, int64(track.ClockRate)),
+		pts,
 		data,
 	)
 }
