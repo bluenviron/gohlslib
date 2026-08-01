@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/bluenviron/gohlslib/v2/pkg/storage"
+	"github.com/bluenviron/mediacommon/v2/pkg/codecs/mpeg4audio"
 	"github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts"
 )
 
@@ -119,14 +120,28 @@ func (s *muxerSegmentMPEGTS) writeMPEG4Audio(
 	}
 	s.size += size
 
+	tolerance := durationToTimestamp(mpegtsAACPTSDriftTolerance, track.ClockRate)
+
+	// recompute timestamp from scratch.
+	// iOS+MPEG-TS+AAC requires a precise timestamp that might get lost during timestamp conversion.
+	// also reset in case of drifts.
+	if !track.mpegtsAACPTSInitialized ||
+		track.mpegtsAACPTS > (pts+tolerance) ||
+		track.mpegtsAACPTS < (pts-tolerance) {
+		track.mpegtsAACPTS = pts
+		track.mpegtsAACPTSInitialized = true
+	}
+
 	err := s.mpegtsWriter.WriteMPEG4Audio(
 		track.mpegtsTrack,
-		multiplyAndDivide(pts, 90000, int64(track.ClockRate)),
+		multiplyAndDivide(track.mpegtsAACPTS, 90000, int64(track.ClockRate)),
 		aus,
 	)
 	if err != nil {
 		return err
 	}
+
+	track.mpegtsAACPTS += mpeg4audio.SamplesPerAccessUnit * int64(len(aus))
 
 	return nil
 }
