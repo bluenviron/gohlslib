@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
 	"github.com/bluenviron/mediacommon/v2/pkg/codecs/av1"
 	"github.com/bluenviron/mediacommon/v2/pkg/codecs/h264"
 	"github.com/bluenviron/mediacommon/v2/pkg/codecs/h265"
@@ -13,6 +12,8 @@ import (
 	"github.com/bluenviron/mediacommon/v2/pkg/codecs/opus"
 	"github.com/bluenviron/mediacommon/v2/pkg/codecs/vp9"
 	"github.com/bluenviron/mediacommon/v2/pkg/formats/fmp4"
+
+	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
 )
 
 func multiplyAndDivide(v, m, d int64) int64 {
