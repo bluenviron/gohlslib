@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
 	"github.com/bluenviron/mediacommon/v2/pkg/formats/fmp4"
+
+	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
 )
 
 type procEntryFMP4 struct {
