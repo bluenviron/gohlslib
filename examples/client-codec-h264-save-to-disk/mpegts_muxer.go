@@ -71,9 +71,6 @@ func (e *mpegtsMuxer) writeH264(au [][]byte, pts int64) error {
 			e.pps = nalu
 			continue
 
-		case h264.NALUTypeAccessUnitDelimiter:
-			continue
-
 		case h264.NALUTypeIDR:
 			idrPresent = true
 
