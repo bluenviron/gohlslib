@@ -49,7 +49,18 @@ func (t *clientTrackProcessorFMP4) initialize() error {
 
 	case *codecs.H265:
 		t.decodePayload = func(sample *fmp4.Sample) ([][]byte, error) {
-			return sample.GetH265()
+			nalus, err := sample.GetH265()
+			if err != nil {
+				return nil, err
+			}
+
+			for _, nalu := range nalus {
+				if len(nalu) < 2 {
+					return nil, fmt.Errorf("invalid H265 NALU size (%d)", len(nalu))
+				}
+			}
+
+			return nalus, nil
 		}
 
 	case *codecs.Opus:
