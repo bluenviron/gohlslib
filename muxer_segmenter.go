@@ -122,8 +122,7 @@ func (s *muxerSegmenter) writeAV1(
 		}
 	}
 
-	ps := &fmp4.Sample{}
-	err := ps.FillAV1(tu)
+	bs, err := av1.Bitstream(tu).Marshal()
 	if err != nil {
 		return err
 	}
@@ -132,9 +131,12 @@ func (s *muxerSegmenter) writeAV1(
 		track,
 		randomAccess,
 		&fmp4AugmentedSample{
-			Sample: *ps,
-			dts:    pts,
-			ntp:    ntp,
+			Sample: fmp4.Sample{
+				IsNonSyncSample: !randomAccess,
+				Payload:         bs,
+			},
+			dts: pts,
+			ntp: ntp,
 		})
 }
 
@@ -248,10 +250,7 @@ func (s *muxerSegmenter) writeH265(
 		return fmt.Errorf("unable to extract DTS: %w", err)
 	}
 
-	ps := &fmp4.Sample{}
-	err = ps.FillH265(
-		int32(pts-dts),
-		au)
+	avcc, err := h264.AVCC(au).Marshal()
 	if err != nil {
 		return err
 	}
@@ -260,9 +259,13 @@ func (s *muxerSegmenter) writeH265(
 		track,
 		randomAccess,
 		&fmp4AugmentedSample{
-			Sample: *ps,
-			dts:    dts,
-			ntp:    ntp,
+			Sample: fmp4.Sample{
+				PTSOffset:       int32(pts - dts),
+				IsNonSyncSample: !randomAccess,
+				Payload:         avcc,
+			},
+			dts: dts,
+			ntp: ntp,
 		})
 }
 
@@ -346,10 +349,7 @@ func (s *muxerSegmenter) writeH264(
 		return nil
 	}
 
-	ps := &fmp4.Sample{}
-	err = ps.FillH264(
-		int32(pts-dts),
-		au)
+	avcc, err := h264.AVCC(au).Marshal()
 	if err != nil {
 		return err
 	}
@@ -358,9 +358,13 @@ func (s *muxerSegmenter) writeH264(
 		track,
 		randomAccess,
 		&fmp4AugmentedSample{
-			Sample: *ps,
-			dts:    dts,
-			ntp:    ntp,
+			Sample: fmp4.Sample{
+				PTSOffset:       int32(pts - dts),
+				IsNonSyncSample: !randomAccess,
+				Payload:         avcc,
+			},
+			dts: dts,
+			ntp: ntp,
 		})
 }
 

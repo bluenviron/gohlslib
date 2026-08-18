@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/bluenviron/mediacommon/v2/pkg/codecs/av1"
+	"github.com/bluenviron/mediacommon/v2/pkg/codecs/h264"
 	"github.com/bluenviron/mediacommon/v2/pkg/formats/fmp4"
 
 	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
@@ -34,7 +36,13 @@ func (t *clientTrackProcessorFMP4) initialize() error {
 	switch t.track.track.Codec.(type) {
 	case *codecs.AV1:
 		t.decodePayload = func(sample *fmp4.Sample) ([][]byte, error) {
-			return sample.GetAV1()
+			var tu av1.Bitstream
+			err := tu.Unmarshal(sample.Payload)
+			if err != nil {
+				return nil, err
+			}
+
+			return tu, nil
 		}
 
 	case *codecs.VP9:
@@ -44,12 +52,24 @@ func (t *clientTrackProcessorFMP4) initialize() error {
 
 	case *codecs.H264:
 		t.decodePayload = func(sample *fmp4.Sample) ([][]byte, error) {
-			return sample.GetH264()
+			var au h264.AVCC
+			err := au.Unmarshal(sample.Payload)
+			if err != nil {
+				return nil, err
+			}
+
+			return au, nil
 		}
 
 	case *codecs.H265:
 		t.decodePayload = func(sample *fmp4.Sample) ([][]byte, error) {
-			return sample.GetH265()
+			var au h264.AVCC
+			err := au.Unmarshal(sample.Payload)
+			if err != nil {
+				return nil, err
+			}
+
+			return [][]byte(au), nil
 		}
 
 	case *codecs.Opus:

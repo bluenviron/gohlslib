@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/asticode/go-astits"
+	"github.com/bluenviron/mediacommon/v2/pkg/codecs/av1"
 	"github.com/bluenviron/mediacommon/v2/pkg/codecs/flac"
 	"github.com/bluenviron/mediacommon/v2/pkg/codecs/h264"
 	"github.com/bluenviron/mediacommon/v2/pkg/codecs/mpeg4audio"
@@ -97,6 +98,14 @@ func writeTempFile(byts []byte) (string, error) {
 	}
 
 	return tmpf.Name(), nil
+}
+
+func mustMarshalAV1(tu [][]byte) []byte {
+	enc, err := av1.Bitstream(tu).Marshal()
+	if err != nil {
+		panic(err)
+	}
+	return enc
 }
 
 func mustMarshalAVCC(au [][]byte) []byte {
@@ -1374,16 +1383,15 @@ func TestClientCodecs(t *testing.T) {
 							require.NoError(t, err)
 
 						case "av1":
-							s := &fmp4.Sample{}
-							err := s.FillAV1([][]byte{{
-								0x08, 0x00, 0x00, 0x00, 0x42, 0xa7, 0xbf, 0xe4, 0x60, 0x0d, 0x00, 0x40,
-							}})
-							require.NoError(t, err)
-							err = mp4ToWriter(&fmp4.Part{
+							err := mp4ToWriter(&fmp4.Part{
 								Tracks: []*fmp4.PartTrack{
 									{
-										ID:      1,
-										Samples: []*fmp4.Sample{s},
+										ID: 1,
+										Samples: []*fmp4.Sample{{
+											Payload: mustMarshalAV1([][]byte{{
+												0x08, 0x00, 0x00, 0x00, 0x42, 0xa7, 0xbf, 0xe4, 0x60, 0x0d, 0x00, 0x40,
+											}}),
+										}},
 									},
 								},
 							}, w)
