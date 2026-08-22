@@ -110,12 +110,12 @@ func (d *h264Decoder) decode(nalu []byte) (image.Image, error) {
 		}
 
 		d.swsCtx = C.sws_getContext(d.srcFrame.width, d.srcFrame.height, C.AV_PIX_FMT_YUV420P,
-			d.dstFrame.width, d.dstFrame.height, (int32)(d.dstFrame.format), C.SWS_BILINEAR, nil, nil, nil)
+			d.dstFrame.width, d.dstFrame.height, int32(d.dstFrame.format), C.SWS_BILINEAR, nil, nil, nil)
 		if d.swsCtx == nil {
 			return nil, fmt.Errorf("sws_getContext() failed")
 		}
 
-		dstFrameSize := C.av_image_get_buffer_size((int32)(d.dstFrame.format), d.dstFrame.width, d.dstFrame.height, 1)
+		dstFrameSize := C.av_image_get_buffer_size(int32(d.dstFrame.format), d.dstFrame.width, d.dstFrame.height, 1)
 		d.dstFramePtr = (*[1 << 30]uint8)(unsafe.Pointer(d.dstFrame.data[0]))[:dstFrameSize:dstFrameSize]
 	}
 
@@ -129,9 +129,9 @@ func (d *h264Decoder) decode(nalu []byte) (image.Image, error) {
 	// embed frame into an image.Image
 	return &image.RGBA{
 		Pix:    d.dstFramePtr,
-		Stride: 4 * (int)(d.dstFrame.width),
+		Stride: 4 * int(d.dstFrame.width),
 		Rect: image.Rectangle{
-			Max: image.Point{(int)(d.dstFrame.width), (int)(d.dstFrame.height)},
+			Max: image.Point{int(d.dstFrame.width), int(d.dstFrame.height)},
 		},
 	}, nil
 }

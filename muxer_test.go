@@ -68,7 +68,7 @@ var testAACConfig = mpeg4audio.AudioSpecificConfig{
 	Type:          2,
 	SampleRate:    44100,
 	ChannelConfig: 2,
-	ChannelCount:  2,
+	ChannelCount:  2, //nolint:staticcheck
 }
 
 var testVideoTrack = &Track{
@@ -85,7 +85,7 @@ var testAudioTrack = &Track{
 			Type:          2,
 			SampleRate:    44100,
 			ChannelConfig: 2,
-			ChannelCount:  2,
+			ChannelCount:  2, //nolint:staticcheck
 		},
 	},
 	ClockRate: 44100,
@@ -97,7 +97,7 @@ var testAudioTrack2 = &Track{
 			Type:          2,
 			SampleRate:    44100,
 			ChannelConfig: 2,
-			ChannelCount:  2,
+			ChannelCount:  2, //nolint:staticcheck
 		},
 	},
 	ClockRate: 44100,
@@ -1403,7 +1403,7 @@ func TestMuxerKLVFirstTrackWithAudio(t *testing.T) {
 				Type:          2,
 				SampleRate:    44100,
 				ChannelConfig: 2,
-				ChannelCount:  2,
+				ChannelCount:  2, //nolint:staticcheck
 			},
 		},
 		ClockRate: 44100,

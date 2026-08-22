@@ -187,7 +187,7 @@ func TestClient(t *testing.T) {
 								Type:          2,
 								SampleRate:    44100,
 								ChannelConfig: 2,
-								ChannelCount:  2,
+								ChannelCount:  2, //nolint:staticcheck
 							},
 						},
 					}
@@ -246,7 +246,7 @@ func TestClient(t *testing.T) {
 								Type:          2,
 								SampleRate:    44100,
 								ChannelConfig: 2,
-								ChannelCount:  2,
+								ChannelCount:  2, //nolint:staticcheck
 							},
 						},
 					}
@@ -1043,7 +1043,7 @@ func TestClient(t *testing.T) {
 													Type:          2,
 													SampleRate:    44100,
 													ChannelConfig: 2,
-													ChannelCount:  2,
+													ChannelCount:  2, //nolint:staticcheck
 												},
 											},
 											ClockRate: audioClockRate,
@@ -1078,7 +1078,7 @@ func TestClient(t *testing.T) {
 													Type:          2,
 													SampleRate:    44100,
 													ChannelConfig: 2,
-													ChannelCount:  2,
+													ChannelCount:  2, //nolint:staticcheck
 												},
 											},
 											ClockRate: audioClockRate,
@@ -1092,7 +1092,7 @@ func TestClient(t *testing.T) {
 													Type:          2,
 													SampleRate:    44100,
 													ChannelConfig: 2,
-													ChannelCount:  2,
+													ChannelCount:  2, //nolint:staticcheck
 												},
 											},
 											ClockRate: audioClockRate,
