@@ -1,6 +1,6 @@
 module github.com/bluenviron/gohlslib/v2
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/asticode/go-astits v1.16.0
