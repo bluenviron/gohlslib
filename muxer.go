@@ -26,10 +26,6 @@ const (
 	mpegtsAACPTSDriftTolerance = 500 * time.Millisecond
 )
 
-func ptrOf[T any](v T) *T {
-	return &v
-}
-
 func parseMSNPart(msn string, part string) (uint64, uint64, error) {
 	var msnint uint64
 	if msn != "" {
