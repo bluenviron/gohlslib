@@ -705,6 +705,7 @@ func (m *Muxer) handleMultivariantPlaylist(w http.ResponseWriter, r *http.Reques
 
 		for {
 			if m.closed {
+				w.WriteHeader(http.StatusNotFound)
 				return nil
 			}
 
@@ -717,6 +718,7 @@ func (m *Muxer) handleMultivariantPlaylist(w http.ResponseWriter, r *http.Reques
 
 		buf, err := m.generateMultivariantPlaylist(r.URL.RawQuery)
 		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
 			return nil
 		}
 
@@ -724,7 +726,6 @@ func (m *Muxer) handleMultivariantPlaylist(w http.ResponseWriter, r *http.Reques
 	}()
 
 	if buf == nil {
-		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
