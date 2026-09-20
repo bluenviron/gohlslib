@@ -337,7 +337,7 @@ func (s *muxerStream) handleMediaPlaylist(w http.ResponseWriter, r *http.Request
 
 				for {
 					if s.closed {
-						w.WriteHeader(http.StatusInternalServerError)
+						w.WriteHeader(http.StatusNotFound)
 						return nil, ""
 					}
 
@@ -391,7 +391,7 @@ func (s *muxerStream) handleMediaPlaylist(w http.ResponseWriter, r *http.Request
 
 		for {
 			if s.closed {
-				w.WriteHeader(http.StatusInternalServerError)
+				w.WriteHeader(http.StatusNotFound)
 				return nil, ""
 			}
 
@@ -732,7 +732,7 @@ func (s *muxerStream) rotateParts(
 				for {
 					if s.closed {
 						s.mutex.Unlock()
-						w.WriteHeader(http.StatusInternalServerError)
+						w.WriteHeader(http.StatusNotFound)
 						return
 					}
 
