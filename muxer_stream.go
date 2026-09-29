@@ -480,16 +480,17 @@ func (s *muxerStream) generateMediaPlaylistFMP4(
 
 	skipped := 0
 
-	if !isDeltaUpdate {
-		uri := initFilePath(s.prefix, s.id)
-		if rawQuery != "" {
-			uri += "?" + rawQuery
-		}
+	// EXT-X-MAP must be kept in delta updates too, otherwise iOS clients stop playback
+	mapURI := initFilePath(s.prefix, s.id)
+	if rawQuery != "" {
+		mapURI += "?" + rawQuery
+	}
 
-		pl.Map = &playlist.MediaMap{
-			URI: uri,
-		}
-	} else {
+	pl.Map = &playlist.MediaMap{
+		URI: mapURI,
+	}
+
+	if isDeltaUpdate {
 		var curDuration time.Duration
 		shown := 0
 		for _, segment := range s.segments {
