@@ -769,21 +769,26 @@ func (s *muxerStream) rotateParts(
 	}
 
 	// while segment target duration can be increased indefinitely,
-	// part target duration cannot, since
+	// part target duration cannot change once published, otherwise iOS clients stop playback.
+	// parts are switched in order not to exceed it, but long samples can still produce parts
+	// that exceed it or that violate
 	// "The duration of a Partial Segment MUST be at least 85% of the Part Target Duration"
-	// so it's better to reset it every time.
-	if s.isLeading {
-		partTargetDuration := partTargetDuration(s.segments, s.nextSegment.(*muxerSegmentFMP4).parts)
-		if s.partTargetDuration == 0 {
-			s.partTargetDuration = partTargetDuration
-		} else if partTargetDuration != s.partTargetDuration {
-			s.onEncodeError(fmt.Errorf("part duration changed from %v to %v - this will cause an error in iOS clients",
-				s.partTargetDuration, partTargetDuration))
-			s.partTargetDuration = partTargetDuration
-		}
+	if s.isLeading && s.partTargetDuration != 0 {
+		s.checkPartDuration(part, !createNew)
 	}
 
 	return nil
+}
+
+func (s *muxerStream) checkPartDuration(part *muxerPart, isFinal bool) {
+	d := part.getDuration()
+	if d > s.partTargetDuration {
+		s.onEncodeError(fmt.Errorf("part duration (%v) exceeds part target duration (%v) - "+
+			"this will cause an error in iOS clients", d, s.partTargetDuration))
+	} else if !isFinal && !part.isIndependent && d < (s.partTargetDuration*85)/100 {
+		s.onEncodeError(fmt.Errorf("part duration (%v) is less than 85%% of part target duration (%v) - "+
+			"this will cause an error in iOS clients", d, s.partTargetDuration))
+	}
 }
 
 func (s *muxerStream) rotateSegments(
@@ -918,6 +923,13 @@ func (s *muxerStream) rotateSegments(
 			storage:        seg.storage.NewPart(),
 		}
 		s.nextPart.initialize()
+
+		// samples moved into the next part belong to the new segment
+		for _, track := range s.tracks {
+			for _, sample := range track.fmp4Samples {
+				seg.size += uint64(len(sample.Payload))
+			}
+		}
 	}
 
 	if s.isLeading {
