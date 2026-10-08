@@ -2662,6 +2662,57 @@ func TestMuxerExpiredSegment(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.statusCode)
 }
 
+func TestMuxerDeltaUpdate(t *testing.T) {
+	m := &Muxer{
+		Variant:            MuxerVariantLowLatency,
+		SegmentCount:       7,
+		SegmentMinDuration: 1 * time.Second,
+		Tracks:             []*Track{testVideoTrack},
+	}
+
+	err := m.Start()
+	require.NoError(t, err)
+	defer m.Close()
+
+	re := regexp.MustCompile(`#EXT-X-MAP:URI="(.*?_init\.mp4\?key=value)"\n` +
+		`#EXT-X-SKIP:SKIPPED-SEGMENTS=([0-9]+)\n`)
+
+	var mapURIs []string
+	skipped := make(map[bool]struct{})
+
+	// segment duration grows from 1s to 3s, therefore delta updates stop skipping segments
+	// until the window is long enough again.
+	for i, sec := range []int{0, 1, 2, 3, 4, 5, 6, 9, 12, 15, 18, 21, 24, 27, 30} {
+		err = m.WriteH264(testVideoTrack, testTime,
+			int64(sec)*90000,
+			[][]byte{
+				testH264SPS, // SPS
+				{8},         // PPS
+				{5},         // IDR
+			})
+		require.NoError(t, err)
+
+		if i == 0 {
+			continue
+		}
+
+		byts, _, err2 := doRequest(m, "video1_stream.m3u8?key=value&_HLS_skip=YES")
+		require.NoError(t, err2)
+
+		ma := re.FindStringSubmatch(string(byts))
+		require.NotNil(t, ma)
+
+		mapURIs = append(mapURIs, ma[1])
+		skipped[ma[2] != "0"] = struct{}{}
+	}
+
+	require.Equal(t, map[bool]struct{}{false: {}, true: {}}, skipped)
+
+	for _, u := range mapURIs {
+		require.Equal(t, mapURIs[0], u)
+	}
+}
+
 func TestMuxerPreloadHint(t *testing.T) {
 	m := &Muxer{
 		Variant:            MuxerVariantLowLatency,
