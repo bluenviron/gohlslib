@@ -141,6 +141,8 @@ func doRequest(m *Muxer, pathAndQuery string) ([]byte, http.Header, error) {
 
 func TestMuxer(t *testing.T) {
 	createMuxer := func(t *testing.T, variant string, content string) *Muxer {
+		t.Helper()
+
 		var v MuxerVariant
 		var segmentCount int
 
@@ -411,6 +413,8 @@ func TestMuxer(t *testing.T) {
 	}
 
 	checkMultivariantPlaylist := func(t *testing.T, m *Muxer, variant string, content string) {
+		t.Helper()
+
 		byts, h, err := doRequest(m, "/index.m3u8?key=value")
 		require.NoError(t, err)
 		require.Equal(t, "application/vnd.apple.mpegurl", h.Get("Content-Type"))
@@ -542,6 +546,8 @@ func TestMuxer(t *testing.T) {
 	}
 
 	checkPlaylist1 := func(t *testing.T, m *Muxer, variant string, content string) {
+		t.Helper()
+
 		var u string
 
 		switch {
@@ -766,6 +772,8 @@ func TestMuxer(t *testing.T) {
 	}
 
 	checkPlaylist2 := func(t *testing.T, m *Muxer, variant string) {
+		t.Helper()
+
 		byts, h, err := doRequest(m, "audio2_stream.m3u8?key=value")
 		require.NoError(t, err)
 		require.Equal(t, "application/vnd.apple.mpegurl", h.Get("Content-Type"))
@@ -2172,6 +2180,8 @@ func TestMuxerDynamicParams(t *testing.T) {
 
 func TestMuxerInStreamParams(t *testing.T) {
 	getInit := func(t *testing.T, m *Muxer) *fmp4.Init {
+		t.Helper()
+
 		byts, _, err := doRequest(m, "video1_stream.m3u8")
 		require.NoError(t, err)
 		re := regexp.MustCompile(`#EXT-X-MAP:URI="(.*?)"`)

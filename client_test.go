@@ -133,6 +133,8 @@ func mp4ToWriter(i marshaler, w io.Writer) error {
 
 func TestClient(t *testing.T) {
 	createHTTPHandler := func(t *testing.T, variant string, content string, mode string) http.HandlerFunc {
+		t.Helper()
+
 		count := 0
 
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -934,6 +936,8 @@ func TestClient(t *testing.T) {
 	}
 
 	createHTTPServer := func(t *testing.T, encryption string, variant string, content string, mode string) *http.Server {
+		t.Helper()
+
 		httpServ := &http.Server{
 			Handler: createHTTPHandler(t, variant, content, mode),
 		}
@@ -2298,6 +2302,8 @@ func TestClientCookie(t *testing.T) {
 
 func TestClientRedirect(t *testing.T) {
 	writeRedirectSegment := func(t *testing.T, w http.ResponseWriter) {
+		t.Helper()
+
 		w.Header().Set("Content-Type", `video/MP2T`)
 		h264Track := &mpegts.Track{Codec: &tscodecs.H264{}}
 		mw := &mpegts.Writer{W: w, Tracks: []*mpegts.Track{h264Track}}
