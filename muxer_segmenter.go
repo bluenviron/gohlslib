@@ -180,7 +180,7 @@ func (s *muxerSegmenter) writeVP9(
 		}
 	}
 
-	// skip samples silently until we find a random access one
+	// skip samples silently until we find one with a random access point
 	if !track.firstRandomAccessReceived {
 		if !randomAccess {
 			return nil
@@ -231,13 +231,13 @@ func (s *muxerSegmenter) writeH265(
 		}
 	}
 
-	// skip samples silently until we find a random access one
+	// skip samples silently until we find one with a random access point
 	if !track.firstRandomAccessReceived {
 		if !randomAccess {
 			return nil
 		}
-		track.firstRandomAccessReceived = true
 
+		track.firstRandomAccessReceived = true
 		track.h265DTSExtractor = &h265.DTSExtractor{}
 		track.h265DTSExtractor.Initialize()
 	}
@@ -274,15 +274,11 @@ func (s *muxerSegmenter) writeH264(
 ) error {
 	codec := track.Codec.(*codecs.H264)
 	randomAccess := h264.IsRandomAccess(au)
-	nonIDRPresent := false
 
 	for _, nalu := range au {
 		typ := h264.NALUType(nalu[0] & 0x1F)
 
 		switch typ {
-		case h264.NALUTypeNonIDR:
-			nonIDRPresent = true
-
 		case h264.NALUTypeSPS:
 			if !track.stream.initFilePresent && !bytes.Equal(codec.SPS, nalu) {
 				codec.SPS = nalu
@@ -295,17 +291,13 @@ func (s *muxerSegmenter) writeH264(
 		}
 	}
 
-	if !randomAccess && !nonIDRPresent {
-		return nil
-	}
-
-	// skip samples silently until we find a random access one
+	// skip samples silently until we find one with a random access point
 	if !track.firstRandomAccessReceived {
 		if !randomAccess {
 			return nil
 		}
-		track.firstRandomAccessReceived = true
 
+		track.firstRandomAccessReceived = true
 		track.h264DTSExtractor = &h264.DTSExtractor{}
 		track.h264DTSExtractor.Initialize()
 	}
