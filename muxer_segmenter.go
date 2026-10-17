@@ -276,16 +276,13 @@ func (s *muxerSegmenter) writeH264(
 	au [][]byte,
 ) error {
 	codec := track.Codec.(*codecs.H264)
-	randomAccess := false
+	randomAccess := h264.IsRandomAccess(au)
 	nonIDRPresent := false
 
 	for _, nalu := range au {
 		typ := h264.NALUType(nalu[0] & 0x1F)
 
 		switch typ {
-		case h264.NALUTypeIDR:
-			randomAccess = true
-
 		case h264.NALUTypeNonIDR:
 			nonIDRPresent = true
 
