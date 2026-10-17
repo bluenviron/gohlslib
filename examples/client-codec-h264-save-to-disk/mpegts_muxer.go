@@ -57,7 +57,6 @@ func (e *mpegtsMuxer) close() {
 func (e *mpegtsMuxer) writeH264(au [][]byte, pts int64) error {
 	var filteredAU [][]byte //nolint:prealloc
 
-	nonIDRPresent := false
 	randomAccess := h264.IsRandomAccess(au)
 
 	for _, nalu := range au {
@@ -70,9 +69,6 @@ func (e *mpegtsMuxer) writeH264(au [][]byte, pts int64) error {
 		case h264.NALUTypePPS:
 			e.pps = nalu
 			continue
-
-		case h264.NALUTypeNonIDR:
-			nonIDRPresent = true
 		}
 
 		filteredAU = append(filteredAU, nalu)
@@ -80,17 +76,17 @@ func (e *mpegtsMuxer) writeH264(au [][]byte, pts int64) error {
 
 	au = filteredAU
 
-	if au == nil || (!nonIDRPresent && !randomAccess) {
+	if au == nil {
 		return nil
 	}
 
-	// add SPS and PPS before access unit that contains a random access point
+	// add SPS and PPS before access units that contain a random access point
 	if randomAccess {
 		au = append([][]byte{e.sps, e.pps}, au...)
 	}
 
 	if e.dtsExtractor == nil {
-		// skip samples silently until we find a random access point
+		// skip samples silently until we find one with a random access point
 		if !randomAccess {
 			return nil
 		}
