@@ -208,15 +208,12 @@ func (s *muxerSegmenter) writeH265(
 	au [][]byte,
 ) error {
 	codec := track.Codec.(*codecs.H265)
-	randomAccess := false
+	randomAccess := h265.IsRandomAccess(au)
 
 	for _, nalu := range au {
 		typ := h265.NALUType((nalu[0] >> 1) & 0b111111)
 
 		switch typ {
-		case h265.NALUType_IDR_W_RADL, h265.NALUType_IDR_N_LP, h265.NALUType_CRA_NUT:
-			randomAccess = true
-
 		case h265.NALUType_VPS_NUT:
 			if !track.stream.initFilePresent && !bytes.Equal(codec.VPS, nalu) {
 				codec.VPS = nalu
