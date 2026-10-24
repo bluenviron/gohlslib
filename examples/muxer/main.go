@@ -64,8 +64,10 @@ func main() {
 		Addr:    ":8080",
 		Handler: handleIndex(mux.Handle),
 	}
+	go func() {
+		panic(s.ListenAndServe())
+	}()
 	log.Println("HTTP server created on :8080")
-	go s.ListenAndServe() //nolint:errcheck
 
 	// setup RGBA -> H264 encoder
 	h264enc := &h264Encoder{
