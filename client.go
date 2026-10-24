@@ -14,6 +14,8 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -284,15 +286,23 @@ func (c *Client) run() {
 }
 
 func (c *Client) runInner() error {
-	rp := &clientRoutinePool{}
-	rp.initialize()
+	errGroup, errGroupCtx := errgroup.WithContext(context.Background())
+
+	errGroup.Go(func() error {
+		select {
+		case <-c.ctx.Done():
+			return fmt.Errorf("terminated")
+		case <-errGroupCtx.Done():
+			return nil
+		}
+	})
 
 	c.primaryDownloader = &clientPrimaryDownloader{
 		primaryPlaylistURL:        c.playlistURL,
 		startDistance:             c.StartDistance,
 		maxDistance:               c.MaxDistance,
 		httpClient:                c.HTTPClient,
-		rp:                        rp,
+		errGroup:                  errGroup,
 		onRequest:                 c.OnRequest,
 		onDownloadPrimaryPlaylist: c.OnDownloadPrimaryPlaylist,
 		onDownloadStreamPlaylist:  c.OnDownloadStreamPlaylist,
@@ -302,17 +312,12 @@ func (c *Client) runInner() error {
 		client:                    c,
 	}
 	c.primaryDownloader.initialize()
-	rp.add(c.primaryDownloader)
 
-	select {
-	case err := <-rp.errorChan():
-		rp.close()
-		return err
+	errGroup.Go(func() error {
+		return c.primaryDownloader.run(errGroupCtx)
+	})
 
-	case <-c.ctx.Done():
-		rp.close()
-		return fmt.Errorf("terminated")
-	}
+	return errGroup.Wait()
 }
 
 func (c *Client) setTracks(tracks []*Track) (map[*Track]*clientTrack, error) {
@@ -344,11 +349,11 @@ func (c *Client) setTimeConv(ts clientTimeConv) {
 	close(c.timeConvReady)
 }
 
-func (c *Client) waitTimeConv(ctx context.Context) (clientTimeConv, bool) {
+func (c *Client) waitTimeConv(errGroupCtx context.Context) (clientTimeConv, bool) {
 	select {
 	case <-c.timeConvReady:
 		return c.timeConv, true
-	case <-ctx.Done():
+	case <-errGroupCtx.Done():
 		return nil, false
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/bluenviron/mediacommon/v2/pkg/formats/fmp4"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/bluenviron/gohlslib/v2/pkg/playlist"
 )
@@ -44,12 +45,12 @@ func findTimeScaleOfLeadingTrack(tracks []*fmp4.InitTrack, leadingTrackID int) u
 }
 
 type clientStreamProcessorFMP4 struct {
-	ctx              context.Context
+	errGroupCtx      context.Context
 	isLeading        bool
 	rendition        *playlist.MultivariantRendition
 	initFile         []byte
 	segmentQueue     *clientSegmentQueue
-	rp               *clientRoutinePool
+	errGroup         *errgroup.Group
 	streamDownloader clientStreamProcessorStreamDownloader
 	client           clientStreamDownloaderClient
 
@@ -64,7 +65,7 @@ type clientStreamProcessorFMP4 struct {
 func (p *clientStreamProcessorFMP4) initialize() {
 }
 
-func (p *clientStreamProcessorFMP4) run(ctx context.Context) error {
+func (p *clientStreamProcessorFMP4) run(errGroupCtx context.Context) error {
 	err := p.init.Unmarshal(bytes.NewReader(p.initFile))
 	if err != nil {
 		return err
@@ -108,32 +109,32 @@ func (p *clientStreamProcessorFMP4) run(ctx context.Context) error {
 	}
 
 	var ok bool
-	p.clientStreamTracks, ok = p.streamDownloader.setTracks(p.ctx, tracks)
+	p.clientStreamTracks, ok = p.streamDownloader.setTracks(p.errGroupCtx, tracks)
 	if !ok {
 		return fmt.Errorf("terminated")
 	}
 
 	for {
 		var seg *segmentData
-		seg, ok = p.segmentQueue.pull(ctx)
+		seg, ok = p.segmentQueue.pull(errGroupCtx)
 		if !ok {
 			return fmt.Errorf("terminated")
 		}
 
 		if seg.err != nil {
-			p.streamDownloader.onProcessorError(ctx, seg.err)
-			<-ctx.Done()
+			p.streamDownloader.onProcessorError(errGroupCtx, seg.err)
+			<-errGroupCtx.Done()
 			return fmt.Errorf("terminated")
 		}
 
-		err = p.processSegment(ctx, seg)
+		err = p.processSegment(errGroupCtx, seg)
 		if err != nil {
 			return err
 		}
 	}
 }
 
-func (p *clientStreamProcessorFMP4) processSegment(ctx context.Context, seg *segmentData) error {
+func (p *clientStreamProcessorFMP4) processSegment(errGroupCtx context.Context, seg *segmentData) error {
 	var parts fmp4.Parts
 	err := parts.Unmarshal(seg.payload)
 	if err != nil {
@@ -146,12 +147,12 @@ func (p *clientStreamProcessorFMP4) processSegment(ctx context.Context, seg *seg
 	}
 
 	if p.trackProcessors == nil {
-		err = p.initializeTrackProcessors()
+		err = p.initializeTrackProcessors(errGroupCtx)
 		if err != nil {
 			return err
 		}
 
-		err = p.initializeTimeConv(ctx, leadingPartTrack)
+		err = p.initializeTimeConv(errGroupCtx, leadingPartTrack)
 		if err != nil {
 			return err
 		}
@@ -178,11 +179,11 @@ func (p *clientStreamProcessorFMP4) processSegment(ctx context.Context, seg *seg
 			}
 
 			dts := p.timeConv.convert(int64(partTrack.BaseTime), trackProc.track.track.ClockRate)
-			ntp := p.timeConv.getNTP(ctx, dts, trackProc.track.track.ClockRate)
+			ntp := p.timeConv.getNTP(errGroupCtx, dts, trackProc.track.track.ClockRate)
 
 			p.segmentWaitGroup.Add(1)
 
-			err = trackProc.push(ctx, &procEntryFMP4{
+			err = trackProc.push(errGroupCtx, &procEntryFMP4{
 				partTrack: partTrack,
 				dts:       dts,
 				ntp:       ntp,
@@ -203,7 +204,7 @@ func (p *clientStreamProcessorFMP4) onPartTrackProcessed() {
 	p.segmentWaitGroup.Done()
 }
 
-func (p *clientStreamProcessorFMP4) initializeTrackProcessors() error {
+func (p *clientStreamProcessorFMP4) initializeTrackProcessors(errGroupCtx context.Context) error {
 	p.trackProcessors = make(map[int]*clientTrackProcessorFMP4)
 
 	for i, track := range p.clientStreamTracks {
@@ -215,7 +216,10 @@ func (p *clientStreamProcessorFMP4) initializeTrackProcessors() error {
 		if err != nil {
 			return err
 		}
-		p.rp.add(trackProc)
+
+		p.errGroup.Go(func() error {
+			return trackProc.run(errGroupCtx)
+		})
 
 		p.trackProcessors[p.init.Tracks[i].ID] = trackProc
 	}
@@ -223,7 +227,10 @@ func (p *clientStreamProcessorFMP4) initializeTrackProcessors() error {
 	return nil
 }
 
-func (p *clientStreamProcessorFMP4) initializeTimeConv(ctx context.Context, leadingPartTrack *fmp4.PartTrack) error {
+func (p *clientStreamProcessorFMP4) initializeTimeConv(
+	errGroupCtx context.Context,
+	leadingPartTrack *fmp4.PartTrack,
+) error {
 	if p.isLeading {
 		timeScale := findTimeScaleOfLeadingTrack(p.init.Tracks, p.leadingTrackID)
 
@@ -235,7 +242,7 @@ func (p *clientStreamProcessorFMP4) initializeTimeConv(ctx context.Context, lead
 
 		p.client.setTimeConv(p.timeConv)
 	} else {
-		tmp, ok := p.client.waitTimeConv(ctx)
+		tmp, ok := p.client.waitTimeConv(errGroupCtx)
 		if !ok {
 			return fmt.Errorf("terminated")
 		}
