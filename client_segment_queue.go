@@ -38,7 +38,7 @@ func (q *clientSegmentQueue) push(seg *segmentData) {
 	q.mutex.Unlock()
 }
 
-func (q *clientSegmentQueue) waitUntilSizeIsBelow(ctx context.Context, n int) bool {
+func (q *clientSegmentQueue) waitUntilSizeIsBelow(errGroupCtx context.Context, n int) bool {
 	q.mutex.Lock()
 
 	for len(q.queue) > n {
@@ -48,7 +48,7 @@ func (q *clientSegmentQueue) waitUntilSizeIsBelow(ctx context.Context, n int) bo
 
 		select {
 		case <-didPullCopy:
-		case <-ctx.Done():
+		case <-errGroupCtx.Done():
 			return false
 		}
 
@@ -59,7 +59,7 @@ func (q *clientSegmentQueue) waitUntilSizeIsBelow(ctx context.Context, n int) bo
 	return true
 }
 
-func (q *clientSegmentQueue) pull(ctx context.Context) (*segmentData, bool) {
+func (q *clientSegmentQueue) pull(errGroupCtx context.Context) (*segmentData, bool) {
 	q.mutex.Lock()
 
 	for len(q.queue) == 0 {
@@ -68,7 +68,7 @@ func (q *clientSegmentQueue) pull(ctx context.Context) (*segmentData, bool) {
 
 		select {
 		case <-didPush:
-		case <-ctx.Done():
+		case <-errGroupCtx.Done():
 			return nil, false
 		}
 

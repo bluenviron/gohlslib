@@ -93,22 +93,22 @@ func (t *clientTrackProcessorFMP4) initialize() error {
 	return nil
 }
 
-func (t *clientTrackProcessorFMP4) run(ctx context.Context) error {
+func (t *clientTrackProcessorFMP4) run(errGroupCtx context.Context) error {
 	for {
 		select {
 		case entry := <-t.queue:
-			err := t.process(ctx, entry)
+			err := t.process(errGroupCtx, entry)
 			if err != nil {
 				return err
 			}
 
-		case <-ctx.Done():
+		case <-errGroupCtx.Done():
 			return nil
 		}
 	}
 }
 
-func (t *clientTrackProcessorFMP4) process(ctx context.Context, entry *procEntryFMP4) error {
+func (t *clientTrackProcessorFMP4) process(errGroupCtx context.Context, entry *procEntryFMP4) error {
 	defer t.streamProcessor.onPartTrackProcessed()
 
 	dts := entry.dts
@@ -126,7 +126,7 @@ func (t *clientTrackProcessorFMP4) process(ctx context.Context, entry *procEntry
 			ntp = new(entry.ntp.Add(timestampToDuration(dts-entry.dts, t.track.track.ClockRate)))
 		}
 
-		err = t.track.handleData(ctx, pts, dts, ntp, data)
+		err = t.track.handleData(errGroupCtx, pts, dts, ntp, data)
 		if err != nil {
 			return err
 		}
@@ -137,12 +137,12 @@ func (t *clientTrackProcessorFMP4) process(ctx context.Context, entry *procEntry
 	return nil
 }
 
-func (t *clientTrackProcessorFMP4) push(ctx context.Context, entry *procEntryFMP4) error {
+func (t *clientTrackProcessorFMP4) push(errGroupCtx context.Context, entry *procEntryFMP4) error {
 	select {
 	case t.queue <- entry:
 		return nil
 
-	case <-ctx.Done():
+	case <-errGroupCtx.Done():
 		return fmt.Errorf("terminated")
 	}
 }

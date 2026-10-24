@@ -52,10 +52,10 @@ func (ts *clientTimeConvMPEGTS) setLeadingNTPReceived() {
 	close(ts.chLeadingNTPReceived)
 }
 
-func (ts *clientTimeConvMPEGTS) getNTP(ctx context.Context, timestamp int64) *time.Time {
+func (ts *clientTimeConvMPEGTS) getNTP(errGroupCtx context.Context, timestamp int64) *time.Time {
 	select {
 	case <-ts.chLeadingNTPReceived:
-	case <-ctx.Done():
+	case <-errGroupCtx.Done():
 		return nil
 	}
 

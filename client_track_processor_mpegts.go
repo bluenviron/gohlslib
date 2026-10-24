@@ -14,7 +14,7 @@ type procEntryMPEGTS struct {
 }
 
 type clientTrackProcessorMPEGTSStreamProcessor interface {
-	onPartProcessorDone(ctx context.Context)
+	onPartProcessorDone(errGroupCtx context.Context)
 }
 
 type clientTrackProcessorMPEGTS struct {
@@ -28,36 +28,36 @@ func (t *clientTrackProcessorMPEGTS) initialize() {
 	t.queue = make(chan *procEntryMPEGTS, clientMPEGTSSampleQueueSize)
 }
 
-func (t *clientTrackProcessorMPEGTS) run(ctx context.Context) error {
+func (t *clientTrackProcessorMPEGTS) run(errGroupCtx context.Context) error {
 	for {
 		select {
 		case entry := <-t.queue:
-			err := t.process(ctx, entry)
+			err := t.process(errGroupCtx, entry)
 			if err != nil {
 				return err
 			}
 
-		case <-ctx.Done():
+		case <-errGroupCtx.Done():
 			return nil
 		}
 	}
 }
 
-func (t *clientTrackProcessorMPEGTS) process(ctx context.Context, entry *procEntryMPEGTS) error {
+func (t *clientTrackProcessorMPEGTS) process(errGroupCtx context.Context, entry *procEntryMPEGTS) error {
 	if entry == nil {
-		t.streamProcessor.onPartProcessorDone(ctx)
+		t.streamProcessor.onPartProcessorDone(errGroupCtx)
 		return nil
 	}
 
-	return t.track.handleData(ctx, entry.pts, entry.dts, entry.ntp, entry.data)
+	return t.track.handleData(errGroupCtx, entry.pts, entry.dts, entry.ntp, entry.data)
 }
 
-func (t *clientTrackProcessorMPEGTS) push(ctx context.Context, entry *procEntryMPEGTS) error {
+func (t *clientTrackProcessorMPEGTS) push(errGroupCtx context.Context, entry *procEntryMPEGTS) error {
 	select {
 	case t.queue <- entry:
 		return nil
 
-	case <-ctx.Done():
+	case <-errGroupCtx.Done():
 		return fmt.Errorf("terminated")
 	}
 }

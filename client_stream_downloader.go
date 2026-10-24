@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/bluenviron/gohlslib/v2/pkg/playlist"
 )
 
@@ -51,7 +53,7 @@ func dateTimeOfPreloadHint(pl *playlist.Media) *time.Time {
 
 type clientStreamDownloaderClient interface {
 	setTimeConv(ts clientTimeConv)
-	waitTimeConv(ctx context.Context) (clientTimeConv, bool)
+	waitTimeConv(errGroupCtx context.Context) (clientTimeConv, bool)
 }
 
 type clientStreamDownloader struct {
@@ -67,7 +69,7 @@ type clientStreamDownloader struct {
 	playlistURL              *url.URL
 	rendition                *playlist.MultivariantRendition
 	firstPlaylist            *playlist.Media
-	rp                       *clientRoutinePool
+	errGroup                 *errgroup.Group
 	client                   clientStreamDownloaderClient
 
 	segmentQueue *clientSegmentQueue
@@ -87,10 +89,10 @@ func (d *clientStreamDownloader) initialize() {
 	d.chStartStreaming = make(chan map[*Track]*clientTrack)
 }
 
-func (d *clientStreamDownloader) run(ctx context.Context) error {
+func (d *clientStreamDownloader) run(errGroupCtx context.Context) error {
 	if d.firstPlaylist == nil {
 		var err error
-		d.firstPlaylist, err = d.downloadPlaylist(ctx, false)
+		d.firstPlaylist, err = d.downloadPlaylist(errGroupCtx, false)
 		if err != nil {
 			return err
 		}
@@ -101,7 +103,7 @@ func (d *clientStreamDownloader) run(ctx context.Context) error {
 
 	if d.firstPlaylist.Map != nil && d.firstPlaylist.Map.URI != "" {
 		initFile, err := d.downloadSegment(
-			ctx,
+			errGroupCtx,
 			d.firstPlaylist.Map.URI,
 			d.firstPlaylist.Map.ByteRangeStart,
 			d.firstPlaylist.Map.ByteRangeLength)
@@ -110,28 +112,34 @@ func (d *clientStreamDownloader) run(ctx context.Context) error {
 		}
 
 		proc := &clientStreamProcessorFMP4{
-			ctx:              ctx,
+			errGroupCtx:      errGroupCtx,
 			isLeading:        d.isLeading,
 			rendition:        d.rendition,
 			initFile:         initFile,
 			segmentQueue:     d.segmentQueue,
-			rp:               d.rp,
+			errGroup:         d.errGroup,
 			streamDownloader: d,
 			client:           d.client,
 		}
 		proc.initialize()
-		d.rp.add(proc)
+
+		d.errGroup.Go(func() error {
+			return proc.run(errGroupCtx)
+		})
 	} else {
 		proc := &clientStreamProcessorMPEGTS{
 			onDecodeError:    d.onDecodeError,
 			isLeading:        d.isLeading,
 			segmentQueue:     d.segmentQueue,
-			rp:               d.rp,
+			errGroup:         d.errGroup,
 			streamDownloader: d,
 			client:           d.client,
 		}
 		proc.initialize()
-		d.rp.add(proc)
+
+		d.errGroup.Go(func() error {
+			return proc.run(errGroupCtx)
+		})
 	}
 
 	var err error
@@ -139,24 +147,24 @@ func (d *clientStreamDownloader) run(ctx context.Context) error {
 	if d.firstPlaylist.ServerControl != nil &&
 		d.firstPlaylist.ServerControl.CanBlockReload &&
 		d.firstPlaylist.PreloadHint != nil {
-		err = d.runLowLatency(ctx)
+		err = d.runLowLatency(errGroupCtx)
 	} else {
-		err = d.runTraditional(ctx)
+		err = d.runTraditional(errGroupCtx)
 	}
 
 	d.segmentQueue.push(&segmentData{
 		err: err,
 	})
-	<-ctx.Done()
+	<-errGroupCtx.Done()
 
 	return fmt.Errorf("terminated")
 }
 
-func (d *clientStreamDownloader) runLowLatency(ctx context.Context) error {
+func (d *clientStreamDownloader) runLowLatency(errGroupCtx context.Context) error {
 	pl := d.firstPlaylist
 
 	for {
-		byts, err := d.downloadPreloadHint(ctx, pl.PreloadHint)
+		byts, err := d.downloadPreloadHint(errGroupCtx, pl.PreloadHint)
 		if err != nil {
 			return err
 		}
@@ -166,7 +174,7 @@ func (d *clientStreamDownloader) runLowLatency(ctx context.Context) error {
 			payload:  byts,
 		})
 
-		pl, err = d.downloadPlaylist(ctx, d.firstPlaylist.ServerControl.CanSkipUntil != nil)
+		pl, err = d.downloadPlaylist(errGroupCtx, d.firstPlaylist.ServerControl.CanSkipUntil != nil)
 		if err != nil {
 			return err
 		}
@@ -177,11 +185,11 @@ func (d *clientStreamDownloader) runLowLatency(ctx context.Context) error {
 	}
 }
 
-func (d *clientStreamDownloader) runTraditional(ctx context.Context) error {
+func (d *clientStreamDownloader) runTraditional(errGroupCtx context.Context) error {
 	pl := d.firstPlaylist
 
 	for {
-		seg, payload, err := d.downloadNextSegment(ctx, pl)
+		seg, payload, err := d.downloadNextSegment(errGroupCtx, pl)
 		if err != nil {
 			return err
 		}
@@ -191,12 +199,12 @@ func (d *clientStreamDownloader) runTraditional(ctx context.Context) error {
 			payload:  payload,
 		})
 
-		ok := d.segmentQueue.waitUntilSizeIsBelow(ctx, 1)
+		ok := d.segmentQueue.waitUntilSizeIsBelow(errGroupCtx, 1)
 		if !ok {
 			return fmt.Errorf("terminated")
 		}
 
-		pl, err = d.downloadPlaylist(ctx, false)
+		pl, err = d.downloadPlaylist(errGroupCtx, false)
 		if err != nil {
 			return err
 		}
@@ -204,7 +212,7 @@ func (d *clientStreamDownloader) runTraditional(ctx context.Context) error {
 }
 
 func (d *clientStreamDownloader) downloadPlaylist(
-	ctx context.Context,
+	errGroupCtx context.Context,
 	skipUntil bool,
 ) (*playlist.Media, error) {
 	ur := d.playlistURL
@@ -219,7 +227,7 @@ func (d *clientStreamDownloader) downloadPlaylist(
 
 	d.onDownloadStreamPlaylist(ur.String())
 
-	finalURL, pl, err := downloadPlaylist(ctx, d.httpClient, d.onRequest, ur)
+	finalURL, pl, err := downloadPlaylist(errGroupCtx, d.httpClient, d.onRequest, ur)
 	if err != nil {
 		return nil, err
 	}
@@ -241,7 +249,7 @@ func (d *clientStreamDownloader) downloadPlaylist(
 }
 
 func (d *clientStreamDownloader) downloadPreloadHint(
-	ctx context.Context,
+	errGroupCtx context.Context,
 	preloadHint *playlist.MediaPreloadHint,
 ) ([]byte, error) {
 	u, err := clientAbsoluteURL(d.playlistURL, preloadHint.URI)
@@ -251,7 +259,7 @@ func (d *clientStreamDownloader) downloadPreloadHint(
 
 	d.onDownloadPart(u.String())
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	req, err := http.NewRequestWithContext(errGroupCtx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -282,7 +290,7 @@ func (d *clientStreamDownloader) downloadPreloadHint(
 }
 
 func (d *clientStreamDownloader) downloadSegment(
-	ctx context.Context,
+	errGroupCtx context.Context,
 	uri string,
 	start *uint64,
 	length *uint64,
@@ -294,7 +302,7 @@ func (d *clientStreamDownloader) downloadSegment(
 
 	d.onDownloadSegment(u.String())
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	req, err := http.NewRequestWithContext(errGroupCtx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -328,7 +336,7 @@ func (d *clientStreamDownloader) downloadSegment(
 }
 
 func (d *clientStreamDownloader) downloadNextSegment(
-	ctx context.Context,
+	errGroupCtx context.Context,
 	pl *playlist.Media,
 ) (*playlist.MediaSegment, []byte, error) {
 	var seg *playlist.MediaSegment
@@ -366,7 +374,7 @@ func (d *clientStreamDownloader) downloadNextSegment(
 
 	d.curSegmentID = new(pl.MediaSequence + segPos)
 
-	byts, err := d.downloadSegment(ctx, seg.URI, seg.ByteRangeStart, seg.ByteRangeLength)
+	byts, err := d.downloadSegment(errGroupCtx, seg.URI, seg.ByteRangeStart, seg.ByteRangeLength)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -374,10 +382,10 @@ func (d *clientStreamDownloader) downloadNextSegment(
 	return seg, byts, nil
 }
 
-func (d *clientStreamDownloader) setTracks(ctx context.Context, tracks []*Track) ([]*clientTrack, bool) {
+func (d *clientStreamDownloader) setTracks(errGroupCtx context.Context, tracks []*Track) ([]*clientTrack, bool) {
 	select {
 	case d.chTracks <- tracks:
-	case <-ctx.Done():
+	case <-errGroupCtx.Done():
 		return nil, false
 	}
 
@@ -385,7 +393,7 @@ func (d *clientStreamDownloader) setTracks(ctx context.Context, tracks []*Track)
 
 	select {
 	case allTracks = <-d.chStartStreaming:
-	case <-ctx.Done():
+	case <-errGroupCtx.Done():
 		return nil, false
 	}
 
@@ -397,9 +405,9 @@ func (d *clientStreamDownloader) setTracks(ctx context.Context, tracks []*Track)
 	return streamTracks, true
 }
 
-func (d *clientStreamDownloader) onProcessorError(ctx context.Context, err error) {
+func (d *clientStreamDownloader) onProcessorError(errGroupCtx context.Context, err error) {
 	select {
 	case d.chProcessorError <- err:
-	case <-ctx.Done():
+	case <-errGroupCtx.Done():
 	}
 }

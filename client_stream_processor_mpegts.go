@@ -9,6 +9,7 @@ import (
 
 	"github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts"
 	tscodecs "github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts/codecs"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
 )
@@ -41,15 +42,15 @@ func (r *switchableReader) Read(p []byte) (int, error) {
 }
 
 type clientStreamProcessorStreamDownloader interface {
-	setTracks(ctx context.Context, tracks []*Track) ([]*clientTrack, bool)
-	onProcessorError(ctx context.Context, err error)
+	setTracks(errGroupCtx context.Context, tracks []*Track) ([]*clientTrack, bool)
+	onProcessorError(errGroupCtx context.Context, err error)
 }
 
 type clientStreamProcessorMPEGTS struct {
 	onDecodeError    ClientOnDecodeErrorFunc
 	isLeading        bool
 	segmentQueue     *clientSegmentQueue
-	rp               *clientRoutinePool
+	errGroup         *errgroup.Group
 	streamDownloader clientStreamProcessorStreamDownloader
 	client           clientStreamDownloaderClient
 
@@ -70,29 +71,29 @@ func (p *clientStreamProcessorMPEGTS) initialize() {
 	p.chTrackProcessorDone = make(chan struct{}, clientMaxTracksPerStream)
 }
 
-func (p *clientStreamProcessorMPEGTS) run(ctx context.Context) error {
+func (p *clientStreamProcessorMPEGTS) run(errGroupCtx context.Context) error {
 	for {
-		seg, ok := p.segmentQueue.pull(ctx)
+		seg, ok := p.segmentQueue.pull(errGroupCtx)
 		if !ok {
 			return fmt.Errorf("terminated")
 		}
 
 		if seg.err != nil {
-			p.streamDownloader.onProcessorError(ctx, seg.err)
-			<-ctx.Done()
+			p.streamDownloader.onProcessorError(errGroupCtx, seg.err)
+			<-errGroupCtx.Done()
 			return fmt.Errorf("terminated")
 		}
 
-		err := p.processSegment(ctx, seg)
+		err := p.processSegment(errGroupCtx, seg)
 		if err != nil {
 			return err
 		}
 	}
 }
 
-func (p *clientStreamProcessorMPEGTS) processSegment(ctx context.Context, seg *segmentData) error {
+func (p *clientStreamProcessorMPEGTS) processSegment(errGroupCtx context.Context, seg *segmentData) error {
 	if p.switchableReader == nil {
-		err := p.initializeReader(ctx, seg.payload)
+		err := p.initializeReader(errGroupCtx, seg.payload)
 		if err != nil {
 			return err
 		}
@@ -118,12 +119,12 @@ func (p *clientStreamProcessorMPEGTS) processSegment(ctx context.Context, seg *s
 		return fmt.Errorf("could not find data of leading track")
 	}
 
-	return p.joinTrackProcessors(ctx)
+	return p.joinTrackProcessors(errGroupCtx)
 }
 
-func (p *clientStreamProcessorMPEGTS) joinTrackProcessors(ctx context.Context) error {
+func (p *clientStreamProcessorMPEGTS) joinTrackProcessors(errGroupCtx context.Context) error {
 	for _, proc := range p.trackProcessors {
-		err := proc.push(ctx, nil)
+		err := proc.push(errGroupCtx, nil)
 		if err != nil {
 			return err
 		}
@@ -132,7 +133,7 @@ func (p *clientStreamProcessorMPEGTS) joinTrackProcessors(ctx context.Context) e
 	for range p.trackProcessors {
 		select {
 		case <-p.chTrackProcessorDone:
-		case <-ctx.Done():
+		case <-errGroupCtx.Done():
 			return nil
 		}
 	}
@@ -140,14 +141,14 @@ func (p *clientStreamProcessorMPEGTS) joinTrackProcessors(ctx context.Context) e
 	return nil
 }
 
-func (p *clientStreamProcessorMPEGTS) onPartProcessorDone(ctx context.Context) {
+func (p *clientStreamProcessorMPEGTS) onPartProcessorDone(errGroupCtx context.Context) {
 	select {
 	case p.chTrackProcessorDone <- struct{}{}:
-	case <-ctx.Done():
+	case <-errGroupCtx.Done():
 	}
 }
 
-func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, firstPayload []byte) error {
+func (p *clientStreamProcessorMPEGTS) initializeReader(errGroupCtx context.Context, firstPayload []byte) error {
 	p.switchableReader = &switchableReader{bytes.NewReader(firstPayload)}
 
 	p.reader = &mpegts.Reader{R: p.switchableReader}
@@ -189,12 +190,12 @@ func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, firs
 	}
 
 	var ok bool
-	p.streamTracks, ok = p.streamDownloader.setTracks(ctx, tracks)
+	p.streamTracks, ok = p.streamDownloader.setTracks(errGroupCtx, tracks)
 	if !ok {
 		return fmt.Errorf("terminated")
 	}
 
-	err = p.initializeTrackProcessors()
+	err = p.initializeTrackProcessors(errGroupCtx)
 	if err != nil {
 		return err
 	}
@@ -207,17 +208,17 @@ func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, firs
 		switch track.track.Codec.(type) {
 		case *codecs.H264:
 			p.reader.OnDataH264(mpegtsTrack, func(pts int64, dts int64, au [][]byte) error {
-				return p.processSample(ctx, isLeadingTrack, trackProc, pts, dts, au)
+				return p.processSample(errGroupCtx, isLeadingTrack, trackProc, pts, dts, au)
 			})
 
 		case *codecs.MPEG4Audio:
 			p.reader.OnDataMPEG4Audio(mpegtsTrack, func(pts int64, aus [][]byte) error {
-				return p.processSample(ctx, isLeadingTrack, trackProc, pts, pts, aus)
+				return p.processSample(errGroupCtx, isLeadingTrack, trackProc, pts, pts, aus)
 			})
 
 		case *codecs.KLV:
 			p.reader.OnDataKLV(mpegtsTrack, func(pts int64, data []byte) error {
-				return p.processSample(ctx, isLeadingTrack, trackProc, pts, pts, [][]byte{data})
+				return p.processSample(errGroupCtx, isLeadingTrack, trackProc, pts, pts, [][]byte{data})
 			})
 		}
 	}
@@ -226,7 +227,7 @@ func (p *clientStreamProcessorMPEGTS) initializeReader(ctx context.Context, firs
 }
 
 func (p *clientStreamProcessorMPEGTS) processSample(
-	ctx context.Context,
+	errGroupCtx context.Context,
 	isLeadingTrack bool,
 	trackProc *clientTrackProcessorMPEGTS,
 	rawPTS int64,
@@ -239,12 +240,12 @@ func (p *clientStreamProcessorMPEGTS) processSample(
 
 	if p.timeConv == nil {
 		if isLeadingTrack {
-			err := p.initializeTimeConv(ctx, rawDTS)
+			err := p.initializeTimeConv(errGroupCtx, rawDTS)
 			if err != nil {
 				return err
 			}
 
-			err = p.processSample2(ctx, isLeadingTrack, trackProc, rawPTS, rawDTS, data)
+			err = p.processSample2(errGroupCtx, isLeadingTrack, trackProc, rawPTS, rawDTS, data)
 			if err != nil {
 				return err
 			}
@@ -265,16 +266,16 @@ func (p *clientStreamProcessorMPEGTS) processSample(
 		}
 
 		p.queuedSamples = append(p.queuedSamples, func() error {
-			return p.processSample2(ctx, isLeadingTrack, trackProc, rawPTS, rawDTS, data)
+			return p.processSample2(errGroupCtx, isLeadingTrack, trackProc, rawPTS, rawDTS, data)
 		})
 		return nil
 	}
 
-	return p.processSample2(ctx, isLeadingTrack, trackProc, rawPTS, rawDTS, data)
+	return p.processSample2(errGroupCtx, isLeadingTrack, trackProc, rawPTS, rawDTS, data)
 }
 
 func (p *clientStreamProcessorMPEGTS) processSample2(
-	ctx context.Context,
+	errGroupCtx context.Context,
 	isLeadingTrack bool,
 	trackProc *clientTrackProcessorMPEGTS,
 	rawPTS int64,
@@ -293,9 +294,9 @@ func (p *clientStreamProcessorMPEGTS) processSample2(
 		p.timeConv.setLeadingNTPReceived()
 	}
 
-	ntp := p.timeConv.getNTP(ctx, dts)
+	ntp := p.timeConv.getNTP(errGroupCtx, dts)
 
-	return trackProc.push(ctx, &procEntryMPEGTS{
+	return trackProc.push(errGroupCtx, &procEntryMPEGTS{
 		pts:  pts,
 		dts:  dts,
 		ntp:  ntp,
@@ -303,7 +304,7 @@ func (p *clientStreamProcessorMPEGTS) processSample2(
 	})
 }
 
-func (p *clientStreamProcessorMPEGTS) initializeTrackProcessors() error {
+func (p *clientStreamProcessorMPEGTS) initializeTrackProcessors(errGroupCtx context.Context) error {
 	p.trackProcessors = make(map[*Track]*clientTrackProcessorMPEGTS)
 
 	for _, track := range p.streamTracks {
@@ -312,14 +313,18 @@ func (p *clientStreamProcessorMPEGTS) initializeTrackProcessors() error {
 			streamProcessor: p,
 		}
 		trackProc.initialize()
-		p.rp.add(trackProc)
+
+		p.errGroup.Go(func() error {
+			return trackProc.run(errGroupCtx)
+		})
+
 		p.trackProcessors[track.track] = trackProc
 	}
 
 	return nil
 }
 
-func (p *clientStreamProcessorMPEGTS) initializeTimeConv(ctx context.Context, startDTS int64) error {
+func (p *clientStreamProcessorMPEGTS) initializeTimeConv(errGroupCtx context.Context, startDTS int64) error {
 	if p.isLeading {
 		p.timeConv = &clientTimeConvMPEGTS{
 			startDTS: startDTS,
@@ -328,7 +333,7 @@ func (p *clientStreamProcessorMPEGTS) initializeTimeConv(ctx context.Context, st
 
 		p.client.setTimeConv(p.timeConv)
 	} else {
-		tmp, ok := p.client.waitTimeConv(ctx)
+		tmp, ok := p.client.waitTimeConv(errGroupCtx)
 		if !ok {
 			return fmt.Errorf("terminated")
 		}

@@ -21,7 +21,7 @@ func (t *clientTrack) absoluteTime() (time.Time, bool) {
 }
 
 func (t *clientTrack) handleData(
-	ctx context.Context,
+	errGroupCtx context.Context,
 	pts int64,
 	dts int64,
 	ntp *time.Time,
@@ -43,7 +43,7 @@ func (t *clientTrack) handleData(
 
 		select {
 		case <-time.After(diff):
-		case <-ctx.Done():
+		case <-errGroupCtx.Done():
 			return fmt.Errorf("terminated")
 		}
 	}
