@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -2200,6 +2201,99 @@ func TestClientVODWithoutPlaylistType(t *testing.T) {
 			c.OnDataH26x(tracks[0], func(_ int64, _ int64, au [][]byte) {
 				require.Equal(t, []byte{7, 1, 2, 3}, au[0])
 				close(videoRecv)
+			})
+
+			return nil
+		},
+	}
+
+	err = c.Start()
+	require.NoError(t, err)
+	defer c.Close()
+
+	<-videoRecv
+}
+
+func TestClientByteRange(t *testing.T) {
+	writeSegment := func(dts int64, au [][]byte) []byte {
+		var buf bytes.Buffer
+
+		h264Track := &mpegts.Track{
+			Codec: &tscodecs.H264{},
+		}
+		mw := &mpegts.Writer{W: &buf, Tracks: []*mpegts.Track{h264Track}}
+		err := mw.Initialize()
+		require.NoError(t, err)
+
+		err = mw.WriteH264(h264Track, dts, dts, au)
+		require.NoError(t, err)
+
+		return buf.Bytes()
+	}
+
+	segment1 := writeSegment(90000, [][]byte{
+		{7, 1, 2, 3}, // SPS
+		{8},          // PPS
+		{5},          // IDR
+	})
+	segment2 := writeSegment(180000, [][]byte{{1}})
+	stream := append(append([]byte{}, segment1...), segment2...)
+
+	videoRecv := make(chan struct{})
+	videoCount := 0
+
+	httpServ := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/index.m3u8":
+				w.Header().Set("Content-Type", `application/vnd.apple.mpegurl`)
+				w.Write([]byte("#EXTM3U\n" +
+					"#EXT-X-VERSION:4\n" +
+					"#EXT-X-TARGETDURATION:2\n" +
+					"#EXT-X-MEDIA-SEQUENCE:0\n" +
+					"#EXT-X-PLAYLIST-TYPE:VOD\n" +
+					"#EXTINF:1,\n" +
+					"#EXT-X-BYTERANGE:" + strconv.Itoa(len(segment1)) + "@0\n" +
+					"stream.ts\n" +
+					"#EXTINF:1,\n" +
+					"#EXT-X-BYTERANGE:" + strconv.Itoa(len(segment2)) + "\n" +
+					"stream.ts\n" +
+					"#EXT-X-ENDLIST\n"))
+
+			case r.Method == http.MethodGet && r.URL.Path == "/stream.ts":
+				w.Header().Set("Content-Type", `video/MP2T`)
+				http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(stream))
+			}
+		}),
+	}
+
+	ln, err := net.Listen("tcp", "localhost:5780")
+	require.NoError(t, err)
+	defer ln.Close()
+
+	go httpServ.Serve(ln)
+	defer httpServ.Shutdown(context.Background())
+
+	tr := &http.Transport{}
+	defer tr.CloseIdleConnections()
+
+	var c *Client
+	c = &Client{
+		URI:        "http://localhost:5780/index.m3u8",
+		HTTPClient: &http.Client{Transport: tr},
+		OnTracks: func(tracks []*Track) error {
+			c.OnDataH26x(tracks[0], func(_ int64, dts int64, au [][]byte) {
+				switch videoCount {
+				case 0:
+					require.Equal(t, int64(0), dts)
+					require.Equal(t, [][]byte{{7, 1, 2, 3}, {8}, {5}}, au)
+
+				case 1:
+					require.Equal(t, int64(90000), dts)
+					require.Equal(t, [][]byte{{1}}, au)
+					close(videoRecv)
+				}
+				videoCount++
 			})
 
 			return nil
