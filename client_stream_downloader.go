@@ -32,6 +32,24 @@ func findSegmentWithID(seqNo int, segments []*playlist.MediaSegment, id int) (*p
 	return segments[index], index, len(segments) - index
 }
 
+// segmentByteRangeStart returns the start of the byte range of the segment at position pos.
+// When the offset is not present, the byte range begins at the next byte
+// following the byte range of the previous segment.
+func segmentByteRangeStart(segments []*playlist.MediaSegment, pos int) uint64 {
+	var start uint64
+
+	for segments[pos].ByteRangeStart == nil && pos > 0 && segments[pos-1].ByteRangeLength != nil {
+		pos--
+		start += *segments[pos].ByteRangeLength
+	}
+
+	if segments[pos].ByteRangeStart != nil {
+		start += *segments[pos].ByteRangeStart
+	}
+
+	return start
+}
+
 func dateTimeOfPreloadHint(pl *playlist.Media) *time.Time {
 	if len(pl.Segments) == 0 {
 		return nil
@@ -374,7 +392,8 @@ func (d *clientStreamDownloader) downloadNextSegment(
 
 	d.curSegmentID = new(pl.MediaSequence + segPos)
 
-	byts, err := d.downloadSegment(errGroupCtx, seg.URI, seg.ByteRangeStart, seg.ByteRangeLength)
+	byts, err := d.downloadSegment(errGroupCtx, seg.URI,
+		new(segmentByteRangeStart(pl.Segments, segPos)), seg.ByteRangeLength)
 	if err != nil {
 		return nil, nil, err
 	}
