@@ -1,4 +1,4 @@
-package gohlslib
+package gohlslib_test
 
 import (
 	"bytes"
@@ -24,6 +24,7 @@ import (
 	mcmpegts "github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts"
 	"github.com/stretchr/testify/require"
 
+	"github.com/bluenviron/gohlslib/v2"
 	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
 )
 
@@ -71,7 +72,7 @@ var testAACConfig = mpeg4audio.AudioSpecificConfig{
 	ChannelCount:  2, //nolint:staticcheck
 }
 
-var testVideoTrack = &Track{
+var testVideoTrack = &gohlslib.Track{
 	Codec: &codecs.H264{
 		SPS: testH264SPS,
 		PPS: []byte{0x08},
@@ -79,7 +80,7 @@ var testVideoTrack = &Track{
 	ClockRate: 90000,
 }
 
-var testAudioTrack = &Track{
+var testAudioTrack = &gohlslib.Track{
 	Codec: &codecs.MPEG4Audio{
 		Config: mpeg4audio.AudioSpecificConfig{
 			Type:          2,
@@ -91,7 +92,7 @@ var testAudioTrack = &Track{
 	ClockRate: 44100,
 }
 
-var testAudioTrack2 = &Track{
+var testAudioTrack2 = &gohlslib.Track{
 	Codec: &codecs.MPEG4Audio{
 		Config: mpeg4audio.AudioSpecificConfig{
 			Type:          2,
@@ -119,7 +120,17 @@ func (w *dummyResponseWriter) WriteHeader(statusCode int) {
 	w.statusCode = statusCode
 }
 
-func doRequest(m *Muxer, pathAndQuery string) ([]byte, http.Header, error) {
+func muxerPrefix(t *testing.T, m *gohlslib.Muxer, playlist string) string {
+	t.Helper()
+
+	byts, _, err := doRequest(m, playlist)
+	require.NoError(t, err)
+	matches := regexp.MustCompile(`URI="([0-9a-f]+)_`).FindSubmatch(byts)
+	require.NotNil(t, matches)
+	return string(matches[1])
+}
+
+func doRequest(m *gohlslib.Muxer, pathAndQuery string) ([]byte, http.Header, error) {
 	u, _ := url.Parse("http://localhost/" + pathAndQuery)
 
 	r := &http.Request{
@@ -140,27 +151,27 @@ func doRequest(m *Muxer, pathAndQuery string) ([]byte, http.Header, error) {
 }
 
 func TestMuxer(t *testing.T) {
-	createMuxer := func(t *testing.T, variant string, content string) *Muxer {
+	createMuxer := func(t *testing.T, variant string, content string) *gohlslib.Muxer {
 		t.Helper()
 
-		var v MuxerVariant
+		var v gohlslib.MuxerVariant
 		var segmentCount int
 
 		switch variant {
 		case "mpegts":
-			v = MuxerVariantMPEGTS
+			v = gohlslib.MuxerVariantMPEGTS
 			segmentCount = 3
 
 		case "fmp4":
-			v = MuxerVariantFMP4
+			v = gohlslib.MuxerVariantFMP4
 			segmentCount = 3
 
 		case "lowLatency":
-			v = MuxerVariantLowLatency
+			v = gohlslib.MuxerVariantLowLatency
 			segmentCount = 7
 		}
 
-		var tracks []*Track
+		var tracks []*gohlslib.Track
 
 		switch content {
 		case "video+audio":
@@ -183,7 +194,7 @@ func TestMuxer(t *testing.T) {
 			tracks = append(tracks, testAudioTrack2)
 		}
 
-		m := &Muxer{
+		m := &gohlslib.Muxer{
 			Variant:            v,
 			SegmentCount:       segmentCount,
 			SegmentMinDuration: 1 * time.Second,
@@ -412,7 +423,7 @@ func TestMuxer(t *testing.T) {
 		return m
 	}
 
-	checkMultivariantPlaylist := func(t *testing.T, m *Muxer, variant string, content string) {
+	checkMultivariantPlaylist := func(t *testing.T, m *gohlslib.Muxer, variant string, content string) {
 		t.Helper()
 
 		byts, h, err := doRequest(m, "/index.m3u8?key=value")
@@ -545,7 +556,7 @@ func TestMuxer(t *testing.T) {
 		}
 	}
 
-	checkPlaylist1 := func(t *testing.T, m *Muxer, variant string, content string) {
+	checkPlaylist1 := func(t *testing.T, m *gohlslib.Muxer, variant string, content string) {
 		t.Helper()
 
 		var u string
@@ -771,7 +782,7 @@ func TestMuxer(t *testing.T) {
 		}
 	}
 
-	checkPlaylist2 := func(t *testing.T, m *Muxer, variant string) {
+	checkPlaylist2 := func(t *testing.T, m *gohlslib.Muxer, variant string) {
 		t.Helper()
 
 		byts, h, err := doRequest(m, "audio2_stream.m3u8?key=value")
@@ -880,40 +891,40 @@ func TestMuxerCodecs(t *testing.T) {
 		"flac",
 	} {
 		t.Run(ca, func(t *testing.T) {
-			var track *Track
+			var track *gohlslib.Track
 			switch ca {
 			case "h264":
-				track = &Track{
+				track = &gohlslib.Track{
 					Codec:     &codecs.H264{SPS: testH264SPS, PPS: []byte{0x08}},
 					ClockRate: 90000,
 				}
 			case "h265":
-				track = &Track{
+				track = &gohlslib.Track{
 					Codec:     &codecs.H265{VPS: testH265VPS, SPS: testH265SPS, PPS: testH265PPS},
 					ClockRate: 90000,
 				}
 			case "av1":
-				track = &Track{
+				track = &gohlslib.Track{
 					Codec:     &codecs.AV1{SequenceHeader: testAV1SequenceHeader},
 					ClockRate: 90000,
 				}
 			case "vp9":
-				track = &Track{
+				track = &gohlslib.Track{
 					Codec:     &codecs.VP9{},
 					ClockRate: 90000,
 				}
 			case "opus":
-				track = &Track{
+				track = &gohlslib.Track{
 					Codec:     &codecs.Opus{ChannelCount: 2},
 					ClockRate: 48000,
 				}
 			case "mpeg4_audio":
-				track = &Track{
+				track = &gohlslib.Track{
 					Codec:     &codecs.MPEG4Audio{Config: testAACConfig},
 					ClockRate: 44100,
 				}
 			case "flac":
-				track = &Track{
+				track = &gohlslib.Track{
 					Codec: &codecs.FLAC{
 						StreamInfo: &flac.StreamInfo{
 							MinBlockSize: 4096,
@@ -927,11 +938,11 @@ func TestMuxerCodecs(t *testing.T) {
 				}
 			}
 
-			m := &Muxer{
-				Variant:            MuxerVariantFMP4,
+			m := &gohlslib.Muxer{
+				Variant:            gohlslib.MuxerVariantFMP4,
 				SegmentCount:       3,
 				SegmentMinDuration: 1 * time.Second,
-				Tracks:             []*Track{track},
+				Tracks:             []*gohlslib.Track{track},
 			}
 			err := m.Start()
 			require.NoError(t, err)
@@ -1083,60 +1094,60 @@ func TestMuxerCodecs(t *testing.T) {
 func TestMuxerRejectsInvalidClockRate(t *testing.T) {
 	cases := []struct {
 		name    string
-		track   *Track
+		track   *gohlslib.Track
 		errorRe string
 	}{
 		{
 			name:    "h264",
-			track:   &Track{Codec: &codecs.H264{SPS: testH264SPS, PPS: []byte{0x08}}, ClockRate: 1},
+			track:   &gohlslib.Track{Codec: &codecs.H264{SPS: testH264SPS, PPS: []byte{0x08}}, ClockRate: 1},
 			errorRe: "track 0 requires clock rate 90000, but is 1",
 		},
 		{
 			name:    "h265",
-			track:   &Track{Codec: &codecs.H265{VPS: testH265VPS, SPS: testH265SPS, PPS: testH265PPS}, ClockRate: 1},
+			track:   &gohlslib.Track{Codec: &codecs.H265{VPS: testH265VPS, SPS: testH265SPS, PPS: testH265PPS}, ClockRate: 1},
 			errorRe: "track 0 requires clock rate 90000, but is 1",
 		},
 		{
 			name:    "av1",
-			track:   &Track{Codec: &codecs.AV1{SequenceHeader: testAV1SequenceHeader}, ClockRate: 1},
+			track:   &gohlslib.Track{Codec: &codecs.AV1{SequenceHeader: testAV1SequenceHeader}, ClockRate: 1},
 			errorRe: "track 0 requires clock rate 90000, but is 1",
 		},
 		{
 			name:    "vp9",
-			track:   &Track{Codec: &codecs.VP9{}, ClockRate: 1},
+			track:   &gohlslib.Track{Codec: &codecs.VP9{}, ClockRate: 1},
 			errorRe: "track 0 requires clock rate 90000, but is 1",
 		},
 		{
 			name:    "opus",
-			track:   &Track{Codec: &codecs.Opus{ChannelCount: 2}, ClockRate: 1},
+			track:   &gohlslib.Track{Codec: &codecs.Opus{ChannelCount: 2}, ClockRate: 1},
 			errorRe: "track 0 requires clock rate 48000, but is 1",
 		},
 		{
 			name:    "mpeg4_audio",
-			track:   &Track{Codec: &codecs.MPEG4Audio{Config: testAACConfig}, ClockRate: 1},
+			track:   &gohlslib.Track{Codec: &codecs.MPEG4Audio{Config: testAACConfig}, ClockRate: 1},
 			errorRe: "track 0 requires clock rate 44100, but is 1",
 		},
 		{
 			name: "flac",
-			track: &Track{Codec: &codecs.FLAC{
+			track: &gohlslib.Track{Codec: &codecs.FLAC{
 				StreamInfo: &flac.StreamInfo{SampleRate: 44100, ChannelCount: 2, BitDepth: 16},
 			}, ClockRate: 1},
 			errorRe: "track 0 requires clock rate 44100, but is 1",
 		},
 		{
 			name:    "klv",
-			track:   &Track{Codec: &codecs.KLV{}, ClockRate: 1},
+			track:   &gohlslib.Track{Codec: &codecs.KLV{}, ClockRate: 1},
 			errorRe: "track 0 requires clock rate 90000, but is 1",
 		},
 	}
 
 	for _, ca := range cases {
 		t.Run(ca.name, func(t *testing.T) {
-			m := &Muxer{
-				Variant:            MuxerVariantFMP4,
+			m := &gohlslib.Muxer{
+				Variant:            gohlslib.MuxerVariantFMP4,
 				SegmentCount:       3,
 				SegmentMinDuration: 1 * time.Second,
-				Tracks:             []*Track{ca.track},
+				Tracks:             []*gohlslib.Track{ca.track},
 			}
 
 			err := m.Start()
@@ -1146,16 +1157,16 @@ func TestMuxerRejectsInvalidClockRate(t *testing.T) {
 }
 
 func TestMuxerMPEGTSAACResync(t *testing.T) {
-	track := &Track{
+	track := &gohlslib.Track{
 		Codec:     &codecs.MPEG4Audio{Config: testAACConfig},
 		ClockRate: 44100,
 	}
 
-	m := &Muxer{
-		Variant:            MuxerVariantMPEGTS,
+	m := &gohlslib.Muxer{
+		Variant:            gohlslib.MuxerVariantMPEGTS,
 		SegmentCount:       3,
 		SegmentMinDuration: 10 * time.Second,
-		Tracks:             []*Track{track},
+		Tracks:             []*gohlslib.Track{track},
 	}
 
 	err := m.Start()
@@ -1212,16 +1223,16 @@ func TestMuxerMPEGTSAACResync(t *testing.T) {
 }
 
 func TestMuxerMPEGTSAACResyncWithinTolerance(t *testing.T) {
-	track := &Track{
+	track := &gohlslib.Track{
 		Codec:     &codecs.MPEG4Audio{Config: testAACConfig},
 		ClockRate: 44100,
 	}
 
-	m := &Muxer{
-		Variant:            MuxerVariantMPEGTS,
+	m := &gohlslib.Muxer{
+		Variant:            gohlslib.MuxerVariantMPEGTS,
 		SegmentCount:       3,
 		SegmentMinDuration: 10 * time.Second,
-		Tracks:             []*Track{track},
+		Tracks:             []*gohlslib.Track{track},
 	}
 
 	err := m.Start()
@@ -1273,16 +1284,16 @@ func TestMuxerMPEGTSAACResyncWithinTolerance(t *testing.T) {
 }
 
 func TestMuxerKLV(t *testing.T) {
-	klvTrack := &Track{
+	klvTrack := &gohlslib.Track{
 		Codec:     &codecs.KLV{},
 		ClockRate: 90000,
 	}
 
-	m := &Muxer{
-		Variant:            MuxerVariantMPEGTS,
+	m := &gohlslib.Muxer{
+		Variant:            gohlslib.MuxerVariantMPEGTS,
 		SegmentCount:       3,
 		SegmentMinDuration: 1 * time.Second,
-		Tracks:             []*Track{testVideoTrack, klvTrack},
+		Tracks:             []*gohlslib.Track{testVideoTrack, klvTrack},
 	}
 
 	err := m.Start()
@@ -1382,16 +1393,16 @@ func TestMuxerKLV(t *testing.T) {
 }
 
 func TestMuxerKLVOnlyTrackRejected(t *testing.T) {
-	klvTrack := &Track{
+	klvTrack := &gohlslib.Track{
 		Codec:     &codecs.KLV{},
 		ClockRate: 90000,
 	}
 
-	m := &Muxer{
-		Variant:            MuxerVariantMPEGTS,
+	m := &gohlslib.Muxer{
+		Variant:            gohlslib.MuxerVariantMPEGTS,
 		SegmentCount:       3,
 		SegmentMinDuration: 1 * time.Second,
-		Tracks:             []*Track{klvTrack},
+		Tracks:             []*gohlslib.Track{klvTrack},
 	}
 
 	err := m.Start()
@@ -1399,54 +1410,20 @@ func TestMuxerKLVOnlyTrackRejected(t *testing.T) {
 	require.Contains(t, err.Error(), "KLV tracks require at least one video or audio track")
 }
 
-func TestMuxerKLVFirstTrackWithAudio(t *testing.T) {
-	klvTrack := &Track{
-		Codec:     &codecs.KLV{},
-		ClockRate: 90000,
-	}
-
-	audioTrack := &Track{
-		Codec: &codecs.MPEG4Audio{
-			Config: mpeg4audio.AudioSpecificConfig{
-				Type:          2,
-				SampleRate:    44100,
-				ChannelConfig: 2,
-				ChannelCount:  2, //nolint:staticcheck
-			},
-		},
-		ClockRate: 44100,
-	}
-
-	m := &Muxer{
-		Variant:            MuxerVariantMPEGTS,
-		SegmentCount:       3,
-		SegmentMinDuration: 1 * time.Second,
-		Tracks:             []*Track{klvTrack, audioTrack},
-	}
-
-	err := m.Start()
-	require.NoError(t, err)
-	defer m.Close()
-
-	// Verify that the audio track is the leading track, not KLV
-	require.False(t, m.mtracksByTrack[klvTrack].isLeading, "KLV track should not be leading")
-	require.True(t, m.mtracksByTrack[audioTrack].isLeading, "Audio track should be leading")
-}
-
 // TestMuxerKLVSynchronous verifies that a synchronous KLV track (Synchronous: true)
 // is registered in the PMT as StreamTypeMetadata (0x15) rather than StreamTypePrivateData
 // (0x06), and that PES packets for it carry a PTS.
 func TestMuxerKLVSynchronous(t *testing.T) {
-	klvTrack := &Track{
+	klvTrack := &gohlslib.Track{
 		Codec:     &codecs.KLV{Synchronous: true},
 		ClockRate: 90000,
 	}
 
-	m := &Muxer{
-		Variant:            MuxerVariantMPEGTS,
+	m := &gohlslib.Muxer{
+		Variant:            gohlslib.MuxerVariantMPEGTS,
 		SegmentCount:       3,
 		SegmentMinDuration: 1 * time.Second,
-		Tracks:             []*Track{testVideoTrack, klvTrack},
+		Tracks:             []*gohlslib.Track{testVideoTrack, klvTrack},
 	}
 
 	err := m.Start()
@@ -1502,20 +1479,20 @@ func TestMuxerKLVSynchronous(t *testing.T) {
 // TestMuxerKLVMultipleTracks verifies that two KLV tracks (one async, one sync)
 // each receive their own distinct PID in the PMT.
 func TestMuxerKLVMultipleTracks(t *testing.T) {
-	klvAsync := &Track{
+	klvAsync := &gohlslib.Track{
 		Codec:     &codecs.KLV{Synchronous: false},
 		ClockRate: 90000,
 	}
-	klvSync := &Track{
+	klvSync := &gohlslib.Track{
 		Codec:     &codecs.KLV{Synchronous: true},
 		ClockRate: 90000,
 	}
 
-	m := &Muxer{
-		Variant:            MuxerVariantMPEGTS,
+	m := &gohlslib.Muxer{
+		Variant:            gohlslib.MuxerVariantMPEGTS,
 		SegmentCount:       3,
 		SegmentMinDuration: 1 * time.Second,
-		Tracks:             []*Track{testVideoTrack, klvAsync, klvSync},
+		Tracks:             []*gohlslib.Track{testVideoTrack, klvAsync, klvSync},
 	}
 
 	err := m.Start()
@@ -1577,16 +1554,16 @@ func TestMuxerKLVMultipleTracks(t *testing.T) {
 // TestMuxerKLVBeforeFirstSegment verifies that KLV data written before the leading
 // track has created the first segment is silently dropped without returning an error.
 func TestMuxerKLVBeforeFirstSegment(t *testing.T) {
-	klvTrack := &Track{
+	klvTrack := &gohlslib.Track{
 		Codec:     &codecs.KLV{},
 		ClockRate: 90000,
 	}
 
-	m := &Muxer{
-		Variant:            MuxerVariantMPEGTS,
+	m := &gohlslib.Muxer{
+		Variant:            gohlslib.MuxerVariantMPEGTS,
 		SegmentCount:       3,
 		SegmentMinDuration: 1 * time.Second,
-		Tracks:             []*Track{testVideoTrack, klvTrack},
+		Tracks:             []*gohlslib.Track{testVideoTrack, klvTrack},
 	}
 
 	err := m.Start()
@@ -1617,11 +1594,11 @@ func TestMuxerKLVBeforeFirstSegment(t *testing.T) {
 // TestMuxerKLVWriteOnFMP4Variant verifies that calling WriteKLV on a muxer that
 // is using the FMP4 variant returns an appropriate error.
 func TestMuxerKLVWriteOnFMP4Variant(t *testing.T) {
-	m := &Muxer{
-		Variant:            MuxerVariantFMP4,
+	m := &gohlslib.Muxer{
+		Variant:            gohlslib.MuxerVariantFMP4,
 		SegmentCount:       3,
 		SegmentMinDuration: 1 * time.Second,
-		Tracks:             []*Track{testVideoTrack},
+		Tracks:             []*gohlslib.Track{testVideoTrack},
 	}
 
 	err := m.Start()
@@ -1629,7 +1606,7 @@ func TestMuxerKLVWriteOnFMP4Variant(t *testing.T) {
 	defer m.Close()
 
 	// Use a KLV track that is not registered in the muxer.
-	fakeKLVTrack := &Track{
+	fakeKLVTrack := &gohlslib.Track{
 		Codec:     &codecs.KLV{},
 		ClockRate: 90000,
 	}
@@ -1644,25 +1621,25 @@ func TestMuxerKLVWriteOnFMP4Variant(t *testing.T) {
 func TestMuxerKLVFMP4TrackRejectedAtStart(t *testing.T) {
 	cases := []struct {
 		name     string
-		variant  MuxerVariant
+		variant  gohlslib.MuxerVariant
 		segCount int
 	}{
-		{"fmp4", MuxerVariantFMP4, 3},
-		{"lowLatency", MuxerVariantLowLatency, 7},
+		{"fmp4", gohlslib.MuxerVariantFMP4, 3},
+		{"lowLatency", gohlslib.MuxerVariantLowLatency, 7},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			klvTrack := &Track{
+			klvTrack := &gohlslib.Track{
 				Codec:     &codecs.KLV{},
 				ClockRate: 90000,
 			}
 
-			m := &Muxer{
+			m := &gohlslib.Muxer{
 				Variant:            tc.variant,
 				SegmentCount:       tc.segCount,
 				SegmentMinDuration: 1 * time.Second,
-				Tracks:             []*Track{testVideoTrack, klvTrack},
+				Tracks:             []*gohlslib.Track{testVideoTrack, klvTrack},
 			}
 
 			err := m.Start()
@@ -1675,16 +1652,16 @@ func TestMuxerKLVFMP4TrackRejectedAtStart(t *testing.T) {
 // TestMuxerKLVEmptyData verifies that writing a zero-length KLV payload does not
 // panic and is handled gracefully.
 func TestMuxerKLVEmptyData(t *testing.T) {
-	klvTrack := &Track{
+	klvTrack := &gohlslib.Track{
 		Codec:     &codecs.KLV{},
 		ClockRate: 90000,
 	}
 
-	m := &Muxer{
-		Variant:            MuxerVariantMPEGTS,
+	m := &gohlslib.Muxer{
+		Variant:            gohlslib.MuxerVariantMPEGTS,
 		SegmentCount:       3,
 		SegmentMinDuration: 1 * time.Second,
-		Tracks:             []*Track{testVideoTrack, klvTrack},
+		Tracks:             []*gohlslib.Track{testVideoTrack, klvTrack},
 	}
 
 	err := m.Start()
@@ -1716,16 +1693,16 @@ func TestMuxerKLVEmptyData(t *testing.T) {
 // multivariant playlist does not contain an empty string for KLV tracks, which
 // have no standard HLS codec identifier.
 func TestMuxerKLVMultivariantCODECS(t *testing.T) {
-	klvTrack := &Track{
+	klvTrack := &gohlslib.Track{
 		Codec:     &codecs.KLV{},
 		ClockRate: 90000,
 	}
 
-	m := &Muxer{
-		Variant:            MuxerVariantMPEGTS,
+	m := &gohlslib.Muxer{
+		Variant:            gohlslib.MuxerVariantMPEGTS,
 		SegmentCount:       3,
 		SegmentMinDuration: 1 * time.Second,
-		Tracks:             []*Track{testVideoTrack, klvTrack},
+		Tracks:             []*gohlslib.Track{testVideoTrack, klvTrack},
 	}
 
 	err := m.Start()
@@ -1776,19 +1753,19 @@ func TestMuxerKLVMultivariantCODECS(t *testing.T) {
 // TestMuxerKLVExceedsSegmentMaxSize verifies that writing KLV data that would push
 // the segment past SegmentMaxSize returns an error.
 func TestMuxerKLVExceedsSegmentMaxSize(t *testing.T) {
-	klvTrack := &Track{
+	klvTrack := &gohlslib.Track{
 		Codec:     &codecs.KLV{},
 		ClockRate: 90000,
 	}
 
 	// testH264SPS(25B) + PPS(1B) + IDR(1B) = 27 bytes for the first H264 write.
 	// A SegmentMaxSize of 50 bytes accepts H264 but not an additional 30-byte KLV payload.
-	m := &Muxer{
-		Variant:            MuxerVariantMPEGTS,
+	m := &gohlslib.Muxer{
+		Variant:            gohlslib.MuxerVariantMPEGTS,
 		SegmentCount:       3,
 		SegmentMinDuration: 1 * time.Second,
 		SegmentMaxSize:     50,
-		Tracks:             []*Track{testVideoTrack, klvTrack},
+		Tracks:             []*gohlslib.Track{testVideoTrack, klvTrack},
 	}
 
 	err := m.Start()
@@ -1806,11 +1783,11 @@ func TestMuxerKLVExceedsSegmentMaxSize(t *testing.T) {
 }
 
 func TestMuxerCloseBeforeData(t *testing.T) {
-	m := &Muxer{
-		Variant:            MuxerVariantFMP4,
+	m := &gohlslib.Muxer{
+		Variant:            gohlslib.MuxerVariantFMP4,
 		SegmentCount:       3,
 		SegmentMinDuration: 1 * time.Second,
-		Tracks:             []*Track{testVideoTrack},
+		Tracks:             []*gohlslib.Track{testVideoTrack},
 	}
 
 	err := m.Start()
@@ -1824,16 +1801,16 @@ func TestMuxerCloseBeforeData(t *testing.T) {
 	b, _, _ = doRequest(m, "video1_stream.m3u8")
 	require.Equal(t, []byte(nil), b)
 
-	b, _, _ = doRequest(m, m.prefix+"_init.mp4")
+	b, _, _ = doRequest(m, "000000000000_init.mp4")
 	require.Equal(t, []byte(nil), b)
 }
 
 func TestMuxerCloseWhileRequestStream(t *testing.T) {
-	m := &Muxer{
-		Variant:            MuxerVariantFMP4,
+	m := &gohlslib.Muxer{
+		Variant:            gohlslib.MuxerVariantFMP4,
 		SegmentCount:       3,
 		SegmentMinDuration: 1 * time.Second,
-		Tracks:             []*Track{testVideoTrack},
+		Tracks:             []*gohlslib.Track{testVideoTrack},
 	}
 
 	err := m.Start()
@@ -1854,12 +1831,12 @@ func TestMuxerCloseWhileRequestStream(t *testing.T) {
 }
 
 func TestMuxerMaxSegmentSize(t *testing.T) {
-	m := &Muxer{
-		Variant:            MuxerVariantMPEGTS,
+	m := &gohlslib.Muxer{
+		Variant:            gohlslib.MuxerVariantMPEGTS,
 		SegmentCount:       3,
 		SegmentMinDuration: 1 * time.Second,
 		SegmentMaxSize:     1,
-		Tracks:             []*Track{testVideoTrack},
+		Tracks:             []*gohlslib.Track{testVideoTrack},
 	}
 
 	err := m.Start()
@@ -1878,11 +1855,11 @@ func TestMuxerMaxSegmentSize(t *testing.T) {
 }
 
 func TestMuxerDoubleRead(t *testing.T) {
-	m := &Muxer{
-		Variant:            MuxerVariantMPEGTS,
+	m := &gohlslib.Muxer{
+		Variant:            gohlslib.MuxerVariantMPEGTS,
 		SegmentCount:       3,
 		SegmentMinDuration: 1 * time.Second,
-		Tracks:             []*Track{testVideoTrack},
+		Tracks:             []*gohlslib.Track{testVideoTrack},
 	}
 
 	err := m.Start()
@@ -1938,18 +1915,18 @@ func TestMuxerSaveToDisk(t *testing.T) {
 			require.NoError(t, err)
 			defer os.RemoveAll(dir)
 
-			var v MuxerVariant
+			var v gohlslib.MuxerVariant
 			if ca == "mpegts" {
-				v = MuxerVariantMPEGTS
+				v = gohlslib.MuxerVariantMPEGTS
 			} else {
-				v = MuxerVariantFMP4
+				v = gohlslib.MuxerVariantFMP4
 			}
 
-			m := &Muxer{
+			m := &gohlslib.Muxer{
 				Variant:            v,
 				SegmentCount:       3,
 				SegmentMinDuration: 1 * time.Second,
-				Tracks:             []*Track{testVideoTrack},
+				Tracks:             []*gohlslib.Track{testVideoTrack},
 				Directory:          dir,
 			}
 
@@ -2057,11 +2034,11 @@ func TestMuxerSaveToDisk(t *testing.T) {
 }
 
 func TestMuxerDynamicParams(t *testing.T) {
-	m := &Muxer{
-		Variant:            MuxerVariantFMP4,
+	m := &gohlslib.Muxer{
+		Variant:            gohlslib.MuxerVariantFMP4,
 		SegmentCount:       3,
 		SegmentMinDuration: 1 * time.Second,
-		Tracks:             []*Track{testVideoTrack},
+		Tracks:             []*gohlslib.Track{testVideoTrack},
 	}
 
 	err := m.Start()
@@ -2179,7 +2156,7 @@ func TestMuxerDynamicParams(t *testing.T) {
 }
 
 func TestMuxerInStreamParams(t *testing.T) {
-	getInit := func(t *testing.T, m *Muxer) *fmp4.Init {
+	getInit := func(t *testing.T, m *gohlslib.Muxer) *fmp4.Init {
 		t.Helper()
 
 		byts, _, err := doRequest(m, "video1_stream.m3u8")
@@ -2202,11 +2179,11 @@ func TestMuxerInStreamParams(t *testing.T) {
 		"vp9",
 	} {
 		t.Run(ca, func(t *testing.T) {
-			var track *Track
+			var track *gohlslib.Track
 
 			switch ca {
 			case "h264":
-				track = &Track{
+				track = &gohlslib.Track{
 					Codec: &codecs.H264{
 						SPS: []byte{0x67, 0x42, 0xc0, 0x0a}, // different initial SPS
 						PPS: []byte{0x00},                   // different initial PPS
@@ -2215,7 +2192,7 @@ func TestMuxerInStreamParams(t *testing.T) {
 				}
 
 			case "h265":
-				track = &Track{
+				track = &gohlslib.Track{
 					Codec: &codecs.H265{
 						VPS: []byte{0x40, 0x01}, // wrong initial params
 						SPS: []byte{0x42, 0x01},
@@ -2225,23 +2202,23 @@ func TestMuxerInStreamParams(t *testing.T) {
 				}
 
 			case "av1":
-				track = &Track{
+				track = &gohlslib.Track{
 					Codec:     &codecs.AV1{SequenceHeader: []byte{0x08}}, // different initial (empty payload)
 					ClockRate: 90000,
 				}
 
 			case "vp9":
-				track = &Track{
+				track = &gohlslib.Track{
 					Codec:     &codecs.VP9{}, // different initial (zero values)
 					ClockRate: 90000,
 				}
 			}
 
-			m := &Muxer{
-				Variant:            MuxerVariantFMP4,
+			m := &gohlslib.Muxer{
+				Variant:            gohlslib.MuxerVariantFMP4,
 				SegmentCount:       3,
 				SegmentMinDuration: 1 * time.Second,
-				Tracks:             []*Track{track},
+				Tracks:             []*gohlslib.Track{track},
 			}
 			err := m.Start()
 			require.NoError(t, err)
@@ -2346,11 +2323,11 @@ func TestMuxerInStreamParams(t *testing.T) {
 }
 
 func TestMuxerFMP4ZeroDuration(t *testing.T) {
-	m := &Muxer{
-		Variant:            MuxerVariantFMP4,
+	m := &gohlslib.Muxer{
+		Variant:            gohlslib.MuxerVariantFMP4,
 		SegmentCount:       3,
 		SegmentMinDuration: 1 * time.Second,
-		Tracks:             []*Track{testVideoTrack},
+		Tracks:             []*gohlslib.Track{testVideoTrack},
 	}
 
 	err := m.Start()
@@ -2373,11 +2350,11 @@ func TestMuxerFMP4ZeroDuration(t *testing.T) {
 }
 
 func TestMuxerFMP4NegativeInitialDTS(t *testing.T) {
-	m := &Muxer{
-		Variant:            MuxerVariantFMP4,
+	m := &gohlslib.Muxer{
+		Variant:            gohlslib.MuxerVariantFMP4,
 		SegmentCount:       3,
 		SegmentMinDuration: 2 * time.Second,
-		Tracks:             []*Track{testVideoTrack, testAudioTrack},
+		Tracks:             []*gohlslib.Track{testVideoTrack, testAudioTrack},
 	}
 
 	err := m.Start()
@@ -2403,11 +2380,11 @@ func TestMuxerFMP4NegativeInitialDTS(t *testing.T) {
 }
 
 func TestMuxerFMP4NegativeDTSDiff(t *testing.T) {
-	m := &Muxer{
-		Variant:            MuxerVariantFMP4,
+	m := &gohlslib.Muxer{
+		Variant:            gohlslib.MuxerVariantFMP4,
 		SegmentCount:       3,
 		SegmentMinDuration: 2 * time.Second,
-		Tracks:             []*Track{testAudioTrack},
+		Tracks:             []*gohlslib.Track{testAudioTrack},
 	}
 
 	err := m.Start()
@@ -2436,24 +2413,26 @@ func TestMuxerFMP4NegativeDTSDiff(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	prefix := muxerPrefix(t, m, "audio1_stream.m3u8")
+
 	byts, _, err := doRequest(m, "audio1_stream.m3u8")
 	require.NoError(t, err)
 	require.Equal(t, `#EXTM3U`+"\n"+
 		`#EXT-X-VERSION:10`+"\n"+
 		`#EXT-X-TARGETDURATION:2`+"\n"+
 		`#EXT-X-MEDIA-SEQUENCE:1`+"\n"+
-		`#EXT-X-MAP:URI="`+m.prefix+`_audio1_init.mp4"`+"\n"+
+		`#EXT-X-MAP:URI="`+prefix+`_audio1_init.mp4"`+"\n"+
 		`#EXTINF:2.00000,`+"\n"+
-		``+m.prefix+`_audio1_seg1.mp4`+"\n"+
+		``+prefix+`_audio1_seg1.mp4`+"\n"+
 		`#EXT-X-PROGRAM-DATE-TIME:2010-01-01T01:01:01Z`+"\n"+
 		`#EXTINF:2.00000,`+"\n"+
-		``+m.prefix+`_audio1_seg2.mp4`+"\n"+
+		``+prefix+`_audio1_seg2.mp4`+"\n"+
 		`#EXT-X-PROGRAM-DATE-TIME:2010-01-01T01:01:01Z`+"\n"+
 		`#EXTINF:2.00000,`+"\n"+
-		``+m.prefix+`_audio1_seg3.mp4`+"\n",
+		``+prefix+`_audio1_seg3.mp4`+"\n",
 		string(byts))
 
-	byts, _, err = doRequest(m, m.prefix+"_audio1_seg1.mp4")
+	byts, _, err = doRequest(m, prefix+"_audio1_seg1.mp4")
 	require.NoError(t, err)
 
 	var parts fmp4.Parts
@@ -2483,11 +2462,11 @@ func TestMuxerFMP4NegativeDTSDiff(t *testing.T) {
 }
 
 func TestMuxerFMP4SequenceNumber(t *testing.T) {
-	m := &Muxer{
-		Variant:            MuxerVariantLowLatency,
+	m := &gohlslib.Muxer{
+		Variant:            gohlslib.MuxerVariantLowLatency,
 		SegmentCount:       7,
 		SegmentMinDuration: 2 * time.Second,
-		Tracks:             []*Track{testVideoTrack},
+		Tracks:             []*gohlslib.Track{testVideoTrack},
 	}
 
 	err := m.Start()
@@ -2582,18 +2561,18 @@ func TestMuxerInvalidFolder(t *testing.T) {
 		"fmp4",
 	} {
 		t.Run(ca, func(t *testing.T) {
-			var v MuxerVariant
+			var v gohlslib.MuxerVariant
 			if ca == "mpegts" {
-				v = MuxerVariantMPEGTS
+				v = gohlslib.MuxerVariantMPEGTS
 			} else {
-				v = MuxerVariantFMP4
+				v = gohlslib.MuxerVariantFMP4
 			}
 
-			m := &Muxer{
+			m := &gohlslib.Muxer{
 				Variant:            v,
 				SegmentCount:       7,
 				SegmentMinDuration: 1 * time.Second,
-				Tracks:             []*Track{testVideoTrack},
+				Tracks:             []*gohlslib.Track{testVideoTrack},
 				Directory:          "/nonexisting",
 			}
 
@@ -2621,11 +2600,11 @@ func TestMuxerInvalidFolder(t *testing.T) {
 }
 
 func TestMuxerExpiredSegment(t *testing.T) {
-	m := &Muxer{
-		Variant:            MuxerVariantLowLatency,
+	m := &gohlslib.Muxer{
+		Variant:            gohlslib.MuxerVariantLowLatency,
 		SegmentCount:       7,
 		SegmentMinDuration: 1 * time.Second,
-		Tracks:             []*Track{testVideoTrack},
+		Tracks:             []*gohlslib.Track{testVideoTrack},
 	}
 
 	err := m.Start()
@@ -2673,11 +2652,11 @@ func TestMuxerExpiredSegment(t *testing.T) {
 }
 
 func TestMuxerDeltaUpdate(t *testing.T) {
-	m := &Muxer{
-		Variant:            MuxerVariantLowLatency,
+	m := &gohlslib.Muxer{
+		Variant:            gohlslib.MuxerVariantLowLatency,
 		SegmentCount:       7,
 		SegmentMinDuration: 1 * time.Second,
-		Tracks:             []*Track{testVideoTrack},
+		Tracks:             []*gohlslib.Track{testVideoTrack},
 	}
 
 	err := m.Start()
@@ -2724,11 +2703,11 @@ func TestMuxerDeltaUpdate(t *testing.T) {
 }
 
 func TestMuxerPreloadHint(t *testing.T) {
-	m := &Muxer{
-		Variant:            MuxerVariantLowLatency,
+	m := &gohlslib.Muxer{
+		Variant:            gohlslib.MuxerVariantLowLatency,
 		SegmentCount:       7,
 		SegmentMinDuration: 1 * time.Second,
-		Tracks:             []*Track{testVideoTrack},
+		Tracks:             []*gohlslib.Track{testVideoTrack},
 	}
 
 	err := m.Start()
