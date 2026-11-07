@@ -2,6 +2,7 @@ package gohlslib
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -119,6 +120,7 @@ func getRenditionsByGroup(
 type clientPrimaryDownloaderClient interface {
 	setTracks([]*Track) (map[*Track]*clientTrack, error)
 	setTimeConv(ts clientTimeConv)
+	hasTimeConv() bool
 	waitTimeConv(errGroupCtx context.Context) (clientTimeConv, bool)
 }
 
@@ -153,6 +155,9 @@ func (d *clientPrimaryDownloader) run(errGroupCtx context.Context) error {
 	d.primaryPlaylistURL = finalURL
 
 	var streams []*clientStreamDownloader
+	chProcessorError := make(chan error)
+	streamCtx, stopStreams := context.WithCancel(errGroupCtx)
+	defer stopStreams()
 
 	switch plt := pl.(type) {
 	case *playlist.Media:
@@ -169,12 +174,13 @@ func (d *clientPrimaryDownloader) run(errGroupCtx context.Context) error {
 			playlistURL:              finalURL,
 			firstPlaylist:            plt,
 			errGroup:                 d.errGroup,
+			chProcessorError:         chProcessorError,
 			client:                   d.client,
 		}
 		stream.initialize()
 
 		d.errGroup.Go(func() error {
-			return stream.run(errGroupCtx)
+			return stream.run(errGroupCtx, streamCtx)
 		})
 
 		streams = append(streams, stream)
@@ -204,12 +210,13 @@ func (d *clientPrimaryDownloader) run(errGroupCtx context.Context) error {
 			playlistURL:              u,
 			firstPlaylist:            nil,
 			errGroup:                 d.errGroup,
+			chProcessorError:         chProcessorError,
 			client:                   d.client,
 		}
 		stream.initialize()
 
 		d.errGroup.Go(func() error {
-			return stream.run(errGroupCtx)
+			return stream.run(errGroupCtx, streamCtx)
 		})
 
 		streams = append(streams, stream)
@@ -245,12 +252,13 @@ func (d *clientPrimaryDownloader) run(errGroupCtx context.Context) error {
 						playlistURL:              u,
 						rendition:                pl,
 						errGroup:                 d.errGroup,
+						chProcessorError:         chProcessorError,
 						client:                   d.client,
 					}
 					renditionStream.initialize()
 
 					d.errGroup.Go(func() error {
-						return renditionStream.run(errGroupCtx)
+						return renditionStream.run(errGroupCtx, streamCtx)
 					})
 
 					streams = append(streams, renditionStream)
@@ -291,13 +299,28 @@ func (d *clientPrimaryDownloader) run(errGroupCtx context.Context) error {
 		}
 	}
 
-	for _, stream := range streams {
+	var firstErr error
+
+	for range streams {
 		select {
-		case err = <-stream.chProcessorError:
+		case err = <-chProcessorError:
+			// when a stream fails, stop the other streams,
+			// then wait for them to return their remaining units.
+			if !errors.Is(err, ErrClientEOS) && firstErr == nil {
+				// without a time converter, renditions can't return any unit.
+				if !d.client.hasTimeConv() {
+					return err
+				}
+				firstErr = err
+				stopStreams()
+			}
 		case <-errGroupCtx.Done():
 			return fmt.Errorf("terminated")
 		}
 	}
 
-	return err
+	if firstErr != nil {
+		return firstErr
+	}
+	return ErrClientEOS
 }

@@ -349,6 +349,15 @@ func (c *Client) setTimeConv(ts clientTimeConv) {
 	close(c.timeConvReady)
 }
 
+func (c *Client) hasTimeConv() bool {
+	select {
+	case <-c.timeConvReady:
+		return true
+	default:
+		return false
+	}
+}
+
 func (c *Client) waitTimeConv(errGroupCtx context.Context) (clientTimeConv, bool) {
 	select {
 	case <-c.timeConvReady:

@@ -88,14 +88,14 @@ type clientStreamDownloader struct {
 	rendition                *playlist.MultivariantRendition
 	firstPlaylist            *playlist.Media
 	errGroup                 *errgroup.Group
+	chProcessorError         chan error
 	client                   clientStreamDownloaderClient
 
 	segmentQueue *clientSegmentQueue
 	curSegmentID *int
 
 	// out
-	chTracks         chan []*Track
-	chProcessorError chan error
+	chTracks chan []*Track
 
 	// in
 	chStartStreaming chan map[*Track]*clientTrack
@@ -103,11 +103,10 @@ type clientStreamDownloader struct {
 
 func (d *clientStreamDownloader) initialize() {
 	d.chTracks = make(chan []*Track)
-	d.chProcessorError = make(chan error)
 	d.chStartStreaming = make(chan map[*Track]*clientTrack)
 }
 
-func (d *clientStreamDownloader) run(errGroupCtx context.Context) error {
+func (d *clientStreamDownloader) run(errGroupCtx, streamCtx context.Context) error {
 	if d.firstPlaylist == nil {
 		var err error
 		d.firstPlaylist, err = d.downloadPlaylist(errGroupCtx, false)
@@ -165,9 +164,9 @@ func (d *clientStreamDownloader) run(errGroupCtx context.Context) error {
 	if d.firstPlaylist.ServerControl != nil &&
 		d.firstPlaylist.ServerControl.CanBlockReload &&
 		d.firstPlaylist.PreloadHint != nil {
-		err = d.runLowLatency(errGroupCtx)
+		err = d.runLowLatency(streamCtx)
 	} else {
-		err = d.runTraditional(errGroupCtx)
+		err = d.runTraditional(streamCtx)
 	}
 
 	d.segmentQueue.push(&segmentData{

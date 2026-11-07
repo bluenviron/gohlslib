@@ -329,3 +329,57 @@ func TestClientLifecycleStaggeredRenditionEOS(t *testing.T) {
 	require.Empty(t, englishData)
 	require.Empty(t, spanishData)
 }
+
+func TestClientLifecycleRenditionError(t *testing.T) {
+	for _, name := range []string{"leading", "rendition"} {
+		t.Run(name, func(t *testing.T) {
+			videoInit, videoSegment := clientLifecycleMedia(t, true, [][]byte{{5, 1}})
+			audioInit, audioSegment := clientLifecycleMedia(t, false, [][]byte{{1}})
+			media := map[string][]byte{
+				"/index.m3u8": []byte("#EXTM3U\n" +
+					"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aac\",NAME=\"English\",DEFAULT=YES,URI=\"audio.m3u8\"\n" +
+					"#EXT-X-STREAM-INF:BANDWIDTH=7680000,CODECS=\"avc1.42c028,mp4a.40.2\",AUDIO=\"aac\"\n" +
+					"video.m3u8\n"),
+				"/video.m3u8":     []byte(clientLifecyclePlaylist("video")),
+				"/audio.m3u8":     []byte(clientLifecyclePlaylist("audio")),
+				"/video_init.mp4": videoInit,
+				"/audio_init.mp4": audioInit,
+				"/video.mp4":      videoSegment,
+				"/audio.mp4":      audioSegment,
+			}
+
+			failedPath, blockedPath := "/audio.mp4", "/video.mp4"
+			if name == "leading" {
+				failedPath, blockedPath = blockedPath, failedPath
+			}
+			delete(media, failedPath)
+
+			requested := make(chan struct{})
+			canceled := make(chan struct{})
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == blockedPath {
+					// keep the other stream busy until the client stops.
+					close(requested)
+					<-r.Context().Done()
+					close(canceled)
+					return
+				}
+				if body, ok := media[r.URL.Path]; ok {
+					_, _ = w.Write(body)
+				} else {
+					w.WriteHeader(http.StatusNotFound)
+				}
+			}))
+			t.Cleanup(server.Close)
+
+			c := &gohlslib.Client{URI: server.URL + "/index.m3u8"}
+			require.NoError(t, c.Start())
+			t.Cleanup(func() { clientLifecycleClose(t, c) })
+			done := clientLifecycleWait(c)
+
+			clientLifecycleReceive(t, requested, "blocked HTTP request")
+			require.EqualError(t, clientLifecycleReceive(t, done, "Wait2"), "bad status code: 404")
+			clientLifecycleReceive(t, canceled, "HTTP request cancellation")
+		})
+	}
+}
