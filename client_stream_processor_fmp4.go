@@ -45,15 +45,13 @@ func findTimeScaleOfLeadingTrack(tracks []*fmp4.InitTrack, leadingTrackID int) u
 }
 
 type clientStreamProcessorFMP4 struct {
-	errGroupCtx      context.Context
-	isLeading        bool
-	rendition        *playlist.MultivariantRendition
-	initFile         []byte
-	segmentQueue     *clientSegmentQueue
-	errGroup         *errgroup.Group
-	setTracks        func(errGroupCtx context.Context, tracks []*Track) ([]*clientTrack, bool)
-	onProcessorError func(errGroupCtx context.Context, err error)
-	client           clientStreamDownloaderClient
+	errGroupCtx  context.Context
+	isLeading    bool
+	rendition    *playlist.MultivariantRendition
+	initFile     []byte
+	segmentQueue *clientSegmentQueue
+	errGroup     *errgroup.Group
+	parent       clientStreamProcessorParent
 
 	init               fmp4.Init
 	leadingTrackID     int
@@ -110,7 +108,7 @@ func (p *clientStreamProcessorFMP4) run(errGroupCtx context.Context) error {
 	}
 
 	var ok bool
-	p.clientStreamTracks, ok = p.setTracks(p.errGroupCtx, tracks)
+	p.clientStreamTracks, ok = p.parent.setTracks(p.errGroupCtx, tracks)
 	if !ok {
 		return fmt.Errorf("terminated")
 	}
@@ -123,7 +121,7 @@ func (p *clientStreamProcessorFMP4) run(errGroupCtx context.Context) error {
 		}
 
 		if seg.err != nil {
-			p.onProcessorError(errGroupCtx, seg.err)
+			p.parent.onProcessorError(errGroupCtx, seg.err)
 			<-errGroupCtx.Done()
 			return fmt.Errorf("terminated")
 		}
@@ -241,9 +239,9 @@ func (p *clientStreamProcessorFMP4) initializeTimeConv(
 		}
 		p.timeConv.initialize()
 
-		p.client.setTimeConv(p.timeConv)
+		p.parent.setTimeConv(p.timeConv)
 	} else {
-		tmp, ok := p.client.waitTimeConv(errGroupCtx)
+		tmp, ok := p.parent.waitTimeConv(errGroupCtx)
 		if !ok {
 			return fmt.Errorf("terminated")
 		}

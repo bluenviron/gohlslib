@@ -69,7 +69,8 @@ func dateTimeOfPreloadHint(pl *playlist.Media) *time.Time {
 	return &d
 }
 
-type clientStreamDownloaderClient interface {
+type clientStreamDownloaderParent interface {
+	onProcessorError(errGroupCtx context.Context, err error)
 	setTimeConv(ts clientTimeConv)
 	waitTimeConv(errGroupCtx context.Context) (clientTimeConv, bool)
 }
@@ -88,8 +89,7 @@ type clientStreamDownloader struct {
 	rendition                *playlist.MultivariantRendition
 	firstPlaylist            *playlist.Media
 	errGroup                 *errgroup.Group
-	client                   clientStreamDownloaderClient
-	onProcessorError         func(errGroupCtx context.Context, err error)
+	parent                   clientStreamDownloaderParent
 
 	segmentQueue *clientSegmentQueue
 	curSegmentID *int
@@ -129,15 +129,13 @@ func (d *clientStreamDownloader) run(errGroupCtx context.Context) error {
 		}
 
 		proc := &clientStreamProcessorFMP4{
-			errGroupCtx:      errGroupCtx,
-			isLeading:        d.isLeading,
-			rendition:        d.rendition,
-			initFile:         initFile,
-			segmentQueue:     d.segmentQueue,
-			errGroup:         d.errGroup,
-			setTracks:        d.setTracks,
-			onProcessorError: d.onProcessorError,
-			client:           d.client,
+			errGroupCtx:  errGroupCtx,
+			isLeading:    d.isLeading,
+			rendition:    d.rendition,
+			initFile:     initFile,
+			segmentQueue: d.segmentQueue,
+			errGroup:     d.errGroup,
+			parent:       d,
 		}
 		proc.initialize()
 
@@ -146,13 +144,11 @@ func (d *clientStreamDownloader) run(errGroupCtx context.Context) error {
 		})
 	} else {
 		proc := &clientStreamProcessorMPEGTS{
-			onDecodeError:    d.onDecodeError,
-			isLeading:        d.isLeading,
-			segmentQueue:     d.segmentQueue,
-			errGroup:         d.errGroup,
-			setTracks:        d.setTracks,
-			onProcessorError: d.onProcessorError,
-			client:           d.client,
+			onDecodeError: d.onDecodeError,
+			isLeading:     d.isLeading,
+			segmentQueue:  d.segmentQueue,
+			errGroup:      d.errGroup,
+			parent:        d,
 		}
 		proc.initialize()
 
@@ -412,6 +408,18 @@ func (d *clientStreamDownloader) startStreaming(
 	case <-errGroupCtx.Done():
 		return false
 	}
+}
+
+func (d *clientStreamDownloader) onProcessorError(errGroupCtx context.Context, err error) {
+	d.parent.onProcessorError(errGroupCtx, err)
+}
+
+func (d *clientStreamDownloader) setTimeConv(ts clientTimeConv) {
+	d.parent.setTimeConv(ts)
+}
+
+func (d *clientStreamDownloader) waitTimeConv(errGroupCtx context.Context) (clientTimeConv, bool) {
+	return d.parent.waitTimeConv(errGroupCtx)
 }
 
 func (d *clientStreamDownloader) setTracks(errGroupCtx context.Context, tracks []*Track) ([]*clientTrack, bool) {

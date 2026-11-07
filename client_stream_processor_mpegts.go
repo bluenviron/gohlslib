@@ -42,13 +42,11 @@ func (r *switchableReader) Read(p []byte) (int, error) {
 }
 
 type clientStreamProcessorMPEGTS struct {
-	onDecodeError    ClientOnDecodeErrorFunc
-	isLeading        bool
-	segmentQueue     *clientSegmentQueue
-	errGroup         *errgroup.Group
-	setTracks        func(errGroupCtx context.Context, tracks []*Track) ([]*clientTrack, bool)
-	onProcessorError func(errGroupCtx context.Context, err error)
-	client           clientStreamDownloaderClient
+	onDecodeError ClientOnDecodeErrorFunc
+	isLeading     bool
+	segmentQueue  *clientSegmentQueue
+	errGroup      *errgroup.Group
+	parent        clientStreamProcessorParent
 
 	switchableReader  *switchableReader
 	reader            *mpegts.Reader
@@ -75,7 +73,7 @@ func (p *clientStreamProcessorMPEGTS) run(errGroupCtx context.Context) error {
 		}
 
 		if seg.err != nil {
-			p.onProcessorError(errGroupCtx, seg.err)
+			p.parent.onProcessorError(errGroupCtx, seg.err)
 			<-errGroupCtx.Done()
 			return fmt.Errorf("terminated")
 		}
@@ -186,7 +184,7 @@ func (p *clientStreamProcessorMPEGTS) initializeReader(errGroupCtx context.Conte
 	}
 
 	var ok bool
-	p.streamTracks, ok = p.setTracks(errGroupCtx, tracks)
+	p.streamTracks, ok = p.parent.setTracks(errGroupCtx, tracks)
 	if !ok {
 		return fmt.Errorf("terminated")
 	}
@@ -327,9 +325,9 @@ func (p *clientStreamProcessorMPEGTS) initializeTimeConv(errGroupCtx context.Con
 		}
 		p.timeConv.initialize()
 
-		p.client.setTimeConv(p.timeConv)
+		p.parent.setTimeConv(p.timeConv)
 	} else {
-		tmp, ok := p.client.waitTimeConv(errGroupCtx)
+		tmp, ok := p.parent.waitTimeConv(errGroupCtx)
 		if !ok {
 			return fmt.Errorf("terminated")
 		}
