@@ -1,12 +1,14 @@
-package gohlslib
+package gohlslib_test
 
 import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"strconv"
@@ -26,6 +28,7 @@ import (
 	tscodecs "github.com/bluenviron/mediacommon/v2/pkg/formats/mpegts/codecs"
 	"github.com/stretchr/testify/require"
 
+	"github.com/bluenviron/gohlslib/v2"
 	"github.com/bluenviron/gohlslib/v2/pkg/codecs"
 )
 
@@ -1018,14 +1021,14 @@ func TestClient(t *testing.T) {
 						}
 						defer tr.CloseIdleConnections()
 
-						var c *Client
-						c = &Client{
+						var c *gohlslib.Client
+						c = &gohlslib.Client{
 							URI:        prefix + "://localhost:5780/index.m3u8",
 							HTTPClient: &http.Client{Transport: tr},
 							OnRequest: func(r *http.Request) {
 								r.Header.Set(testHeaderKey, testHeaderValue)
 							},
-							OnTracks: func(tracks []*Track) error {
+							OnTracks: func(tracks []*gohlslib.Track) error {
 								var sps []byte
 								var pps []byte
 								if variant != "mpegts" {
@@ -1042,7 +1045,7 @@ func TestClient(t *testing.T) {
 
 								switch content {
 								case "video+audio":
-									require.Equal(t, []*Track{
+									require.Equal(t, []*gohlslib.Track{
 										{
 											Codec: &codecs.H264{
 												SPS: sps,
@@ -1077,7 +1080,7 @@ func TestClient(t *testing.T) {
 									}, tracks)
 
 								case "video+multiaudio":
-									require.Equal(t, []*Track{
+									require.Equal(t, []*gohlslib.Track{
 										{
 											Codec: &codecs.H264{
 												SPS: sps,
@@ -1208,7 +1211,7 @@ func TestClient(t *testing.T) {
 
 						if mode == "vod" {
 							err = c.Wait2()
-							require.Equal(t, ErrClientEOS, err)
+							require.Equal(t, gohlslib.ErrClientEOS, err)
 						}
 
 						c.Close()
@@ -1477,14 +1480,14 @@ func TestClientCodecs(t *testing.T) {
 			defer tr.CloseIdleConnections()
 
 			recv := make(chan struct{})
-			var c *Client
+			var c *gohlslib.Client
 
-			c = &Client{
+			c = &gohlslib.Client{
 				URI: "http://localhost:5780/index.m3u8",
-				OnTracks: func(tracks []*Track) error {
+				OnTracks: func(tracks []*gohlslib.Track) error {
 					switch ca {
 					case "h264":
-						require.Equal(t, []*Track{{
+						require.Equal(t, []*gohlslib.Track{{
 							Codec:     &codecs.H264{SPS: testH264SPS, PPS: testH264PPS},
 							ClockRate: 90000,
 						}}, tracks)
@@ -1493,7 +1496,7 @@ func TestClientCodecs(t *testing.T) {
 						})
 
 					case "h265":
-						require.Equal(t, []*Track{{
+						require.Equal(t, []*gohlslib.Track{{
 							Codec:     &codecs.H265{VPS: testH265VPS, SPS: testH265SPS, PPS: testH265PPS},
 							ClockRate: 90000,
 						}}, tracks)
@@ -1502,7 +1505,7 @@ func TestClientCodecs(t *testing.T) {
 						})
 
 					case "av1":
-						require.Equal(t, []*Track{{
+						require.Equal(t, []*gohlslib.Track{{
 							Codec:     &codecs.AV1{SequenceHeader: testAV1SequenceHeader},
 							ClockRate: 90000,
 						}}, tracks)
@@ -1511,7 +1514,7 @@ func TestClientCodecs(t *testing.T) {
 						})
 
 					case "vp9":
-						require.Equal(t, []*Track{{
+						require.Equal(t, []*gohlslib.Track{{
 							Codec: &codecs.VP9{
 								Width:             1920,
 								Height:            804,
@@ -1527,7 +1530,7 @@ func TestClientCodecs(t *testing.T) {
 						})
 
 					case "mpeg4audio":
-						require.Equal(t, []*Track{{
+						require.Equal(t, []*gohlslib.Track{{
 							Codec:     &codecs.MPEG4Audio{Config: testAACConfig},
 							ClockRate: 44100,
 						}}, tracks)
@@ -1536,7 +1539,7 @@ func TestClientCodecs(t *testing.T) {
 						})
 
 					case "opus":
-						require.Equal(t, []*Track{{
+						require.Equal(t, []*gohlslib.Track{{
 							Codec:     &codecs.Opus{ChannelCount: 2},
 							ClockRate: 48000,
 						}}, tracks)
@@ -1545,7 +1548,7 @@ func TestClientCodecs(t *testing.T) {
 						})
 
 					case "flac":
-						require.Equal(t, []*Track{{
+						require.Equal(t, []*gohlslib.Track{{
 							Codec: &codecs.FLAC{StreamInfo: &flac.StreamInfo{
 								MinBlockSize: 4096,
 								MaxBlockSize: 4096,
@@ -1634,10 +1637,10 @@ func TestClientKLVMPEGTS(t *testing.T) {
 
 	recv := make(chan struct{})
 
-	var c *Client
-	c = &Client{
+	var c *gohlslib.Client
+	c = &gohlslib.Client{
 		URI: "http://localhost:5780/stream.m3u8",
-		OnTracks: func(tracks []*Track) error {
+		OnTracks: func(tracks []*gohlslib.Track) error {
 			require.Equal(t, 2, len(tracks))
 			require.Equal(t, &codecs.H264{}, tracks[0].Codec)
 			require.Equal(t, &codecs.KLV{Synchronous: false}, tracks[1].Codec)
@@ -1722,10 +1725,10 @@ func TestClientKLVSynchronousMPEGTS(t *testing.T) {
 
 	recv := make(chan struct{})
 
-	var c *Client
-	c = &Client{
+	var c *gohlslib.Client
+	c = &gohlslib.Client{
 		URI: "http://localhost:5780/stream.m3u8",
-		OnTracks: func(tracks []*Track) error {
+		OnTracks: func(tracks []*gohlslib.Track) error {
 			require.Equal(t, 2, len(tracks))
 			require.Equal(t, &codecs.KLV{Synchronous: true}, tracks[1].Codec)
 
@@ -1799,10 +1802,10 @@ func TestClientSleepInCallbackMPEGTS(t *testing.T) {
 
 	recv := make(chan struct{})
 
-	var c *Client
-	c = &Client{
+	var c *gohlslib.Client
+	c = &gohlslib.Client{
 		URI: "http://localhost:5780/stream.m3u8",
-		OnTracks: func(tracks []*Track) error {
+		OnTracks: func(tracks []*gohlslib.Track) error {
 			c.OnDataH26x(tracks[0], func(_, _ int64, _ [][]byte) {
 				time.Sleep(100 * time.Millisecond)
 				select {
@@ -1920,12 +1923,12 @@ func TestClientSkipUnsupportedTracks(t *testing.T) {
 
 	recv := make(chan struct{})
 
-	var c *Client
-	c = &Client{
+	var c *gohlslib.Client
+	c = &gohlslib.Client{
 		URI:        "http://localhost:5780/stream.m3u8",
 		HTTPClient: &http.Client{Transport: tr},
-		OnTracks: func(tracks []*Track) error {
-			require.Equal(t, []*Track{{
+		OnTracks: func(tracks []*gohlslib.Track) error {
+			require.Equal(t, []*gohlslib.Track{{
 				Codec:     &codecs.H264{},
 				ClockRate: 90000,
 			}}, tracks)
@@ -2107,7 +2110,7 @@ func TestClientErrors(t *testing.T) {
 			tr := &http.Transport{}
 			defer tr.CloseIdleConnections()
 
-			c := &Client{
+			c := &gohlslib.Client{
 				URI:        "http://localhost:5780/index.m3u8",
 				HTTPClient: &http.Client{Transport: tr},
 			}
@@ -2201,11 +2204,11 @@ func TestClientVODWithoutPlaylistType(t *testing.T) {
 	tr := &http.Transport{}
 	defer tr.CloseIdleConnections()
 
-	var c *Client
-	c = &Client{
+	var c *gohlslib.Client
+	c = &gohlslib.Client{
 		URI:        "http://localhost:5780/index.m3u8",
 		HTTPClient: &http.Client{Transport: tr},
-		OnTracks: func(tracks []*Track) error {
+		OnTracks: func(tracks []*gohlslib.Track) error {
 			c.OnDataH26x(tracks[0], func(_ int64, _ int64, au [][]byte) {
 				require.Equal(t, []byte{7, 1, 2, 3}, au[0])
 				close(videoRecv)
@@ -2285,11 +2288,11 @@ func TestClientByteRange(t *testing.T) {
 	tr := &http.Transport{}
 	defer tr.CloseIdleConnections()
 
-	var c *Client
-	c = &Client{
+	var c *gohlslib.Client
+	c = &gohlslib.Client{
 		URI:        "http://localhost:5780/index.m3u8",
 		HTTPClient: &http.Client{Transport: tr},
-		OnTracks: func(tracks []*Track) error {
+		OnTracks: func(tracks []*gohlslib.Track) error {
 			c.OnDataH26x(tracks[0], func(_ int64, dts int64, au [][]byte) {
 				switch videoCount {
 				case 0:
@@ -2390,7 +2393,7 @@ func TestClientCookie(t *testing.T) {
 	go httpServ.Serve(ln)
 	defer httpServ.Shutdown(context.Background())
 
-	c := &Client{
+	c := &gohlslib.Client{
 		URI:        "http://localhost:5780/index.m3u8",
 		HTTPClient: nil,
 	}
@@ -2497,11 +2500,11 @@ func TestClientRedirect(t *testing.T) {
 
 			videoRecv := make(chan struct{})
 
-			var c *Client
-			c = &Client{
+			var c *gohlslib.Client
+			c = &gohlslib.Client{
 				URI:        "http://localhost:5780/index.m3u8",
 				HTTPClient: &http.Client{Transport: tr},
-				OnTracks: func(tracks []*Track) error {
+				OnTracks: func(tracks []*gohlslib.Track) error {
 					c.OnDataH26x(tracks[0], func(_ int64, _ int64, _ [][]byte) {
 						select {
 						case <-videoRecv:
@@ -2519,12 +2522,433 @@ func TestClientRedirect(t *testing.T) {
 
 			<-videoRecv
 
-			require.Equal(t, ErrClientEOS, c.Wait2())
+			require.Equal(t, gohlslib.ErrClientEOS, c.Wait2())
 
 			require.LessOrEqual(t, originalCount.Load(), int32(1),
 				"original URL must not be called more than once")
 			require.GreaterOrEqual(t, redirectedCount.Load(), int32(2),
 				"redirected URL must be called at least twice")
+		})
+	}
+}
+
+func clientLifecycleReceive[T any](t *testing.T, ch <-chan T, description string) T {
+	t.Helper()
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
+
+	select {
+	case value := <-ch:
+		return value
+	case <-timer.C:
+		t.Fatalf("timed out waiting for %s", description)
+		var zero T
+		return zero
+	}
+}
+
+func clientLifecycleClose(t *testing.T, c *gohlslib.Client) {
+	t.Helper()
+	done := make(chan struct{})
+	go func() {
+		c.Close()
+		close(done)
+	}()
+	clientLifecycleReceive(t, done, "Close")
+}
+
+func clientLifecycleWait(c *gohlslib.Client) <-chan error {
+	done := make(chan error, 1)
+	go func() {
+		done <- c.Wait2()
+	}()
+	return done
+}
+
+func clientLifecycleAssertRunning(t *testing.T, done <-chan error) {
+	t.Helper()
+	timer := time.NewTimer(50 * time.Millisecond)
+	defer timer.Stop()
+
+	select {
+	case err := <-done:
+		t.Fatalf("Wait2 returned before all callbacks completed: %v", err)
+	case <-timer.C:
+	}
+}
+
+func clientLifecycleMedia(t *testing.T, video bool, payloads [][]byte) ([]byte, []byte) {
+	t.Helper()
+	clockRate := uint32(44100)
+	var codec mp4codecs.Codec = &mp4codecs.MPEG4Audio{
+		Config: mpeg4audio.AudioSpecificConfig{
+			Type:          2,
+			SampleRate:    44100,
+			ChannelConfig: 2,
+		},
+	}
+	if video {
+		clockRate = 90000
+		codec = &mp4codecs.H264{
+			SPS: []byte{
+				0x67, 0x42, 0xc0, 0x28, 0xd9, 0x00, 0x78, 0x02,
+				0x27, 0xe5, 0x84, 0x00, 0x00, 0x03, 0x00, 0x04,
+				0x00, 0x00, 0x03, 0x00, 0xf0, 0x3c, 0x60, 0xc9, 0x20,
+			},
+			PPS: []byte{0x01, 0x02, 0x03, 0x04},
+		}
+	}
+
+	var initBuffer seekablebuffer.Buffer
+	require.NoError(t, (&fmp4.Init{Tracks: []*fmp4.InitTrack{{
+		ID: 1, TimeScale: clockRate, Codec: codec,
+	}}}).Marshal(&initBuffer))
+
+	samples := make([]*fmp4.Sample, len(payloads))
+	for i, payload := range payloads {
+		if video {
+			var err error
+			payload, err = h264.AVCC([][]byte{payload}).Marshal()
+			require.NoError(t, err)
+		}
+		samples[i] = &fmp4.Sample{Duration: clockRate / 100, Payload: payload}
+	}
+	var segmentBuffer seekablebuffer.Buffer
+	require.NoError(t, (&fmp4.Part{Tracks: []*fmp4.PartTrack{{
+		ID: 1, Samples: samples,
+	}}}).Marshal(&segmentBuffer))
+	return initBuffer.Bytes(), segmentBuffer.Bytes()
+}
+
+func clientLifecyclePlaylist(name string) string {
+	return "#EXTM3U\n" +
+		"#EXT-X-VERSION:7\n" +
+		"#EXT-X-TARGETDURATION:1\n" +
+		"#EXT-X-PLAYLIST-TYPE:VOD\n" +
+		"#EXT-X-MAP:URI=\"" + name + "_init.mp4\"\n" +
+		"#EXTINF:1,\n" + name + ".mp4\n" +
+		"#EXT-X-ENDLIST\n"
+}
+
+func clientLifecycleBlockedServer(t *testing.T, primary bool) (string, <-chan struct{}, <-chan struct{}) {
+	t.Helper()
+	init, _ := clientLifecycleMedia(t, false, [][]byte{{1}})
+	requested := make(chan struct{})
+	canceled := make(chan struct{})
+	release := make(chan struct{})
+	blockedPath := "/segment.mp4"
+	if primary {
+		blockedPath = "/index.m3u8"
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case blockedPath:
+			// Block the response body, not just the response headers.
+			w.WriteHeader(http.StatusOK)
+			w.(http.Flusher).Flush()
+			close(requested)
+			select {
+			case <-r.Context().Done():
+				close(canceled)
+			case <-release:
+			}
+		case "/index.m3u8":
+			_, _ = io.WriteString(w, clientLifecyclePlaylist("segment"))
+		case "/segment_init.mp4":
+			_, _ = w.Write(init)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(server.Close)
+	t.Cleanup(func() { close(release) })
+	return server.URL + "/index.m3u8", requested, canceled
+}
+
+func TestClientLifecycleCloseBlockedHTTP(t *testing.T) {
+	for _, name := range []string{"primary", "descendant"} {
+		t.Run(name, func(t *testing.T) {
+			uri, requested, canceled := clientLifecycleBlockedServer(t, name == "primary")
+			tracksReady := make(chan struct{})
+			c := &gohlslib.Client{
+				URI: uri,
+				OnTracks: func(_ []*gohlslib.Track) error {
+					close(tracksReady)
+					return nil
+				},
+			}
+			require.NoError(t, c.Start())
+			t.Cleanup(func() { clientLifecycleClose(t, c) })
+			done := clientLifecycleWait(c)
+
+			clientLifecycleReceive(t, requested, "blocked HTTP request")
+			if name == "descendant" {
+				clientLifecycleReceive(t, tracksReady, "descendant track discovery")
+			}
+			clientLifecycleClose(t, c)
+			clientLifecycleReceive(t, canceled, "HTTP request cancellation")
+			require.EqualError(t, clientLifecycleReceive(t, done, "Wait2"), "terminated")
+		})
+	}
+}
+
+func TestClientLifecycleOnTracksError(t *testing.T) {
+	uri, requested, canceled := clientLifecycleBlockedServer(t, false)
+	sentinel := errors.New("OnTracks sentinel")
+	tracksReady := make(chan struct{})
+	returnError := make(chan struct{})
+	c := &gohlslib.Client{
+		URI: uri,
+		OnTracks: func(_ []*gohlslib.Track) error {
+			close(tracksReady)
+			<-returnError
+			return sentinel
+		},
+	}
+	require.NoError(t, c.Start())
+	t.Cleanup(func() { clientLifecycleClose(t, c) })
+	// Also release OnTracks if an assertion fails before returning the error.
+	released := false
+	t.Cleanup(func() {
+		if !released {
+			close(returnError)
+		}
+	})
+	done := clientLifecycleWait(c)
+
+	clientLifecycleReceive(t, tracksReady, "OnTracks")
+	clientLifecycleReceive(t, requested, "active descendant HTTP request")
+	close(returnError)
+	released = true
+	require.Same(t, sentinel, clientLifecycleReceive(t, done, "Wait2"))
+	clientLifecycleReceive(t, canceled, "descendant request cancellation")
+
+	clientLifecycleClose(t, c)
+	require.Same(t, sentinel, clientLifecycleReceive(t, clientLifecycleWait(c), "Wait2 after Close"))
+}
+
+func TestClientLifecycleStaggeredRenditionEOS(t *testing.T) {
+	videoInit, videoSegment := clientLifecycleMedia(t, true, [][]byte{{5, 1}})
+	englishInit, englishSegment := clientLifecycleMedia(t, false, [][]byte{{1}, {2}})
+	spanishInit, spanishSegment := clientLifecycleMedia(t, false, [][]byte{{3}, {4}, {5}})
+	media := map[string][]byte{
+		"/index.m3u8": []byte("#EXTM3U\n" +
+			"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aac\",NAME=\"English\",DEFAULT=YES,URI=\"english.m3u8\"\n" +
+			"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aac\",NAME=\"Spanish\",URI=\"spanish.m3u8\"\n" +
+			"#EXT-X-STREAM-INF:BANDWIDTH=7680000,CODECS=\"avc1.42c028,mp4a.40.2\",AUDIO=\"aac\"\n" +
+			"video.m3u8\n"),
+		"/video.m3u8":       []byte(clientLifecyclePlaylist("video")),
+		"/english.m3u8":     []byte(clientLifecyclePlaylist("english")),
+		"/spanish.m3u8":     []byte(clientLifecyclePlaylist("spanish")),
+		"/video_init.mp4":   videoInit,
+		"/english_init.mp4": englishInit,
+		"/spanish_init.mp4": spanishInit,
+		"/video.mp4":        videoSegment,
+		"/english.mp4":      englishSegment,
+		"/spanish.mp4":      spanishSegment,
+	}
+	spanishRequested := make(chan struct{})
+	releaseSpanish := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/spanish.mp4" {
+			close(spanishRequested)
+			select {
+			case <-releaseSpanish:
+			case <-r.Context().Done():
+				return
+			}
+		}
+		if body, ok := media[r.URL.Path]; ok {
+			_, _ = w.Write(body)
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(server.Close)
+	spanishReleased := false
+	t.Cleanup(func() {
+		if !spanishReleased {
+			close(releaseSpanish)
+		}
+	})
+
+	videoData := make(chan [][]byte, 1)
+	englishData := make(chan [][]byte, 2)
+	spanishData := make(chan [][]byte, 3)
+	finalCallback := make(chan struct{})
+	releaseCallback := make(chan struct{})
+	callbackReturned := make(chan struct{})
+	c := &gohlslib.Client{URI: server.URL + "/index.m3u8"}
+	c.OnTracks = func(tracks []*gohlslib.Track) error {
+		for _, track := range tracks {
+			switch track.Codec.(type) {
+			case *codecs.H264:
+				c.OnDataH26x(track, func(_ int64, _ int64, au [][]byte) {
+					videoData <- au
+				})
+			case *codecs.MPEG4Audio:
+				if track.Name == "English" {
+					c.OnDataMPEG4Audio(track, func(_ int64, aus [][]byte) {
+						englishData <- aus
+					})
+				} else {
+					count := 0
+					c.OnDataMPEG4Audio(track, func(_ int64, aus [][]byte) {
+						spanishData <- aus
+						count++
+						if count == 3 {
+							defer close(callbackReturned)
+							close(finalCallback)
+							<-releaseCallback
+						}
+					})
+				}
+			}
+		}
+		return nil
+	}
+	require.NoError(t, c.Start())
+	t.Cleanup(func() { clientLifecycleClose(t, c) })
+	callbackReleased := false
+	t.Cleanup(func() {
+		if !callbackReleased {
+			close(releaseCallback)
+		}
+	})
+	done := clientLifecycleWait(c)
+
+	clientLifecycleReceive(t, spanishRequested, "staggered rendition request")
+	require.Equal(t, [][]byte{{5, 1}}, clientLifecycleReceive(t, videoData, "video sample"))
+	for _, payload := range []byte{1, 2} {
+		require.Equal(t, [][]byte{{payload}}, clientLifecycleReceive(t, englishData, "English sample"))
+	}
+	clientLifecycleAssertRunning(t, done)
+	close(releaseSpanish)
+	spanishReleased = true
+
+	clientLifecycleReceive(t, finalCallback, "final Spanish callback")
+	for _, payload := range []byte{3, 4, 5} {
+		require.Equal(t, [][]byte{{payload}}, clientLifecycleReceive(t, spanishData, "Spanish sample"))
+	}
+	clientLifecycleAssertRunning(t, done)
+	close(releaseCallback)
+	callbackReleased = true
+	require.Same(t, gohlslib.ErrClientEOS, clientLifecycleReceive(t, done, "EOS after all callbacks"))
+	clientLifecycleReceive(t, callbackReturned, "final callback return")
+	require.Empty(t, videoData)
+	require.Empty(t, englishData)
+	require.Empty(t, spanishData)
+}
+
+func TestClientLifecycleRenditionErrorStopsClient(t *testing.T) {
+	for _, failing := range []string{"video", "audio"} {
+		t.Run(failing, func(t *testing.T) {
+			videoInit, _ := clientLifecycleMedia(t, true, [][]byte{{5, 1}})
+			audioInit, _ := clientLifecycleMedia(t, false, [][]byte{{1}})
+			media := map[string][]byte{
+				"/index.m3u8": []byte("#EXTM3U\n" +
+					"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aac\",NAME=\"English\",DEFAULT=YES,URI=\"audio.m3u8\"\n" +
+					"#EXT-X-STREAM-INF:BANDWIDTH=7680000,CODECS=\"avc1.42c028,mp4a.40.2\",AUDIO=\"aac\"\n" +
+					"video.m3u8\n"),
+				"/video.m3u8":     []byte(clientLifecyclePlaylist("video")),
+				"/audio.m3u8":     []byte(clientLifecyclePlaylist("audio")),
+				"/video_init.mp4": videoInit,
+				"/audio_init.mp4": audioInit,
+			}
+
+			// the healthy rendition never finishes downloading its segment,
+			// the failing one returns 404.
+			release := make(chan struct{})
+			t.Cleanup(func() { close(release) })
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/" + failing + ".mp4":
+					w.WriteHeader(http.StatusNotFound)
+				case "/video.mp4", "/audio.mp4":
+					select {
+					case <-release:
+					case <-r.Context().Done():
+					}
+				default:
+					if body, ok := media[r.URL.Path]; ok {
+						_, _ = w.Write(body)
+					} else {
+						w.WriteHeader(http.StatusNotFound)
+					}
+				}
+			}))
+			t.Cleanup(server.Close)
+
+			c := &gohlslib.Client{URI: server.URL + "/index.m3u8"}
+			c.OnTracks = func(_ []*gohlslib.Track) error { return nil }
+			require.NoError(t, c.Start())
+			t.Cleanup(func() { clientLifecycleClose(t, c) })
+
+			err := clientLifecycleReceive(t, clientLifecycleWait(c), "Wait2 after rendition error")
+			require.Error(t, err)
+			require.NotSame(t, gohlslib.ErrClientEOS, err)
+			require.Contains(t, err.Error(), "404")
+		})
+	}
+}
+
+func TestClientLifecycleErrorBeforeTracks(t *testing.T) {
+	for _, name := range []string{"muxed", "renditions"} {
+		t.Run(name, func(t *testing.T) {
+			media := map[string]string{
+				"/index.m3u8": "#EXTM3U\n" +
+					"#EXT-X-VERSION:3\n" +
+					"#EXT-X-TARGETDURATION:1\n" +
+					"#EXT-X-PLAYLIST-TYPE:VOD\n" +
+					"#EXTINF:1,\nvideo.ts\n#EXT-X-ENDLIST\n",
+			}
+			if name == "renditions" {
+				media["/index.m3u8"] = "#EXTM3U\n" +
+					"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aac\",NAME=\"English\",DEFAULT=YES,URI=\"audio.m3u8\"\n" +
+					"#EXT-X-STREAM-INF:BANDWIDTH=7680000,CODECS=\"avc1.42c028,mp4a.40.2\",AUDIO=\"aac\"\n" +
+					"video.m3u8\n"
+				media["/video.m3u8"] = "#EXTM3U\n" +
+					"#EXT-X-VERSION:3\n" +
+					"#EXT-X-TARGETDURATION:1\n" +
+					"#EXT-X-PLAYLIST-TYPE:VOD\n" +
+					"#EXTINF:1,\nvideo.ts\n#EXT-X-ENDLIST\n"
+				media["/audio.m3u8"] = "#EXTM3U\n" +
+					"#EXT-X-VERSION:3\n" +
+					"#EXT-X-TARGETDURATION:1\n" +
+					"#EXT-X-PLAYLIST-TYPE:VOD\n" +
+					"#EXTINF:1,\naudio.ts\n#EXT-X-ENDLIST\n"
+			}
+
+			// the first segment of the video stream fails, the other one hangs.
+			release := make(chan struct{})
+			t.Cleanup(func() { close(release) })
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/audio.ts":
+					select {
+					case <-release:
+					case <-r.Context().Done():
+					}
+				default:
+					if body, ok := media[r.URL.Path]; ok {
+						_, _ = io.WriteString(w, body)
+					} else {
+						w.WriteHeader(http.StatusNotFound)
+					}
+				}
+			}))
+			t.Cleanup(server.Close)
+
+			c := &gohlslib.Client{URI: server.URL + "/index.m3u8"}
+			c.OnTracks = func(_ []*gohlslib.Track) error { return nil }
+			require.NoError(t, c.Start())
+			t.Cleanup(func() { clientLifecycleClose(t, c) })
+
+			err := clientLifecycleReceive(t, clientLifecycleWait(c), "Wait2 after error before tracks")
+			require.Error(t, err)
+			require.NotSame(t, gohlslib.ErrClientEOS, err)
+			require.Contains(t, err.Error(), "404")
 		})
 	}
 }
