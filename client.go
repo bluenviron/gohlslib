@@ -126,13 +126,11 @@ type Client struct {
 	ctxCancel         func()
 	playlistURL       *url.URL
 	primaryDownloader *clientPrimaryDownloader
-	timeConv          clientTimeConv
 	tracks            map[*Track]*clientTrack
 	closeError        error
 
 	// out
-	done          chan struct{}
-	timeConvReady chan struct{}
+	done chan struct{}
 }
 
 // Start starts the client.
@@ -192,7 +190,6 @@ func (c *Client) Start() error {
 	c.ctx, c.ctxCancel = context.WithCancel(context.Background())
 
 	c.done = make(chan struct{})
-	c.timeConvReady = make(chan struct{})
 
 	go c.run()
 
@@ -309,7 +306,7 @@ func (c *Client) runInner() error {
 		onDownloadSegment:         c.OnDownloadSegment,
 		onDownloadPart:            c.OnDownloadPart,
 		onDecodeError:             c.OnDecodeError,
-		client:                    c,
+		parent:                    c,
 	}
 	c.primaryDownloader.initialize()
 
@@ -335,25 +332,4 @@ func (c *Client) setTracks(tracks []*Track) (map[*Track]*clientTrack, error) {
 	}
 
 	return c.tracks, nil
-}
-
-func (c *Client) setTimeConv(ts clientTimeConv) {
-	c.timeConv = ts
-
-	startSystem := time.Now()
-
-	for _, track := range c.tracks {
-		track.startSystem = startSystem
-	}
-
-	close(c.timeConvReady)
-}
-
-func (c *Client) waitTimeConv(errGroupCtx context.Context) (clientTimeConv, bool) {
-	select {
-	case <-c.timeConvReady:
-		return c.timeConv, true
-	case <-errGroupCtx.Done():
-		return nil, false
-	}
 }

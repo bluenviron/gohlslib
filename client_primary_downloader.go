@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"golang.org/x/sync/errgroup"
 
@@ -117,10 +118,8 @@ func getRenditionsByGroup(
 	return ret
 }
 
-type clientPrimaryDownloaderClient interface {
+type clientPrimaryDownloaderParent interface {
 	setTracks([]*Track) (map[*Track]*clientTrack, error)
-	setTimeConv(ts clientTimeConv)
-	waitTimeConv(errGroupCtx context.Context) (clientTimeConv, bool)
 }
 
 type clientPrimaryDownloader struct {
@@ -135,14 +134,38 @@ type clientPrimaryDownloader struct {
 	onDownloadSegment         ClientOnDownloadSegmentFunc
 	onDownloadPart            ClientOnDownloadPartFunc
 	onDecodeError             ClientOnDecodeErrorFunc
-	client                    clientPrimaryDownloaderClient
+	parent                    clientPrimaryDownloaderParent
 
 	clientTracks     map[*Track]*clientTrack
+	timeConv         clientTimeConv
+	timeConvReady    chan struct{}
 	chProcessorError chan error
 }
 
 func (d *clientPrimaryDownloader) initialize() {
 	d.chProcessorError = make(chan error)
+	d.timeConvReady = make(chan struct{})
+}
+
+func (d *clientPrimaryDownloader) setTimeConv(ts clientTimeConv) {
+	d.timeConv = ts
+
+	startSystem := time.Now()
+
+	for _, track := range d.clientTracks {
+		track.startSystem = startSystem
+	}
+
+	close(d.timeConvReady)
+}
+
+func (d *clientPrimaryDownloader) waitTimeConv(errGroupCtx context.Context) (clientTimeConv, bool) {
+	select {
+	case <-d.timeConvReady:
+		return d.timeConv, true
+	case <-errGroupCtx.Done():
+		return nil, false
+	}
 }
 
 func (d *clientPrimaryDownloader) onProcessorError(errGroupCtx context.Context, err error) {
@@ -179,8 +202,7 @@ func (d *clientPrimaryDownloader) run(errGroupCtx context.Context) error {
 			playlistURL:              finalURL,
 			firstPlaylist:            plt,
 			errGroup:                 d.errGroup,
-			client:                   d.client,
-			onProcessorError:         d.onProcessorError,
+			parent:                   d,
 		}
 		stream.initialize()
 
@@ -215,8 +237,7 @@ func (d *clientPrimaryDownloader) run(errGroupCtx context.Context) error {
 			playlistURL:              u,
 			firstPlaylist:            nil,
 			errGroup:                 d.errGroup,
-			client:                   d.client,
-			onProcessorError:         d.onProcessorError,
+			parent:                   d,
 		}
 		stream.initialize()
 
@@ -257,8 +278,7 @@ func (d *clientPrimaryDownloader) run(errGroupCtx context.Context) error {
 						playlistURL:              u,
 						rendition:                pl,
 						errGroup:                 d.errGroup,
-						client:                   d.client,
-						onProcessorError:         d.onProcessorError,
+						parent:                   d,
 					}
 					renditionStream.initialize()
 
@@ -295,7 +315,7 @@ func (d *clientPrimaryDownloader) run(errGroupCtx context.Context) error {
 		return fmt.Errorf("no supported tracks found")
 	}
 
-	d.clientTracks, err = d.client.setTracks(tracks)
+	d.clientTracks, err = d.parent.setTracks(tracks)
 	if err != nil {
 		return err
 	}
