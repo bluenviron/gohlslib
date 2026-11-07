@@ -329,3 +329,115 @@ func TestClientLifecycleStaggeredRenditionEOS(t *testing.T) {
 	require.Empty(t, englishData)
 	require.Empty(t, spanishData)
 }
+
+func TestClientLifecycleRenditionErrorStopsClient(t *testing.T) {
+	for _, failing := range []string{"video", "audio"} {
+		t.Run(failing, func(t *testing.T) {
+			videoInit, _ := clientLifecycleMedia(t, true, [][]byte{{5, 1}})
+			audioInit, _ := clientLifecycleMedia(t, false, [][]byte{{1}})
+			media := map[string][]byte{
+				"/index.m3u8": []byte("#EXTM3U\n" +
+					"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aac\",NAME=\"English\",DEFAULT=YES,URI=\"audio.m3u8\"\n" +
+					"#EXT-X-STREAM-INF:BANDWIDTH=7680000,CODECS=\"avc1.42c028,mp4a.40.2\",AUDIO=\"aac\"\n" +
+					"video.m3u8\n"),
+				"/video.m3u8":     []byte(clientLifecyclePlaylist("video")),
+				"/audio.m3u8":     []byte(clientLifecyclePlaylist("audio")),
+				"/video_init.mp4": videoInit,
+				"/audio_init.mp4": audioInit,
+			}
+
+			// the healthy rendition never finishes downloading its segment,
+			// the failing one returns 404.
+			release := make(chan struct{})
+			t.Cleanup(func() { close(release) })
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/" + failing + ".mp4":
+					w.WriteHeader(http.StatusNotFound)
+				case "/video.mp4", "/audio.mp4":
+					select {
+					case <-release:
+					case <-r.Context().Done():
+					}
+				default:
+					if body, ok := media[r.URL.Path]; ok {
+						_, _ = w.Write(body)
+					} else {
+						w.WriteHeader(http.StatusNotFound)
+					}
+				}
+			}))
+			t.Cleanup(server.Close)
+
+			c := &gohlslib.Client{URI: server.URL + "/index.m3u8"}
+			c.OnTracks = func(_ []*gohlslib.Track) error { return nil }
+			require.NoError(t, c.Start())
+			t.Cleanup(func() { clientLifecycleClose(t, c) })
+
+			err := clientLifecycleReceive(t, clientLifecycleWait(c), "Wait2 after rendition error")
+			require.Error(t, err)
+			require.NotSame(t, gohlslib.ErrClientEOS, err)
+			require.Contains(t, err.Error(), "404")
+		})
+	}
+}
+
+func TestClientLifecycleErrorBeforeTracks(t *testing.T) {
+	for _, name := range []string{"muxed", "renditions"} {
+		t.Run(name, func(t *testing.T) {
+			media := map[string]string{
+				"/index.m3u8": "#EXTM3U\n" +
+					"#EXT-X-VERSION:3\n" +
+					"#EXT-X-TARGETDURATION:1\n" +
+					"#EXT-X-PLAYLIST-TYPE:VOD\n" +
+					"#EXTINF:1,\nvideo.ts\n#EXT-X-ENDLIST\n",
+			}
+			if name == "renditions" {
+				media["/index.m3u8"] = "#EXTM3U\n" +
+					"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aac\",NAME=\"English\",DEFAULT=YES,URI=\"audio.m3u8\"\n" +
+					"#EXT-X-STREAM-INF:BANDWIDTH=7680000,CODECS=\"avc1.42c028,mp4a.40.2\",AUDIO=\"aac\"\n" +
+					"video.m3u8\n"
+				media["/video.m3u8"] = "#EXTM3U\n" +
+					"#EXT-X-VERSION:3\n" +
+					"#EXT-X-TARGETDURATION:1\n" +
+					"#EXT-X-PLAYLIST-TYPE:VOD\n" +
+					"#EXTINF:1,\nvideo.ts\n#EXT-X-ENDLIST\n"
+				media["/audio.m3u8"] = "#EXTM3U\n" +
+					"#EXT-X-VERSION:3\n" +
+					"#EXT-X-TARGETDURATION:1\n" +
+					"#EXT-X-PLAYLIST-TYPE:VOD\n" +
+					"#EXTINF:1,\naudio.ts\n#EXT-X-ENDLIST\n"
+			}
+
+			// the first segment of the video stream fails, the other one hangs.
+			release := make(chan struct{})
+			t.Cleanup(func() { close(release) })
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/audio.ts":
+					select {
+					case <-release:
+					case <-r.Context().Done():
+					}
+				default:
+					if body, ok := media[r.URL.Path]; ok {
+						_, _ = io.WriteString(w, body)
+					} else {
+						w.WriteHeader(http.StatusNotFound)
+					}
+				}
+			}))
+			t.Cleanup(server.Close)
+
+			c := &gohlslib.Client{URI: server.URL + "/index.m3u8"}
+			c.OnTracks = func(_ []*gohlslib.Track) error { return nil }
+			require.NoError(t, c.Start())
+			t.Cleanup(func() { clientLifecycleClose(t, c) })
+
+			err := clientLifecycleReceive(t, clientLifecycleWait(c), "Wait2 after error before tracks")
+			require.Error(t, err)
+			require.NotSame(t, gohlslib.ErrClientEOS, err)
+			require.Contains(t, err.Error(), "404")
+		})
+	}
+}

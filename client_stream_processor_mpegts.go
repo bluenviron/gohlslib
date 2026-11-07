@@ -41,17 +41,13 @@ func (r *switchableReader) Read(p []byte) (int, error) {
 	return r.r.Read(p)
 }
 
-type clientStreamProcessorStreamDownloader interface {
-	setTracks(errGroupCtx context.Context, tracks []*Track) ([]*clientTrack, bool)
-	onProcessorError(errGroupCtx context.Context, err error)
-}
-
 type clientStreamProcessorMPEGTS struct {
 	onDecodeError    ClientOnDecodeErrorFunc
 	isLeading        bool
 	segmentQueue     *clientSegmentQueue
 	errGroup         *errgroup.Group
-	streamDownloader clientStreamProcessorStreamDownloader
+	setTracks        func(errGroupCtx context.Context, tracks []*Track) ([]*clientTrack, bool)
+	onProcessorError func(errGroupCtx context.Context, err error)
 	client           clientStreamDownloaderClient
 
 	switchableReader  *switchableReader
@@ -79,7 +75,7 @@ func (p *clientStreamProcessorMPEGTS) run(errGroupCtx context.Context) error {
 		}
 
 		if seg.err != nil {
-			p.streamDownloader.onProcessorError(errGroupCtx, seg.err)
+			p.onProcessorError(errGroupCtx, seg.err)
 			<-errGroupCtx.Done()
 			return fmt.Errorf("terminated")
 		}
@@ -190,7 +186,7 @@ func (p *clientStreamProcessorMPEGTS) initializeReader(errGroupCtx context.Conte
 	}
 
 	var ok bool
-	p.streamTracks, ok = p.streamDownloader.setTracks(errGroupCtx, tracks)
+	p.streamTracks, ok = p.setTracks(errGroupCtx, tracks)
 	if !ok {
 		return fmt.Errorf("terminated")
 	}

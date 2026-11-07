@@ -51,7 +51,8 @@ type clientStreamProcessorFMP4 struct {
 	initFile         []byte
 	segmentQueue     *clientSegmentQueue
 	errGroup         *errgroup.Group
-	streamDownloader clientStreamProcessorStreamDownloader
+	setTracks        func(errGroupCtx context.Context, tracks []*Track) ([]*clientTrack, bool)
+	onProcessorError func(errGroupCtx context.Context, err error)
 	client           clientStreamDownloaderClient
 
 	init               fmp4.Init
@@ -109,7 +110,7 @@ func (p *clientStreamProcessorFMP4) run(errGroupCtx context.Context) error {
 	}
 
 	var ok bool
-	p.clientStreamTracks, ok = p.streamDownloader.setTracks(p.errGroupCtx, tracks)
+	p.clientStreamTracks, ok = p.setTracks(p.errGroupCtx, tracks)
 	if !ok {
 		return fmt.Errorf("terminated")
 	}
@@ -122,7 +123,7 @@ func (p *clientStreamProcessorFMP4) run(errGroupCtx context.Context) error {
 		}
 
 		if seg.err != nil {
-			p.streamDownloader.onProcessorError(errGroupCtx, seg.err)
+			p.onProcessorError(errGroupCtx, seg.err)
 			<-errGroupCtx.Done()
 			return fmt.Errorf("terminated")
 		}

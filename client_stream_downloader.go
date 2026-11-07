@@ -89,13 +89,13 @@ type clientStreamDownloader struct {
 	firstPlaylist            *playlist.Media
 	errGroup                 *errgroup.Group
 	client                   clientStreamDownloaderClient
+	onProcessorError         func(errGroupCtx context.Context, err error)
 
 	segmentQueue *clientSegmentQueue
 	curSegmentID *int
 
 	// out
-	chTracks         chan []*Track
-	chProcessorError chan error
+	chTracks chan []*Track
 
 	// in
 	chStartStreaming chan map[*Track]*clientTrack
@@ -103,7 +103,6 @@ type clientStreamDownloader struct {
 
 func (d *clientStreamDownloader) initialize() {
 	d.chTracks = make(chan []*Track)
-	d.chProcessorError = make(chan error)
 	d.chStartStreaming = make(chan map[*Track]*clientTrack)
 }
 
@@ -136,7 +135,8 @@ func (d *clientStreamDownloader) run(errGroupCtx context.Context) error {
 			initFile:         initFile,
 			segmentQueue:     d.segmentQueue,
 			errGroup:         d.errGroup,
-			streamDownloader: d,
+			setTracks:        d.setTracks,
+			onProcessorError: d.onProcessorError,
 			client:           d.client,
 		}
 		proc.initialize()
@@ -150,7 +150,8 @@ func (d *clientStreamDownloader) run(errGroupCtx context.Context) error {
 			isLeading:        d.isLeading,
 			segmentQueue:     d.segmentQueue,
 			errGroup:         d.errGroup,
-			streamDownloader: d,
+			setTracks:        d.setTracks,
+			onProcessorError: d.onProcessorError,
 			client:           d.client,
 		}
 		proc.initialize()
@@ -401,6 +402,18 @@ func (d *clientStreamDownloader) downloadNextSegment(
 	return seg, byts, nil
 }
 
+func (d *clientStreamDownloader) startStreaming(
+	errGroupCtx context.Context,
+	allTracks map[*Track]*clientTrack,
+) bool {
+	select {
+	case d.chStartStreaming <- allTracks:
+		return true
+	case <-errGroupCtx.Done():
+		return false
+	}
+}
+
 func (d *clientStreamDownloader) setTracks(errGroupCtx context.Context, tracks []*Track) ([]*clientTrack, bool) {
 	select {
 	case d.chTracks <- tracks:
@@ -422,11 +435,4 @@ func (d *clientStreamDownloader) setTracks(errGroupCtx context.Context, tracks [
 	}
 
 	return streamTracks, true
-}
-
-func (d *clientStreamDownloader) onProcessorError(errGroupCtx context.Context, err error) {
-	select {
-	case d.chProcessorError <- err:
-	case <-errGroupCtx.Done():
-	}
 }

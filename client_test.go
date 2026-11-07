@@ -141,6 +141,14 @@ func TestClient(t *testing.T) {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			require.Equal(t, testHeaderValue, r.Header.Get(testHeaderKey))
 
+			// placeholder for segments that are never available:
+			// keep the request pending, instead of failing it,
+			// since a failed download terminates the client.
+			if r.URL.Path == "/null.mp4" {
+				<-r.Context().Done()
+				return
+			}
+
 			switch {
 			case variant == "mpegts":
 				switch {
