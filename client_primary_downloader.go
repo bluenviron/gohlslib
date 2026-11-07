@@ -2,6 +2,7 @@ package gohlslib
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -136,10 +137,19 @@ type clientPrimaryDownloader struct {
 	onDecodeError             ClientOnDecodeErrorFunc
 	client                    clientPrimaryDownloaderClient
 
-	clientTracks map[*Track]*clientTrack
+	clientTracks     map[*Track]*clientTrack
+	chProcessorError chan error
 }
 
 func (d *clientPrimaryDownloader) initialize() {
+	d.chProcessorError = make(chan error)
+}
+
+func (d *clientPrimaryDownloader) onProcessorError(errGroupCtx context.Context, err error) {
+	select {
+	case d.chProcessorError <- err:
+	case <-errGroupCtx.Done():
+	}
 }
 
 func (d *clientPrimaryDownloader) run(errGroupCtx context.Context) error {
@@ -170,6 +180,7 @@ func (d *clientPrimaryDownloader) run(errGroupCtx context.Context) error {
 			firstPlaylist:            plt,
 			errGroup:                 d.errGroup,
 			client:                   d.client,
+			onProcessorError:         d.onProcessorError,
 		}
 		stream.initialize()
 
@@ -205,6 +216,7 @@ func (d *clientPrimaryDownloader) run(errGroupCtx context.Context) error {
 			firstPlaylist:            nil,
 			errGroup:                 d.errGroup,
 			client:                   d.client,
+			onProcessorError:         d.onProcessorError,
 		}
 		stream.initialize()
 
@@ -246,6 +258,7 @@ func (d *clientPrimaryDownloader) run(errGroupCtx context.Context) error {
 						rendition:                pl,
 						errGroup:                 d.errGroup,
 						client:                   d.client,
+						onProcessorError:         d.onProcessorError,
 					}
 					renditionStream.initialize()
 
@@ -269,6 +282,10 @@ func (d *clientPrimaryDownloader) run(errGroupCtx context.Context) error {
 		case streamTracks := <-stream.chTracks:
 			tracks = append(tracks, streamTracks...)
 
+		case err = <-d.chProcessorError:
+			// a stream failed before providing its tracks
+			return err
+
 		case <-errGroupCtx.Done():
 			return fmt.Errorf("terminated")
 		}
@@ -284,20 +301,25 @@ func (d *clientPrimaryDownloader) run(errGroupCtx context.Context) error {
 	}
 
 	for _, stream := range streams {
+		ok := stream.startStreaming(errGroupCtx, d.clientTracks)
+		if !ok {
+			return fmt.Errorf("terminated")
+		}
+	}
+
+	// a real error in any stream terminates the client immediately,
+	// while the end of stream is reported only once all streams have ended.
+	for range streams {
 		select {
-		case stream.chStartStreaming <- d.clientTracks:
+		case err = <-d.chProcessorError:
+			if !errors.Is(err, ErrClientEOS) {
+				return err
+			}
+
 		case <-errGroupCtx.Done():
 			return fmt.Errorf("terminated")
 		}
 	}
 
-	for _, stream := range streams {
-		select {
-		case err = <-stream.chProcessorError:
-		case <-errGroupCtx.Done():
-			return fmt.Errorf("terminated")
-		}
-	}
-
-	return err
+	return ErrClientEOS
 }
