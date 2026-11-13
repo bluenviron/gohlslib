@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/bluenviron/mediacommon/v2/pkg/limitedreader"
+
 	"github.com/bluenviron/gohlslib/v2/pkg/playlist"
 )
 
@@ -22,7 +24,7 @@ func main() {
 	defer req.Body.Close()
 
 	// download the playlist
-	byts, err := io.ReadAll(&customLimitReader{req.Body, 1 * 1024 * 1024})
+	byts, err := io.ReadAll(&limitedreader.Reader{R: req.Body, N: 1 * 1024 * 1024})
 	if err != nil {
 		panic(err)
 	}

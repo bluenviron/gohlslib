@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/bluenviron/mediacommon/v2/pkg/limitedreader"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/bluenviron/gohlslib/v2/pkg/playlist"
@@ -296,7 +297,7 @@ func (d *clientStreamDownloader) downloadPreloadHint(
 		return nil, fmt.Errorf("bad status code: %d", res.StatusCode)
 	}
 
-	byts, err := io.ReadAll(&customLimitReader{res.Body, clientMaxInboundPartSize})
+	byts, err := io.ReadAll(&limitedreader.Reader{R: res.Body, N: clientMaxInboundPartSize})
 	if err != nil {
 		return nil, err
 	}
@@ -342,7 +343,7 @@ func (d *clientStreamDownloader) downloadSegment(
 		return nil, fmt.Errorf("bad status code: %d", res.StatusCode)
 	}
 
-	byts, err := io.ReadAll(&customLimitReader{res.Body, clientMaxInboundSegmentSize})
+	byts, err := io.ReadAll(&limitedreader.Reader{R: res.Body, N: clientMaxInboundSegmentSize})
 	if err != nil {
 		return nil, err
 	}
