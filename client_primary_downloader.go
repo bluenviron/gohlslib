@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bluenviron/mediacommon/v2/pkg/limitedreader"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/bluenviron/gohlslib/v2/pkg/playlist"
@@ -67,7 +68,7 @@ func downloadPlaylist(
 		return nil, nil, fmt.Errorf("bad status code: %d", res.StatusCode)
 	}
 
-	byts, err := io.ReadAll(&customLimitReader{res.Body, clientMaxInboundPlaylistSize})
+	byts, err := io.ReadAll(&limitedreader.Reader{R: res.Body, N: clientMaxInboundPlaylistSize})
 	if err != nil {
 		return nil, nil, err
 	}

@@ -4,13 +4,13 @@ go 1.26.0
 
 require (
 	github.com/asticode/go-astits v1.17.0
-	github.com/bluenviron/mediacommon/v2 v2.9.7
+	github.com/bluenviron/mediacommon/v2 v2.9.8-0.20261113182808-7b74aa2cfae3
 	github.com/stretchr/testify v1.12.1
 	golang.org/x/sync v0.25.0
 )
 
 require (
-	github.com/abema/go-mp4 v1.7.3 // indirect
+	github.com/abema/go-mp4 v1.7.4 // indirect
 	github.com/asticode/go-astikit v0.30.0 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
