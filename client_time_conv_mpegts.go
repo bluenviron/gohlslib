@@ -23,7 +23,7 @@ type clientTimeConvMPEGTS struct {
 func (ts *clientTimeConvMPEGTS) initialize() {
 	ts.td = &mpegts.TimeDecoder{}
 	ts.td.Initialize()
-	ts.td.Decode(ts.startDTS)
+	ts.startDTS = ts.td.Decode(ts.startDTS)
 	ts.chLeadingNTPReceived = make(chan struct{})
 }
 
@@ -31,7 +31,7 @@ func (ts *clientTimeConvMPEGTS) convert(v int64) int64 {
 	ts.mutex.Lock()
 	defer ts.mutex.Unlock()
 
-	return ts.td.Decode(v)
+	return ts.td.Decode(v) - ts.startDTS
 }
 
 func (ts *clientTimeConvMPEGTS) setNTP(value time.Time, timestamp int64) {
