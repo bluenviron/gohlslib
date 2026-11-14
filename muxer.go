@@ -656,6 +656,22 @@ func (m *Muxer) rotateSegmentsInner(
 		return err
 	}
 
+	// set part target duration once, since it cannot change afterwards
+	if m.Variant == MuxerVariantLowLatency && m.leadingStream.partTargetDuration == 0 {
+		m.leadingStream.partTargetDuration = partTargetDuration(m.leadingStream.segments,
+			m.leadingStream.nextSegment.(*muxerSegmentFMP4).parts)
+		m.segmenter.fmp4AdjustedPartDuration = m.leadingStream.partTargetDuration
+
+		// parts of the first segment were produced before the part target duration was set
+		for _, seg := range m.leadingStream.segments {
+			if seg, ok := seg.(*muxerSegmentFMP4); ok {
+				for i, part := range seg.parts {
+					m.leadingStream.checkPartDuration(part, i == len(seg.parts)-1)
+				}
+			}
+		}
+	}
+
 	for _, stream := range m.streams {
 		if !stream.isLeading {
 			err = stream.rotateSegments(nextDTS, nextNTP)
