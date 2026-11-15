@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/asticode/go-astits v1.17.0
-	github.com/bluenviron/mediacommon/v2 v2.9.8-0.20261113182808-7b74aa2cfae3
+	github.com/bluenviron/mediacommon/v2 v2.10.0
 	github.com/stretchr/testify v1.12.1
 	golang.org/x/sync v0.25.0
 )
