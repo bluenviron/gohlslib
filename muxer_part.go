@@ -42,16 +42,60 @@ func (p *muxerPart) finalize(endDTS time.Duration) error {
 		SequenceNumber: uint32(p.id),
 	}
 
+	p.isIndependent = false
+
 	for i, track := range p.streamTracks {
-		if track.fmp4Samples != nil {
+		// samples that start after the end of the part are moved into the next part
+		samples := track.fmp4Samples
+		var nextSamples []*fmp4.Sample
+		startDTS := track.fmp4StartDTS
+		dts := startDTS
+
+		if endDTS != 0 {
+			for j, sample := range samples {
+				if timestampToDuration(dts, track.ClockRate) >= endDTS {
+					nextSamples = samples[j:]
+					samples = samples[:j]
+					break
+				}
+				dts += int64(sample.Duration)
+			}
+
+			// the queued sample of a non-leading track can start before the end of the part.
+			// if its duration is known in advance, write it instead of leaving the part empty.
+			if len(samples) == 0 && !track.isLeading && track.fmp4NextSample != nil &&
+				track.fmp4NextSample.duration != 0 &&
+				timestampToDuration(track.fmp4NextSample.dts, track.ClockRate) < endDTS &&
+				(p.segment.size+uint64(len(track.fmp4NextSample.Payload))) <= p.segmentMaxSize {
+				sample := track.fmp4NextSample
+				p.segment.size += uint64(len(sample.Payload))
+				track.fmp4NextSample = nil
+				sample.Duration = uint32(sample.duration)
+				samples = []*fmp4.Sample{&sample.Sample}
+				startDTS = sample.dts
+				dts = sample.dts + int64(sample.Duration)
+			}
+		}
+
+		if len(samples) != 0 {
 			part.Tracks = append(part.Tracks, &fmp4.PartTrack{
 				ID:       1 + i,
-				BaseTime: uint64(track.fmp4StartDTS),
-				Samples:  track.fmp4Samples,
+				BaseTime: uint64(startDTS),
+				Samples:  samples,
 			})
 
-			track.fmp4Samples = nil
+			if track.isLeading || len(track.stream.tracks) == 1 {
+				for _, sample := range samples {
+					if !sample.IsNonSyncSample {
+						p.isIndependent = true
+						break
+					}
+				}
+			}
 		}
+
+		track.fmp4Samples = nextSamples
+		track.fmp4StartDTS = dts
 	}
 
 	err := part.Marshal(p.storage.Writer())
@@ -73,10 +117,6 @@ func (p *muxerPart) writeSample(track *muxerTrack, sample *fmp4AugmentedSample) 
 
 	if track.fmp4Samples == nil {
 		track.fmp4StartDTS = sample.dts
-	}
-
-	if (track.isLeading || len(track.stream.tracks) == 1) && !sample.IsNonSyncSample {
-		p.isIndependent = true
 	}
 
 	track.fmp4Samples = append(track.fmp4Samples, &sample.Sample)
