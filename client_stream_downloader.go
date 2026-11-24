@@ -94,6 +94,7 @@ type clientStreamDownloader struct {
 
 	segmentQueue *clientSegmentQueue
 	curSegmentID *int
+	keys         map[string][]byte
 
 	// out
 	chTracks chan []*Track
@@ -394,6 +395,13 @@ func (d *clientStreamDownloader) downloadNextSegment(
 		new(segmentByteRangeStart(pl.Segments, segPos)), seg.ByteRangeLength)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	if seg.Key != nil && seg.Key.Method != playlist.MediaKeyMethodNone {
+		byts, err = d.decryptSegment(errGroupCtx, seg, pl.MediaSequence+segPos, byts)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	return seg, byts, nil
